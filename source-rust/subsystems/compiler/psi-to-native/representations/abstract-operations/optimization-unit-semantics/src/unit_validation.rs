@@ -7,10 +7,6 @@ served only the native abstract-operations optimizer and is archived with it, at
 this file's path under `_recycling/`.
 */
 
-pub(crate) mod derived_metadata {
-
-    pub(crate) use crate::operation_metadata::expected_definitions;
-}
 pub(crate) mod function_structure {
     mod structural_roots {
 

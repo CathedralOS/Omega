@@ -285,21 +285,6 @@ pub struct SourceCheckedScalarReceiving {
     pub restriction: terminal_psi::StructuralFieldType,
 }
 
-impl super::PsiOptimizationUnit {
-    pub fn accepted_obligation_fact(
-        &self,
-        machine: MachineId,
-        owner: impl Into<AcceptedObligationOwner>,
-        obligation: Option<ObligationId>,
-    ) -> Option<&AcceptedObligationFact> {
-        let key = (machine, owner.into(), obligation?);
-        self.accepted_obligation_facts
-            .binary_search_by_key(&key, |fact| (fact.machine, fact.owner, fact.obligation))
-            .ok()
-            .map(|position| &self.accepted_obligation_facts[position])
-    }
-}
-
 impl AcceptedObligationFact {
     pub fn new(
         psi: TerminalPsiIdentity,

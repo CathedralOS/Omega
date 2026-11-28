@@ -288,27 +288,6 @@ impl AbstractAtomicEvent {
         }
     }
 
-    pub fn for_each_input_mut(&mut self, mut visit: impl FnMut(&mut ValueId)) {
-        match self {
-            Self::Store { value, .. } | Self::Swap { value, .. } => visit(value),
-            Self::ReadModifyWrite { operand, .. } => visit(operand),
-            Self::CompareExchange {
-                expected,
-                replacement,
-                ..
-            }
-            | Self::CompareExchangeOnce {
-                expected,
-                replacement,
-                ..
-            } => {
-                visit(expected);
-                visit(replacement);
-            }
-            Self::Load { .. } | Self::Fence { .. } => {}
-        }
-    }
-
     pub const fn location(&self) -> Option<&AbstractAtomicLocation> {
         match self {
             Self::Load { location, .. }
