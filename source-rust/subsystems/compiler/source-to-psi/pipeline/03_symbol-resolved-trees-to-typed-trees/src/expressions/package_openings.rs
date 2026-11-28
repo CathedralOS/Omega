@@ -548,6 +548,11 @@ machine use_openings(left: @mutable Reader<some A>, right: @mutable Reader) -> u
     (selected)(local.state)
 }
 "#;
+        let early = source.replace("let stored: Read<A>", "let stored: Read<B>");
+        let early = crate::try_resolve_fixture(&early).and_then(|trees| {
+            crate::lower_symbol_resolved_trees(&trees).map(|_| ()).map_err(|error| vec![error])
+        });
+        assert!(early.is_err(), "the later local cannot supply a callable's type operand");
         let p = crate::lower_symbol_resolved_trees(&crate::resolve_fixture(source)).unwrap();
         let mut actual = Vec::new();
         for (_, opening) in p.package_openings.iter() {

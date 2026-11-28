@@ -5,14 +5,94 @@ use super::top_level::{SignatureSymbolTables, assign_callable_signature_symbols}
 use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_resolved::callable_values::RuntimeCallableContractHandle;
 use crate::source_resolved::data::{TypeParameter, TypeParameterKind};
+use crate::source_resolved::types::{TypeReference, TypeReferenceArena};
 use crate::source_symbols::SymbolTable;
 use diagnostics::Diagnostic;
-use symbols::{SymbolHandle, SymbolKind};
+use std::collections::HashMap;
+use symbols::SymbolKind;
+
+/// A structural callable can contain an operand introduced by an opening at
+/// its use. Retain only symbols visible at that occurrence. Alias-owned names
+/// are still resolved by the definition-site filter in assign_signatures.
+#[derive(Default)]
+pub(super) struct CallableOpenings(HashMap<RuntimeCallableContractHandle, Vec<TypeParameter>>);
+
+impl CallableOpenings {
+    pub(super) fn of(
+        program: &SymbolResolvedTrees,
+        contracts: &[RuntimeCallableContractHandle],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let types = &program.tables.declarations.child_type_references;
+        let mut captured = Self::default();
+        if contracts.is_empty() || types.package_openings.is_empty() {
+            return Ok(captured);
+        }
+        let names: HashMap<_, _> = types
+            .package_openings
+            .iter()
+            .filter(|(_, binding)| binding.symbol.is_valid())
+            .map(|(_, binding)| (binding.symbol, binding))
+            .collect();
+        super::repeated_locals::inspect_bindings(program, &mut |reference, visible| {
+            visit_callables(types, reference, &mut |contract| {
+                let parameters = visible
+                    .iter()
+                    .filter_map(|symbol| names.get(symbol))
+                    .map(|binding| TypeParameter {
+                        symbol: binding.symbol,
+                        name: binding.name.clone(),
+                        kind: TypeParameterKind::SomeType,
+                        bounds: Default::default(),
+                    })
+                    .collect::<Vec<_>>();
+                if !parameters.is_empty() {
+                    captured.0.insert(contract, parameters);
+                }
+            });
+        })?;
+        Ok(captured)
+    }
+}
+
+fn visit_callables(
+    types: &TypeReferenceArena,
+    reference: &TypeReference,
+    visit: &mut impl FnMut(RuntimeCallableContractHandle),
+) {
+    match reference {
+        TypeReference::Callable { contract, .. } => visit(*contract),
+        TypeReference::AliasUse {
+            expansion,
+            application,
+            ..
+        } => {
+            visit_callables(types, expansion, visit);
+            visit_callables(types, application, visit);
+        }
+        TypeReference::Reference(reference) => {
+            visit_callables(types, types.get(reference.referee), visit)
+        }
+        TypeReference::FixedArray(array) => {
+            visit_callables(types, types.get(array.element_type), visit)
+        }
+        TypeReference::Slice(slice) => visit_callables(types, types.get(slice.element_type), visit),
+        TypeReference::Constrained(constrained) => {
+            visit_callables(types, types.get(constrained.base_type), visit)
+        }
+        TypeReference::Generic(reference) => {
+            for argument in types.span_or_empty(reference.arguments) {
+                visit_callables(types, argument, visit);
+            }
+        }
+        TypeReference::Named { .. } | TypeReference::Unit | TypeReference::ConstExpression(_) => {}
+    }
+}
 
 pub(super) fn assign_signatures(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     contracts: &[RuntimeCallableContractHandle],
+    openings: &CallableOpenings,
 ) -> Result<(), Vec<Diagnostic>> {
     let (_, proposition_slots, machine_identity_slots) =
         super::top_level::trait_parameter_tables(program);
@@ -24,7 +104,7 @@ pub(super) fn assign_signatures(
             .runtime_callable_contracts
             .get(handle)
             .clone();
-        let inherited = lexical_parameters(program, &captured, declaration.lexical_owner)
+        let inherited = callable_parameters(program, &captured, openings, handle)
             .map_err(|error| vec![error])?;
         let signature_symbol = declaration.signature.symbol;
         let tables = &mut program.tables;
@@ -86,12 +166,29 @@ pub(super) fn assign_signatures(
     Ok(())
 }
 
-pub(super) fn lexical_parameters(
+pub(super) fn callable_parameters(
     program: &SymbolResolvedTrees,
     captured: &DeclarationTypeScopes,
-    mut owner: SymbolHandle,
+    openings: &CallableOpenings,
+    handle: RuntimeCallableContractHandle,
 ) -> Result<Vec<TypeParameter>, Diagnostic> {
-    let mut parameters = Vec::new();
+    let owner = program
+        .tables
+        .declarations
+        .runtime_callable_contracts
+        .get(handle)
+        .lexical_owner;
+    let parameters = openings.0.get(&handle).cloned().unwrap_or_default();
+    owner_parameters(program, captured, openings, owner, parameters)
+}
+
+pub(super) fn owner_parameters(
+    program: &SymbolResolvedTrees,
+    captured: &DeclarationTypeScopes,
+    openings: &CallableOpenings,
+    mut owner: SymbolHandle,
+    mut parameters: Vec<TypeParameter>,
+) -> Result<Vec<TypeParameter>, Diagnostic> {
     let mut entered = Vec::new();
     while owner.is_valid() && owner != program.symbols.root() {
         if entered.contains(&owner) {
@@ -100,7 +197,7 @@ pub(super) fn lexical_parameters(
             ));
         }
         entered.push(owner);
-        if let Some((_, declaration)) = program
+        if let Some((enclosing, declaration)) = program
             .tables
             .declarations
             .runtime_callable_contracts
@@ -111,6 +208,9 @@ pub(super) fn lexical_parameters(
                 &parameters,
                 program.data_type_parameters(declaration.signature.type_parameters),
             );
+            if let Some(opened) = openings.0.get(&enclosing) {
+                parameters = declaration_type_scope(&parameters, opened);
+            }
             owner = declaration.lexical_owner;
             continue;
         }
