@@ -526,6 +526,55 @@ machine main() -> bool {
     first == 17u8 && second == 42u8
 }";
     let program = Program::of(source);
+    // A write through readers[0] gives no information about readers[1],
+    // even though both array elements have the same public type.
+    use terminal_psi::{StructuralPathSegment::FixedIndex, call_structural_arguments};
+    use terminal_semantics::descriptor_lifetimes::descriptor_location;
+    use terminal_semantics::descriptor_results::{
+        DescriptorAnalysis, terminal_borrowed_storage_graph_from,
+    };
+    let module = &program.elaboration().module;
+    let state = program
+        .machine("read")
+        .operations()
+        .find_map(|op| op.kind.callable_invocation()?.structural_arguments.first())
+        .unwrap();
+    let main = program.machine("main");
+    let types = &module.types.structural_types;
+    let graph = terminal_borrowed_storage_graph_from(module, [main.id], &[]).unwrap();
+    let mut references = DescriptorAnalysis::with_borrowed_storage_slots(types, &graph);
+    let mut lenders = Vec::new();
+    for block in &main.blocks {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            let Some(argument) = call_structural_arguments(&operation.kind).first() else {
+                continue;
+            };
+            let [FixedIndex(selected)] = argument.path.as_slice() else {
+                panic!("a fixed array element")
+            };
+            let root = main.structural_place_type(argument.place).unwrap();
+            for index in 0..2 {
+                let mut path = vec![FixedIndex(index)];
+                path.extend_from_slice(&state.path);
+                let location =
+                    descriptor_location(types, argument.place, root, &path, None).unwrap();
+                let origins = terminal_semantics::packages::local_call_write_origins(
+                    module,
+                    main,
+                    (block.id, ordinal.try_into().unwrap()),
+                    &mut references,
+                    &location,
+                );
+                if index == *selected {
+                    lenders.push(origins.expect("the actual argument has an exact lender"));
+                } else {
+                    assert!(origins.is_none(), "the other array element was never lent");
+                }
+            }
+        }
+    }
+    assert_eq!(lenders.len(), 2);
+    assert_ne!(lenders[0], lenders[1]);
     program.judged(|_| ()).accepted();
 }
 
