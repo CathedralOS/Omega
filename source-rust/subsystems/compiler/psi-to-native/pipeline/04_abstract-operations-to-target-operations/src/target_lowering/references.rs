@@ -192,6 +192,9 @@ pub(crate) struct ReferenceStorage {
     pub(crate) placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
+mod package_fields;
+pub(crate) use package_fields::OpenedReferenceField;
+
 pub(crate) struct ReferentProjection {
     pub(crate) carrier_type: StructuralTypeId,
     pub(crate) referent: StructuralTypeId,
@@ -1020,6 +1023,7 @@ mod copies {
         result: &StructuralOperationResult,
         source: PlaceId,
         path: &abstract_operations::StructuralCopyPath,
+        package: Option<OpenedReferenceField>,
     ) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceStorage>, LoweringError>
     {
         let mut copied = BTreeMap::new();
@@ -1041,7 +1045,8 @@ mod copies {
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
             ),
         };
-        if leaf_type(types, source_type, &path) != Some(result.structural_type)
+        let storage_type = package.map_or(result.structural_type, |field| field.storage_type);
+        if leaf_type(types, source_type, &path) != Some(storage_type)
             || live
                 .references
                 .keys()
@@ -1062,7 +1067,7 @@ mod copies {
                 &prefix,
             )
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-            if leaf_type(types, root, &prefix) != Some(result.structural_type) {
+            if leaf_type(types, root, &prefix) != Some(storage_type) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             for ((resident, path), original) in &live.references {
@@ -1075,6 +1080,12 @@ mod copies {
                 if relative.contains(&StructuralPathSegment::Referent) {
                     continue;
                 }
+                let mut original = original.clone();
+                if let Some(package) = package
+                    && (!relative.is_empty() || !package.open(&mut original))
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
                 let carrier_type = leaf_type(types, result.structural_type, relative)
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 if carrier_type != original.carrier_type
@@ -1086,7 +1097,7 @@ mod copies {
                 candidates
                     .entry(relative.to_vec())
                     .or_default()
-                    .push(original.clone());
+                    .push(original);
             }
         }
         for (relative, alternatives) in candidates {

@@ -449,6 +449,7 @@ pub(crate) mod borrowed_windows {
         operation: &Operation,
         machine: &TerminalMachine,
         structural_types: &[StructuralTypeDeclaration],
+        packages: &terminal_semantics::packages::CheckedPackageSites,
     ) -> Result<AbstractOperation, LoweringError> {
         match &operation.kind {
             OperationKind::MoveStructuralField {
@@ -466,6 +467,7 @@ pub(crate) mod borrowed_windows {
                 operation,
                 machine,
                 structural_types,
+                packages.stored_type(machine.id, operation.id),
                 *destination,
                 *disposition,
                 path,
@@ -570,6 +572,7 @@ pub(crate) mod borrowed_windows {
         operation: &Operation,
         machine: &TerminalMachine,
         structural_types: &[StructuralTypeDeclaration],
+        opened_value_type: Option<StructuralTypeId>,
         destination: PlaceId,
         disposition: terminal_psi::StructuralStoreDisposition,
         path: &[StructuralPathSegment],
@@ -625,10 +628,11 @@ pub(crate) mod borrowed_windows {
         let Some(source) = source_signature(machine, value.place) else {
             return Err(invalid("stored value has no declared source signature"));
         };
-        if source.structural_type != projection.structural_type {
+        let expected = opened_value_type.unwrap_or(projection.structural_type);
+        if source.structural_type != expected {
             return Err(invalid(&format!(
                 "stored carrier {:?} differs from window carrier {:?}",
-                source.structural_type, projection.structural_type,
+                source.structural_type, expected,
             )));
         }
         if !required
@@ -661,6 +665,7 @@ pub(crate) mod borrowed_windows {
             path: path.to_vec(),
             field,
             value: value.clone(),
+            opened_value_type,
         })
     }
 
@@ -1308,6 +1313,7 @@ pub(crate) mod structural_leaf_copy {
         machine: &TerminalMachine,
         module: &terminal_psi::TerminalModule,
         structural_types: &[StructuralTypeDeclaration],
+        packages: &terminal_semantics::packages::CheckedPackageSites,
         source: PlaceId,
         path: StructuralCopyPath,
     ) -> Result<AbstractOperation, LoweringError> {
@@ -1365,6 +1371,21 @@ pub(crate) mod structural_leaf_copy {
         }
         .ok_or_else(|| invalid("copy path does not select a readable declared leaf"))?;
         let expected_type = result.structural_type;
+        let package_storage_type =
+            if let Some(field) = packages.projected_field(machine.id, operation.id) {
+                if packages
+                    .field_type(machine.id, operation.id, field)
+                    .and_then(terminal_psi::StructuralFieldType::as_structural)
+                    != Some(expected_type)
+                {
+                    return Err(invalid(
+                        "copy result differs from its checked package projection",
+                    ));
+                }
+                Some(selected_type)
+            } else {
+                None
+            };
         let occurrence_access = match &path {
             StructuralCopyPath::Ordinary(path) if path.is_empty() => {
                 Some(signature.descriptor_access(structural_types))
@@ -1372,6 +1393,7 @@ pub(crate) mod structural_leaf_copy {
             _ => None,
         };
         if selected_type != expected_type
+            && package_storage_type.is_none()
             && !terminal_semantics::shared_descriptor_copy_matches(
                 structural_types.iter(),
                 selected_type,
@@ -1410,6 +1432,7 @@ pub(crate) mod structural_leaf_copy {
             result: result.clone(),
             source,
             path,
+            package_storage_type,
         })
     }
 
