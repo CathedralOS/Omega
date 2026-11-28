@@ -9,14 +9,14 @@ use crate::source_state::machine::Machine;
 use crate::source_state::signature::{SignatureContract, SignatureContractKind};
 use crate::source_state::type_identity::constraint_identity::{atom, compound};
 use crate::source_state::type_identity::identity_context::{
-    TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
+    SignatureElision, TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
     normalize_type_reference,
 };
 use crate::source_state::type_identity::{LifetimeParameterIdentity, NormalizedTypeIdentity};
 use application_identity::type_identity::vocabulary::Spelled;
 use diagnostics::Diagnostic;
 use language_core::sealed_intrinsics::{
-    CompilerPrimitive, PackedIntegerPrimitive, SealedIntrinsic,
+    CompilerPrimitive, NativeBorrow, PackedIntegerPrimitive, SealedIntrinsic,
 };
 use std::cell::Cell;
 use symbols::SymbolHandle;
@@ -67,14 +67,105 @@ impl TypedTrees {
                 "sealed packed arithmetic differs from its array, immediate or effect contract",
             ));
         }
-        normalized_schema(self, machine)
-            .map(|schema| Some((operation, schema)))
-            .ok_or_else(|| {
-                Diagnostic::error(
-                    "no product route yet: complete compiler primitive signature schema",
-                )
-            })
+        if let CompilerPrimitive::NativeBorrow(borrow) = operation
+            && !native_borrow_header(self, machine, borrow)
+        {
+            return Err(Diagnostic::error(
+                "sealed native borrow differs from its generic reference or unsafe reach contract",
+            ));
+        }
+        normalized_schema(
+            self,
+            machine,
+            matches!(operation, CompilerPrimitive::NativeBorrow(_)),
+        )
+        .map(|schema| Some((operation, schema)))
+        .ok_or_else(|| {
+            Diagnostic::error("no product route yet: complete compiler primitive signature schema")
+        })
     }
+}
+
+fn native_borrow_header(program: &TypedTrees, machine: &Machine, operation: NativeBorrow) -> bool {
+    use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+    use language_core::ReferenceAccess;
+    use language_core::core_vocabulary::{CoreVocabulary, UnsafeAtom};
+    let Some(entry) = public_runtime_entry(program, machine) else {
+        return false;
+    };
+    let Some([formal]) = schema_span(|s| program.state_parameters.span(s), entry.parameters)
+        .and_then(|rows| rows.as_array())
+    else {
+        return false;
+    };
+    let Some([parameter]) = schema_span(
+        |s| program.data_type_parameters.span(s),
+        machine.type_parameters,
+    )
+    .and_then(|rows| rows.as_array()) else {
+        return false;
+    };
+    if machine.termination_plan.interface
+        != source_declarations::TerminationInterface::Published(
+            source_declarations::TerminationGuarantee::NoGuarantee,
+        )
+        || !machine.lifetime_parameters.is_empty()
+        || machine.contracts != arena::HandleSpan::empty()
+        || entry.contracts != arena::HandleSpan::empty()
+        || parameter.kind != TypeParameterKind::Type
+        || parameter.bounds != Default::default()
+        || formal.is_const
+        || formal.is_mutable
+        || formal.relevance != language_core::BindingRelevance::Relevant
+    {
+        return false;
+    }
+    let table = &program.type_reference_table;
+    let reference_to_parameter = |reference: TypeReferenceHandle, expected| {
+        table.contains_type_reference(reference)
+            && matches!(table.type_reference(reference),
+            TypeReferenceNode::Reference { access, referee, lifetime: None } if *access == expected
+             && table.contains_type_reference(*referee)
+             && matches!(table.type_reference(*referee), TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol))
+    };
+    let (access, reaches): (_, &[UnsafeAtom]) = match operation {
+        NativeBorrow::SharedAt => (ReferenceAccess::Shared, &[UnsafeAtom::RawMemoryRead]),
+        NativeBorrow::MutableAt => (
+            ReferenceAccess::Mutable,
+            &[UnsafeAtom::RawMemoryRead, UnsafeAtom::RawMemoryWrite],
+        ),
+        NativeBorrow::Upgrade => (
+            ReferenceAccess::Mutable,
+            &[UnsafeAtom::BorrowMutabilityUpgrade],
+        ),
+    };
+    let services = program
+        .service_reach_rows
+        .services(machine.service_reach_row);
+    let expected = std::iter::once(CoreVocabulary::UnsafeService)
+        .chain(reaches.iter().copied().map(CoreVocabulary::UnsafeAtom));
+    !program
+        .service_reach_rows
+        .is_abstract(machine.service_reach_row)
+        && services.len() == reaches.len() + 1
+        && expected.into_iter().all(|item| {
+            services.iter().any(|id| {
+                program.service_reach_scope(*id).is_some_and(|scope| {
+                    program.core_vocabulary(scope.declaration.symbol) == Some(item)
+                })
+            })
+        })
+        && reference_to_parameter(entry.return_type, access)
+        && match operation {
+            NativeBorrow::Upgrade => {
+                reference_to_parameter(formal.type_reference, ReferenceAccess::Shared)
+            }
+            NativeBorrow::SharedAt | NativeBorrow::MutableAt => {
+                table.contains_type_reference(formal.type_reference)
+                    && matches!(table.type_reference(formal.type_reference), TypeReferenceNode::Named { symbol, .. }
+                    if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::Address))
+            }
+        }
 }
 
 // Domain facts and executable calls must use the same checked function.
@@ -158,6 +249,25 @@ fn pure_runtime_entry<'p>(
     lifetime_count: usize,
     const_count: usize,
 ) -> Option<&'p crate::source_state::state::State> {
+    let entry = public_runtime_entry(program, machine)?;
+    if machine.type_parameters.len() != const_count
+        || machine.lifetime_parameters.len() != lifetime_count
+        || (const_count == 0
+            && (machine.contracts != arena::HandleSpan::empty()
+                || entry.contracts != arena::HandleSpan::empty()))
+        || machine.service_reach_row != crate::source_tables::ServiceReachRowTable::EMPTY_ROW
+        || !matches!(&machine.termination_plan.interface, source_declarations::TerminationInterface::Published(
+            source_declarations::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
+    {
+        return None;
+    }
+    Some(entry)
+}
+
+fn public_runtime_entry<'p>(
+    program: &'p TypedTrees,
+    machine: &Machine,
+) -> Option<&'p crate::source_state::state::State> {
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     if !program.symbols.symbols().nodes().is_valid(machine.symbol)
         || program.symbols.name(machine.symbol) != machine.name.as_str()
@@ -168,28 +278,17 @@ fn pure_runtime_entry<'p>(
         || machine.admitted_same_stack_bytes != 0
         || machine.assembly_target_requirement
             != language_core::inline_assembly::AsmTargetApplicability::Any
-        || machine.type_parameters.len() != const_count
-        || machine.lifetime_parameters.len() != lifetime_count
-        || (const_count == 0 && machine.contracts != arena::HandleSpan::empty())
         || !machine.declares_no_crash_route
         || machine.suspends
         || machine.blocks
         || !machine.suspends_keyword_source_spans.is_empty()
         || !machine.blocks_keyword_source_spans.is_empty()
-        || machine.service_reach_row != crate::source_tables::ServiceReachRowTable::EMPTY_ROW
-        || !matches!(&machine.termination_plan.interface, source_declarations::TerminationInterface::Published(
-            source_declarations::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
     {
         return None;
     }
-    let [entry] = schema_span(|span| program.machine_states.span(span), machine.states)
-        .and_then(|rows| rows.as_array())?;
-    if entry.statement_nodes != arena::HandleSpan::empty()
-        || (const_count == 0 && entry.contracts != arena::HandleSpan::empty())
-    {
-        return None;
-    }
-    Some(entry)
+    let [entry] =
+        schema_span(|span| program.machine_states.span(span), machine.states)?.as_array()?;
+    (entry.statement_nodes == arena::HandleSpan::empty()).then_some(entry)
 }
 
 fn packed_integer_header(
@@ -400,7 +499,11 @@ fn schema_span<T, Rows>(
     read(span)
 }
 
-fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<NormalizedTypeIdentity> {
+fn normalized_schema(
+    program: &TypedTrees,
+    machine: &Machine,
+    native_borrow: bool,
+) -> Option<NormalizedTypeIdentity> {
     // Exhaust the header so a new Machine field requires a deliberate schema
     // decision. Source coordinates and body storage do not change a signature.
     let Machine {
@@ -473,7 +576,10 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         String::from("none")
     } else {
         let services = program.service_reach_rows.services(*service_reach_row);
-        if services.is_empty() || program.service_reach_rows.is_abstract(*service_reach_row) {
+        if !native_borrow
+            || services.is_empty()
+            || program.service_reach_rows.is_abstract(*service_reach_row)
+        {
             return None;
         }
         let mut applications = services
@@ -524,7 +630,9 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         })
         .collect::<Vec<_>>();
     let invalid = Cell::new(false);
+    let elision = native_borrow.then(|| SignatureElision::inputs(lifetimes.len()));
     let context = TypeIdentityContext {
+        signature_elision: elision.as_ref(),
         binders: &binders,
         lifetime_binders: &lifetimes,
         application_owner: *symbol,
@@ -589,13 +697,18 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         )?),
         &context,
     )?;
+    if let Some(elision) = elision.as_ref() {
+        elision.enter_result(lifetimes.len(), 0);
+    }
+    let result = type_identity(entry.return_type)?;
+    let lifetime_count = lifetimes.len() + elision.as_ref().map_or(0, SignatureElision::minted);
     let identity = compound(
         Tag::Schema,
         [
             compound(Tag::Binders, telescope),
-            atom(Tag::Lifetimes, &lifetimes.len().to_string()),
+            atom(Tag::Lifetimes, &lifetime_count.to_string()),
             compound(Tag::Parameters, parameters),
-            compound(Tag::Result, [type_identity(entry.return_type)?]),
+            compound(Tag::Result, [result]),
             compound(Tag::Contracts, contracts),
             atom(
                 Tag::Envelope,
@@ -911,7 +1024,7 @@ mod tests {
         }
 
         fn text(&self) -> Option<String> {
-            let schema = normalized_schema(&self.program, &self.program.machines()[0])?;
+            let schema = normalized_schema(&self.program, &self.program.machines()[0], false)?;
             self.program.type_identity_text(schema)
         }
     }

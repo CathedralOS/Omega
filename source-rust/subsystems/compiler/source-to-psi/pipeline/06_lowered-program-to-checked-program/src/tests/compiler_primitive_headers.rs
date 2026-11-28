@@ -112,6 +112,64 @@ fn actual_generic_catalog_source_produces_complete_typed_schemas() {
 }
 
 #[test]
+fn sealed_native_borrow_headers_require_the_exact_typed_declaration_and_unsafe_reach() {
+    use language_core::sealed_intrinsics::NativeBorrow;
+    use source_admission::SourceOrigin;
+    const SOURCE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../../source/library/core/unsafe.omg"
+    ));
+    let mut program = typed_at(SOURCE, "unsafe.omg", SourceOrigin::Toolchain)
+        .expect("the Core native borrow declarations resolve and type");
+    let machines = [
+        ("borrow_at", NativeBorrow::SharedAt),
+        ("borrow_mutable_at", NativeBorrow::MutableAt),
+        ("upgrade_mutability", NativeBorrow::Upgrade),
+    ]
+    .map(|(name, operation)| {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        let (actual, schema) = program
+            .compiler_primitive_schema(machine.symbol)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{name}: {error:?}; row={:?}; shape={machine:#?}",
+                    program
+                        .service_reach_rows
+                        .services(machine.service_reach_row)
+                )
+            })
+            .expect("genuine native borrow identity");
+        assert_eq!(actual, CompilerPrimitive::NativeBorrow(operation));
+        assert!(program.type_identity_text(schema).is_some());
+        (machine.symbol, machine.service_reach_row)
+    });
+    let mutable = machines[1].0;
+    let index = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == mutable)
+        .unwrap();
+    program.machine_mut(index).service_reach_row = machines[0].1;
+    assert!(
+        program.compiler_primitive_schema(mutable).is_err(),
+        "removing write reach must lose compiler supply"
+    );
+    assert!(typed_at(SOURCE, "unsafe.omg", SourceOrigin::User).is_err());
+    assert!(
+        typed_at(
+            &format!("{SOURCE}\n// edited"),
+            "unsafe.omg",
+            SourceOrigin::Toolchain
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn real_byte_observation_headers_publish_complete_terminating_schemas() {
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
