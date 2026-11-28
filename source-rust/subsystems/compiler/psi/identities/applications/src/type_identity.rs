@@ -2371,7 +2371,7 @@ pub fn validate_source_type_description(description: &str) -> Result<(), TypeIde
 /// structure and opaque constant payloads must remain byte-for-byte identical.
 pub fn exact_type_describes(declared: &str, exact: &str) -> bool {
     let mut reader = framing::Reader::new(exact);
-    reader.project_owners(true);
+    reader.project_owners(declared != exact);
     let mut syntax = DeclarationIdentitySyntax {
         require_exact_owners: true,
         ..Default::default()
@@ -2396,6 +2396,7 @@ mod exact_type_tests {
         let declared = named(bare(OwnerForm::Toolchain), "Decision");
         let actual = named(byte_atom(OwnerForm::ToolchainSource, &[1; 32]), "Decision");
         assert!(exact_type_describes(&declared, &actual));
+        assert!(exact_type_describes(&actual, &actual));
         assert!(!exact_type_describes(&declared, &declared));
         assert!(!exact_type_describes(
             &declared.replace("Decision", "Other"),
