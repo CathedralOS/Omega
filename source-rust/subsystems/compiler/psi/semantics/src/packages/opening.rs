@@ -117,29 +117,41 @@ pub(super) fn projection(
     Ok(projected)
 }
 
-pub(super) fn subject_field<'a>(
-    module: &'a TerminalModule,
+/// The stored reference that supplies this call's borrowed witness. Only
+/// inline fields and elements of the opened subject can own that reference.
+pub(super) fn subject_reference(
+    module: &TerminalModule,
     opening: &TerminalPackageOpening,
     arg: &StructuralArgument,
-) -> Option<&'a StructuralFieldDeclaration> {
-    if arg.place != opening.subject.place || arg.path.len() != opening.subject.path.len() + 2 {
+) -> Option<(StructuralTypeId, StructuralAccess)> {
+    if arg.place != opening.subject.place || arg.path.len() < opening.subject.path.len() {
         return None;
     }
-    let (parent, tail) = arg.path.split_at(opening.subject.path.len());
+    let (parent, selected) = arg.path.split_at(opening.subject.path.len());
     let [
         StructuralPathSegment::Field(field),
+        path @ ..,
         StructuralPathSegment::Referent,
-    ] = tail
+    ] = selected
     else {
         return None;
     };
     if !crate::structural_paths_select_same_location(parent, &opening.subject.path) {
         return None;
     }
-    fields(module, opening.record)
+    let field = fields(module, opening.record)
         .ok()?
         .iter()
-        .find(|decl| decl.identity == *field && !decl.relevance.is_erased())
+        .find(|decl| decl.identity == *field && !decl.relevance.is_erased())?;
+    let reference = crate::inline_descriptor_type(
+        module.types.structural_types.iter(),
+        field.field_type.as_structural()?,
+        path,
+    )?;
+    match reference.shape {
+        StructuralTypeShape::Reference { referent, access } => Some((referent, access)),
+        _ => None,
+    }
 }
 
 pub(super) fn invocation(
@@ -214,25 +226,17 @@ pub(super) fn invocation(
         else {
             continue;
         };
-        let field = subject_field(module, opened, arg)
+        let (referent, access) = subject_reference(module, opened, arg)
             .ok_or("package argument comes from another opening")?;
-        let Some(StructuralTypeShape::Reference { referent, access }) = field
-            .field_type
-            .as_structural()
-            .and_then(|ty| module.structural_type(ty))
-            .map(|ty| &ty.shape)
-        else {
-            return Err("package argument is not a borrowed field");
-        };
-        if *referent != schema.witnesses[position]
-            || !terminal_psi::structural_access_covers(*access, arg.access)
+        if referent != schema.witnesses[position]
+            || !terminal_psi::structural_access_covers(access, arg.access)
             || arg.access != formal.access
         {
             return Err("package argument differs from its opened parameter");
         }
         checked
             .borrowed_arguments
-            .insert((machine.id, operation.id, i), *referent);
+            .insert((machine.id, operation.id, i), referent);
     }
     Ok(*contract)
 }
