@@ -37,3 +37,21 @@ fn an_unproved_goal_with_rules_rejects_without_a_provision() {
     );
     assert!(!report.contains("coverage_proof_goal_forms"), "{report}");
 }
+
+#[test]
+fn a_closed_comparison_establishes_which_boolean_is_supplied() {
+    let source = |required| {
+        format!(
+            "machine gated(flag: bool) requires flag == {required} {{}}
+         machine main() {{ let value: f64 = 1.0; gated(value == value); }}"
+        )
+    };
+    let (accepted, report) = program::invoke(&source(true), &["--check"]);
+    assert!(accepted.status.success(), "{report}");
+    let (refused, report) = program::invoke(&source(false), &["--check"]);
+    assert_eq!(refused.status.code(), Some(1), "{report}");
+    assert!(
+        report.contains("cannot prove requires contract for call gated"),
+        "{report}"
+    );
+}
