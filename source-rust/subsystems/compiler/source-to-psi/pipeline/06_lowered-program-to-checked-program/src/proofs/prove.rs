@@ -2720,6 +2720,7 @@ impl<'a> Prover<'a> {
                     .or_else(|| self.closed(goal.clone()))
                     .or_else(|| self.by_transport(goal))
                     .or_else(|| self.linear_equality(goal))
+                    .or_else(|| self.product_equality(goal))
                 {
                     return Ok(proof);
                 }

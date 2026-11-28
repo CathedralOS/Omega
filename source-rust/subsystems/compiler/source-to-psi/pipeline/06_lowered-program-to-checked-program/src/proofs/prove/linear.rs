@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 /// The most equation uses one chain may take, counting a coefficient of `k`
 /// as `k` uses.
 const MOST_STEPS: u128 = 32;
+const MAX_EQUATIONS: usize = 64;
 
 /// A linear form over mathematical integer atoms: the sum of each atom times
 /// its coefficient, plus a constant.
@@ -196,6 +197,103 @@ struct Equation {
 }
 
 impl Prover<'_> {
+    /// Substitute stated equations for the individual factors of two products.
+    /// The closed integer kernel compares the expanded products as polynomials.
+    /// Each substitution is replayed by congruence, even if a factor is zero.
+    pub(super) fn product_equality(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let Proposition::IntegerMathEqual(
+            left @ IntegerMathTerm::Multiply(..),
+            right @ IntegerMathTerm::Multiply(..),
+        ) = goal
+        else {
+            return None;
+        };
+        if self
+            .facts
+            .iter()
+            .filter(|fact| {
+                matches!(
+                    fact.proposition(),
+                    Proposition::IntegerMathEqual(..) | Proposition::Equal(..)
+                )
+            })
+            .nth(MAX_EQUATIONS)
+            .is_some()
+        {
+            return None;
+        }
+        let equations = self.linear_equations(&|_, fact| Some(fact.clone()));
+        let mut terms = [left.clone(), right.clone()];
+        let mut steps = Vec::new();
+        for side in 0..terms.len() {
+            for position in 0..2 {
+                let IntegerMathTerm::Multiply(first, second) = &terms[side] else {
+                    return None;
+                };
+                let factor = if position == 0 { &**first } else { &**second };
+                if !matches!(
+                    factor,
+                    IntegerMathTerm::MathValue { .. } | IntegerMathTerm::Embed(_)
+                ) {
+                    continue;
+                }
+                let replacement = equations.iter().find_map(|eq| {
+                    if factor == &eq.left {
+                        Some((eq, &eq.right))
+                    } else if factor == &eq.right
+                        && !matches!(
+                            eq.left,
+                            IntegerMathTerm::Embed(_) | IntegerMathTerm::MathValue { .. }
+                        )
+                    {
+                        Some((eq, &eq.left))
+                    } else {
+                        None
+                    }
+                });
+                if let Some((equation, value)) = replacement {
+                    let product = if position == 0 {
+                        IntegerMathTerm::Multiply(Box::new(value.clone()), second.clone())
+                    } else {
+                        IntegerMathTerm::Multiply(first.clone(), Box::new(value.clone()))
+                    };
+                    steps.push((terms.clone(), side, equation));
+                    terms[side] = product;
+                }
+            }
+        }
+        if steps.is_empty() {
+            return None;
+        }
+        let order = |terms: &[IntegerMathTerm; 2], reverse: usize| {
+            Proposition::IntegerMathLessOrEqual(terms[reverse].clone(), terms[1 - reverse].clone())
+        };
+        let mut forward = self.closed(order(&terms, 0))?;
+        let mut backward = self.closed(order(&terms, 1))?;
+        for (original, side, equation) in steps.into_iter().rev() {
+            let equality = self.linear_premise(equation, &[])?;
+            let substitute = |relation: ProofNode, reverse: usize| {
+                node(
+                    order(&original, reverse),
+                    ProofRule::IntegerOrderSubstitution {
+                        relation: Box::new(relation),
+                        equality: Box::new(equality.clone()),
+                        endpoint: side ^ reverse,
+                    },
+                )
+            };
+            forward = substitute(forward, 0);
+            backward = substitute(backward, 1);
+        }
+        Some(node(
+            goal.clone(),
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(forward),
+                backward: Box::new(backward),
+            },
+        ))
+    }
+
     /// `goal`, a fixed integer or mathematical equality, from a linear
     /// combination of the equations among the facts. Value equalities among
     /// the facts are substituted into the goal and every equation first, so
@@ -209,7 +307,6 @@ impl Prover<'_> {
         }
         // Limit the matrix and substitution work before constructing any proof.
         // This optional search runs only when there is a mathematical premise.
-        const MAX_EQUATIONS: usize = 64;
         let mut count = 0;
         let mut has_math = false;
         for fact in &self.facts {

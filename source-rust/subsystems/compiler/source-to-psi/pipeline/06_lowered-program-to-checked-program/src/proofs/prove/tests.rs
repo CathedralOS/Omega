@@ -3262,3 +3262,65 @@ fn a_sixty_fifth_combination_is_reported_as_exhausted_search() {
         CASE_COMBINATION_BUDGET - 1
     );
 }
+
+#[test]
+fn equal_strides_prove_the_cross_product_only_with_both_footprints() {
+    let ty = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let values = IdTable::from_rows((0..6).map(|position| {
+        (
+            ValueId::new(u64::from(position) + 1).unwrap(),
+            ValueRow {
+                scalar_type: ScalarType::Integer(ty),
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            },
+        )
+    }))
+    .unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let scalar = |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::Integer(ty));
+    let term = |id| IntegerMathTerm::embed(scalar(id)).unwrap();
+    let mul = |left, right| IntegerMathTerm::Multiply(Box::new(left), Box::new(right));
+    let footprint = |bytes, count, stride| {
+        Proposition::IntegerMathEqual(term(bytes), mul(term(count), term(stride)))
+    };
+    let goal = Proposition::IntegerMathEqual(mul(term(1), term(4)), mul(term(3), term(2)));
+    // Bytes/count of the first and second run, followed by two independent strides.
+    let left = footprint(1, 2, 5);
+    let singleton = Proposition::Equal(
+        scalar(4),
+        ScalarTerm::integer(ty, IntegerValue::Unsigned(1)).unwrap(),
+    );
+    let cases = [
+        (vec![left.clone(), footprint(3, 4, 5)], true),
+        (
+            vec![
+                left.clone(),
+                singleton.clone(),
+                Proposition::Equal(scalar(3), scalar(5)),
+            ],
+            true,
+        ),
+        (vec![left.clone(), footprint(3, 4, 6)], false),
+        (vec![left, singleton], false),
+    ];
+    for (facts, valid) in cases {
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &facts, &[], &values, &mut activity);
+        let result = prover.prove(&goal);
+        assert_eq!(result.is_ok(), valid, "{facts:?}: {result:?}");
+        if let Ok(proof) = result {
+            proof_admission::verify_bounded_certificate(
+                &context,
+                &goal,
+                &facts,
+                &[],
+                &proof,
+                &mut mathematical_kernel::Budget::default(),
+            )
+            .unwrap();
+        }
+    }
+}

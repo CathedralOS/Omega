@@ -3408,8 +3408,34 @@ impl Denotation {
             1 if self.arena.structurally_equal(rl, gl) => (false, rr, gr, rl),
             _ => return Ok(None),
         };
-        let Some(eq) = self.directed_equality(s, t, old, new, eev) else {
-            return Ok(None);
+        let eq = if let Some(eq) = self.directed_equality(s, t, old, new, eev) {
+            eq
+        } else {
+            let (Some((op, a, b)), Some((next_op, c, d))) =
+                (self.source_binary(old)?, self.source_binary(new)?)
+            else {
+                return Ok(None);
+            };
+            if op != next_op || op != self.binary_op_position(BinaryOp::Mul)? {
+                return Ok(None);
+            }
+            let int = self.integer_constant()?;
+            let head = self.constant(op);
+            let (left, right) = if self.arena.structurally_equal(a, c) {
+                let Some(right) = self.directed_equality(s, t, b, d, eev) else {
+                    return Ok(None);
+                };
+                (self.refl(int, a), right)
+            } else if self.arena.structurally_equal(b, d) {
+                let Some(left) = self.directed_equality(s, t, a, c, eev) else {
+                    return Ok(None);
+                };
+                (left, self.refl(int, b))
+            } else {
+                return Ok(None);
+            };
+            self.source_binary_congruence(int, head, old, a, b, c, left, d, right)?
+                .1
         };
         self.ord_subst(strict, left_side, old, new, other, eq, rev)
             .map(Some)
@@ -7659,7 +7685,7 @@ impl<'a> Elaboration<'a> {
                 endpoint,
             } => {
                 let (re, ee) = (ops.take(relation), ops.take(equality));
-                integer_order_rules::endpoint_substitution(
+                let substitution = integer_order_rules::endpoint_substitution(
                     &relation.conclusion,
                     &equality.conclusion,
                     *endpoint,
@@ -7674,6 +7700,15 @@ impl<'a> Elaboration<'a> {
                 let d = self
                     .denotation
                     .order_substitution_evidence(rt, re, et, ee, *endpoint, gt)?;
+                if matches!(
+                    substitution,
+                    integer_order_rules::Substitution::ProductFactor
+                ) && d.is_none()
+                {
+                    return Err(BoundedDenotationError::Unsupported(
+                        "integer multiplication congruence",
+                    ));
+                }
                 self.finish_or_instance(
                     AcceptedProofRule::IntegerOrderSubstitution,
                     d,
@@ -8332,6 +8367,38 @@ mod tests {
     // ------------------------------------------------------------------------
     // 1. Core closures, contracts, equality/order/disjunction/semantic axioms
     // ------------------------------------------------------------------------
+
+    #[test]
+    fn product_substitution_changes_only_the_factor_with_evidence() {
+        let ty = u64_ty();
+        let ctx = ctx_int(&[1, 2, 3], ty);
+        let x = mvar(1, ty);
+        let y = mvar(2, ty);
+        let z = mvar(3, ty);
+        let mul = |left, right| IntegerMathTerm::Multiply(Box::new(left), Box::new(right));
+        let original = mul(x.clone(), z.clone());
+        let relation = Proposition::IntegerMathLessOrEqual(original.clone(), original.clone());
+        let equality = meq(x.clone(), y.clone());
+        let assumptions = [equality.clone()];
+        let prove = |product| {
+            let goal = Proposition::IntegerMathLessOrEqual(original.clone(), product);
+            node(
+                goal,
+                ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(prim(
+                        PrimitiveJudgment::ClosedIntegerRelation,
+                        relation.clone(),
+                    )),
+                    equality: Box::new(assume(0, equality.clone())),
+                    endpoint: 1,
+                },
+            )
+        };
+        let changed = prove(mul(y.clone(), z));
+        verify_and_forge(&ctx, &changed.conclusion, &assumptions, &[], &changed);
+        let wrong = prove(mul(y.clone(), y));
+        expect_err(&ctx, &wrong.conclusion, &assumptions, &[], &wrong);
+    }
 
     #[test]
     fn exact_closures_contracts_equality_order_and_primitive_decisions() {

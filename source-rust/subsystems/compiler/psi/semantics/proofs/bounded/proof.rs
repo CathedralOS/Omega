@@ -1624,6 +1624,12 @@ pub(crate) mod integer_order_rules {
             *endpoint,
             &proof.conclusion,
         )
+        .map(|_| ())
+    }
+
+    pub(crate) enum Substitution {
+        Endpoint,
+        ProductFactor,
     }
 
     pub(crate) fn endpoint_substitution(
@@ -1631,13 +1637,14 @@ pub(crate) mod integer_order_rules {
         equality: &Proposition,
         endpoint: usize,
         conclusion: &Proposition,
-    ) -> Result<(), ProofError> {
+    ) -> Result<Substitution, ProofError> {
         fn check_endpoints<T: PartialEq>(
             relation: (bool, &T, &T),
             equality: (&T, &T),
             endpoint: usize,
             conclusion: (bool, &T, &T),
-        ) -> Result<(), ProofError> {
+            substitutes: impl Fn(&T, &T, &T, &T) -> bool,
+        ) -> Result<Substitution, ProofError> {
             let (relation_strict, relation_left, relation_right) = relation;
             let (conclusion_strict, conclusion_left, conclusion_right) = conclusion;
             if relation_strict != conclusion_strict {
@@ -1658,10 +1665,15 @@ pub(crate) mod integer_order_rules {
                 }
                 endpoint => return Err(ProofError::UnknownIntegerOrderEndpoint(endpoint)),
             };
-            ((equality.0 == old_endpoint && equality.1 == new_endpoint)
-                || (equality.1 == old_endpoint && equality.0 == new_endpoint))
-                .then_some(())
-                .ok_or(ProofError::IntegerOrderSubstitutionMismatch)
+            if (old_endpoint == equality.0 && new_endpoint == equality.1)
+                || (old_endpoint == equality.1 && new_endpoint == equality.0)
+            {
+                return Ok(Substitution::Endpoint);
+            }
+            (substitutes(old_endpoint, new_endpoint, equality.0, equality.1)
+                || substitutes(old_endpoint, new_endpoint, equality.1, equality.0))
+            .then_some(Substitution::ProductFactor)
+            .ok_or(ProofError::IntegerOrderSubstitutionMismatch)
         }
 
         if let Some(relation) = mathematical_order(relation) {
@@ -1674,7 +1686,21 @@ pub(crate) mod integer_order_rules {
             let conclusion = mathematical_order(lifted.as_ref().unwrap_or(conclusion)).ok_or(
                 ProofError::RuleConclusionMismatch("integer order substitution"),
             )?;
-            return check_endpoints(relation, (left, right), endpoint, conclusion);
+            // Substituting equal factors preserves a product for every integer,
+            // including zero and negative factors. The other factor must agree.
+            return check_endpoints(
+                relation,
+                (left, right),
+                endpoint,
+                conclusion,
+                |old, new, from, to| match (old, new) {
+                    (IntegerMathTerm::Multiply(a, b), IntegerMathTerm::Multiply(c, d)) => {
+                        (a == c && b.as_ref() == from && d.as_ref() == to)
+                            || (b == d && a.as_ref() == from && c.as_ref() == to)
+                    }
+                    _ => false,
+                },
+            );
         }
         let relation = scalar_order(relation).ok_or(ProofError::RulePremiseMismatch(
             "integer order substitution relation",
@@ -1689,7 +1715,13 @@ pub(crate) mod integer_order_rules {
         let conclusion = scalar_order(&normalized_conclusion).ok_or(
             ProofError::RuleConclusionMismatch("integer order substitution"),
         )?;
-        check_endpoints(relation, (left, right), endpoint, conclusion)
+        check_endpoints(
+            relation,
+            (left, right),
+            endpoint,
+            conclusion,
+            |_, _, _, _| false,
+        )
     }
 
     pub(crate) fn math_order_translation(
