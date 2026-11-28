@@ -307,6 +307,7 @@ impl Program<'_> {
             policies.push(policy);
             calls.push(uses);
         }
+        let forwarding = parameter_paths::Forwarding::of(&calls, &policies, &self.signatures, components);
         loop {
             let mut changed = false;
             for (id, uses) in calls.iter() {
@@ -406,16 +407,7 @@ impl Program<'_> {
                                     .iter()
                                     .filter(|(argument, _)| *argument == source_position)
                                 {
-                                    // A recursive call through a proper subplace could otherwise
-                                    // grow the caller's inferred path on every solver iteration.
-                                    if !path.is_empty()
-                                        && !formal.path.is_empty()
-                                        && let CallTarget::Machine(callee) = invocation.target
-                                        && components.same_component(
-                                            crate::components::index(id),
-                                            crate::components::index(*callee),
-                                        )
-                                    {
+                                    if forwarding.grows(invocation, id, position, formal, path) {
                                         return Err(unavailable(
                                             id,
                                             "recursive invocation grows a structural formal path",

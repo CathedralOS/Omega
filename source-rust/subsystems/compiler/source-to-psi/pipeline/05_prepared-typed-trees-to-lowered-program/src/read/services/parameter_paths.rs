@@ -25,6 +25,102 @@ impl Formal {
     }
 }
 
+/// Edges describe which formal a private call forwards into another
+/// private formal in the same recursive component. Appending a proper
+/// subplace on a cycle requires infinitely many different finite paths.
+#[derive(Default)]
+pub(super) struct Forwarding {
+    edges: std::collections::HashMap<Coordinate, Vec<Coordinate>>,
+}
+type Coordinate = (semantic_vocabulary::MachineId, u32);
+
+impl Forwarding {
+    pub(super) fn of(
+        calls: &IdTable<semantic_vocabulary::MachineId, Vec<super::Use<'_>>>,
+        policies: &IdTable<semantic_vocabulary::MachineId, super::Policy>,
+        signatures: &IdTable<semantic_vocabulary::MachineId, super::Signature>,
+        components: &crate::components::Components,
+    ) -> Self {
+        let mut flow = Self::default();
+        for (caller, uses) in calls.iter() {
+            if policies
+                .get(caller)
+                .is_none_or(|policy| policy.invokes.is_some())
+            {
+                continue;
+            }
+            for call in uses {
+                let super::CallTarget::Machine(callee) = call.target else {
+                    continue;
+                };
+                if call.required_contract.is_some()
+                    || call.static_binding.is_some()
+                    || !components.same_component(
+                        crate::components::index(caller),
+                        crate::components::index(*callee),
+                    )
+                {
+                    continue;
+                }
+                let Some(signature) = signatures.get(*callee) else {
+                    continue;
+                };
+                for (source_position, formal) in &call.parameter_arguments {
+                    if let Some(position) = signature
+                        .runtime_parameter_position(*source_position)
+                        .and_then(|n| u32::try_from(n).ok())
+                    {
+                        flow.edges
+                            .entry((*callee, position))
+                            .or_default()
+                            .push((caller, formal.position));
+                    }
+                }
+            }
+        }
+        flow
+    }
+
+    pub(super) fn grows(
+        &self,
+        call: &super::Use<'_>,
+        caller: semantic_vocabulary::MachineId,
+        parameter: u32,
+        formal: &Formal,
+        suffix: &[InvocationStep],
+    ) -> bool {
+        let super::CallTarget::Machine(callee) = call.target else {
+            return false;
+        };
+        if suffix.is_empty()
+            || formal.path.is_empty()
+            || call.required_contract.is_some()
+            || call.static_binding.is_some()
+        {
+            return false;
+        }
+        let from = (*callee, parameter);
+        let to = (caller, formal.position);
+        self.edges.get(&from).is_some_and(|next| next.contains(&to)) && self.returns_to(to, from)
+    }
+
+    fn returns_to(&self, from: Coordinate, to: Coordinate) -> bool {
+        let mut pending = vec![from];
+        let mut visited = std::collections::HashSet::new();
+        while let Some(at) = pending.pop() {
+            if at == to {
+                return true;
+            }
+            if visited.insert(at)
+                && let Some(next) = self.edges.get(&at)
+            {
+                pending.extend_from_slice(next);
+            }
+        }
+        false
+    }
+}
+
 fn record(
     records: &IdTable<StructuralTypeId, RecordType>,
     ty: Option<ValueType>,
