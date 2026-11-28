@@ -1598,6 +1598,82 @@ data LocalAlias = i64;
 }
 
 #[test]
+fn public_backing_invariant_keeps_mathematical_addition_and_both_fields() {
+    use review_evidence::record::{
+        PackageReviewContractBinaryOperator::{Add, LessOrEqual},
+        PackageReviewContractCallTarget::BuiltinFunction,
+        PackageReviewContractExpression as Expression, PackageReviewContractFact,
+        PackageReviewContractOperatorMeaning::Builtin,
+    };
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-buffer-bounds",
+        false,
+    )
+    .unwrap();
+    let build = directory.path().join("build.omg");
+    std::fs::write(
+        &build,
+        r#"machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "buffer" };
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("main.omg"),
+        r#"
+        public data Buffer requires embed(self.used) + embed(self.free) <= 18446744073709551615 {
+            used: u64; free: u64;
+        }
+    "#,
+    )
+    .unwrap();
+
+    let policy = reviewed_policy(&build, TargetProfile::LinuxX64).policy;
+    let [data] = policy.public_api.data.as_slice() else {
+        panic!("expected Buffer")
+    };
+    let [
+        PackageReviewContractFact::Expression(Expression::Binary {
+            meaning: Builtin,
+            operator: LessOrEqual,
+            left: sum,
+            right: limit,
+        }),
+    ] = data.invariants.as_slice()
+    else {
+        panic!("expected the capacity bound")
+    };
+    assert_eq!(**limit, Expression::Integer(u64::MAX.to_string()));
+    let Expression::Binary {
+        meaning: Builtin,
+        operator: Add,
+        left,
+        right,
+    } = sum.as_ref()
+    else {
+        panic!("expected a sum of byte counts");
+    };
+    for (operand, field) in [
+        (left, "main.omg::Buffer::used"),
+        (right, "main.omg::Buffer::free"),
+    ] {
+        let Expression::Call {
+            receiver: None,
+            target: BuiltinFunction(symbols::BuiltinFunction::IntegerEmbed),
+            arguments,
+            ..
+        } = operand.as_ref()
+        else {
+            panic!("expected embed of {field}")
+        };
+        assert!(
+            matches!(arguments.as_slice(), [Expression::Member {receiver, member, case_variant: None}]
+            if **receiver == Expression::DomainSubject && member.path == field)
+        );
+    }
+}
+
+#[test]
 fn public_domain_review_keeps_the_element_and_placement_binders_in_order() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-domain-placement",
