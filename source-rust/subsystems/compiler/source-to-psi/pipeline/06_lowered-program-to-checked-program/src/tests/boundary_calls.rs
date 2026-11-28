@@ -280,11 +280,24 @@ fn a_record_index_retains_a_closed_enum_case_across_a_call() {
     "#;
     let result = judge_boundary_package(source);
     assert!(!result.is_empty());
-    assert!(result.iter().all(|v| matches!(v, Ok(RouteVerdict::Accepted(_)))), "{result:?}");
-    let wrong = source.replace("entry(input: @Slot<Mode::Fixed>", "entry(input: @Slot<Mode::Split>");
+    assert!(
+        result
+            .iter()
+            .all(|v| matches!(v, Ok(RouteVerdict::Accepted(_)))),
+        "{result:?}"
+    );
+    let wrong = source.replace(
+        "entry(input: @Slot<Mode::Fixed>",
+        "entry(input: @Slot<Mode::Split>",
+    );
     let negative = judge_boundary_package(&wrong);
-    assert!(negative.iter().any(|v| matches!(v, Ok(RouteVerdict::FallBack(refusal))
-        if refusal.reason == RefusalReason::Violation)), "{negative:?}");
+    assert!(
+        negative
+            .iter()
+            .any(|v| matches!(v, Ok(RouteVerdict::FallBack(refusal))
+        if refusal.reason == RefusalReason::Violation)),
+        "{negative:?}"
+    );
 }
 
 #[test]
@@ -401,23 +414,44 @@ fn a_boundary_call_checks_the_requested_machine_at_its_closed_contract() {
             )
         };
         assert_eq!(module.identities.text(*identity), Some(expected.as_str()));
-        let selected = module.machines.iter().find(|body|
-            body.declaration.as_ref().is_some_and(|d| d.semantic_declaration == *identity)
-        ).unwrap();
-        assert_eq!(worker.checked_body(module, selected.id).map(|body| body.id), Some(selected.id));
-        let wrong = module.machines.iter().find(|body| body.id != selected.id).unwrap();
+        let selected = module
+            .machines
+            .iter()
+            .find(|body| {
+                body.declaration
+                    .as_ref()
+                    .is_some_and(|d| d.semantic_declaration == *identity)
+            })
+            .unwrap();
+        assert_eq!(
+            worker.checked_body(module, selected.id).map(|body| body.id),
+            Some(selected.id)
+        );
+        let wrong = module
+            .machines
+            .iter()
+            .find(|body| body.id != selected.id)
+            .unwrap();
         assert!(worker.checked_body(module, wrong.id).is_none());
         // Even with the same ID, signature and contract, swapping just the
         // declaration must not let another producer answer for this worker.
         let mut replaced = module.clone();
-        replaced.machines.iter_mut().find(|body| body.id == selected.id)
-            .unwrap().contract.declaration.as_mut().unwrap().semantic_declaration =
-            wrong.declaration.as_ref().unwrap().semantic_declaration;
+        replaced
+            .machines
+            .iter_mut()
+            .find(|body| body.id == selected.id)
+            .unwrap()
+            .contract
+            .declaration
+            .as_mut()
+            .unwrap()
+            .semantic_declaration = wrong.declaration.as_ref().unwrap().semantic_declaration;
         assert!(worker.checked_body(&replaced, selected.id).is_none());
         let mut changed_contract = *contract_commitment;
         changed_contract[0] ^= 1;
         let changed = terminal_psi::ClosedReachArgument::Machine {
-            identity: *identity, contract_commitment: changed_contract,
+            identity: *identity,
+            contract_commitment: changed_contract,
         };
         assert!(changed.checked_body(module, selected.id).is_none());
         declaration

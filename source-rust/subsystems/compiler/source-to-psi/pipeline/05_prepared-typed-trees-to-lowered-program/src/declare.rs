@@ -179,7 +179,9 @@ impl CallbackBounds {
         may_crash: bool,
     ) -> Result<(), &'static str> {
         if self.reach.as_ref().is_some_and(|upper| {
-            reach.iter().any(|service| upper.binary_search(service).is_err())
+            reach
+                .iter()
+                .any(|service| upper.binary_search(service).is_err())
         }) {
             return Err("a selected static callback exceeds its authored reach bound");
         }
@@ -187,7 +189,9 @@ impl CallbackBounds {
             return Err("a selected static callback exceeds its operational bound");
         }
         if may_crash && self.crashes_none {
-            return Err("a selected static callback may crash, and its binder declares `crashes none`");
+            return Err(
+                "a selected static callback may crash, and its binder declares `crashes none`",
+            );
         }
         Ok(())
     }
@@ -403,16 +407,23 @@ pub(crate) fn declare(
                     if let Some(application) = &mut application
                         && machine.module_invocations().any(|call| call.static_reach_binding.is_some())
                     {
-                        application.operational = Some(terminal_semantics::calls::operational_dependencies::direct(
-                            &elaboration.module, machine, |binder| match application.telescope.get(binder as usize)? {
-                                PreparedParameter::Machine { bounds, .. } =>
-                                    Some([bounds.may_suspend, bounds.may_block]),
-                                _ => None,
-                            },
-                        )?);
-                        application.fixed = Some(terminal_semantics::static_reach::fixed_specialization_reach(
-                            &elaboration.module, machine,
-                        )?);
+                        application.operational =
+                            Some(terminal_semantics::calls::operational_dependencies::direct(
+                                &elaboration.module,
+                                machine,
+                                |binder| match application.telescope.get(binder as usize)? {
+                                    PreparedParameter::Machine { bounds, .. } => {
+                                        Some([bounds.may_suspend, bounds.may_block])
+                                    }
+                                    _ => None,
+                                },
+                            )?);
+                        application.fixed = Some(
+                            terminal_semantics::static_reach::fixed_specialization_reach(
+                                &elaboration.module,
+                                machine,
+                            )?,
+                        );
                     }
                     return Ok(PreparedDeclaration::Runtime(declaration, application));
                 };
@@ -1735,7 +1746,12 @@ impl PreparedParameter {
         {
             return Err("a selected static callback has multiple admitted executable declarations");
         }
-        bounds.admits(&callee.reach, callee.may_suspend, callee.may_block, callee.may_crash)?;
+        bounds.admits(
+            &callee.reach,
+            callee.may_suspend,
+            callee.may_block,
+            callee.may_crash,
+        )?;
         Ok(ClosedReachParameter::Machine(
             terminal_psi::ClosedReachMachineBinding {
                 nominal_requirement: None,
@@ -1860,7 +1876,9 @@ pub(crate) fn boundary(
         execution,
         terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
     ) {
-        return primitive_boundary(typed, symbol, header, execution, signature, published, identities);
+        return primitive_boundary(
+            typed, symbol, header, execution, signature, published, identities,
+        );
     }
     let (owner, requirement) = typed
         .trait_machine_signature(symbol)
@@ -2066,7 +2084,10 @@ fn top_level_boundary(
         published,
     )
     .map_err(Diagnostic::error)?;
-    let specialization = header.application.as_ref().map(|source| source.specialization(identities));
+    let specialization = header
+        .application
+        .as_ref()
+        .map(|source| source.specialization(identities));
     let method_arguments = header.method_arguments(identities);
     let source = CheckedMachineDeclaration {
         machine: owner.clone(),
@@ -2503,10 +2524,15 @@ struct BoundaryApplicationSource {
 }
 
 impl BoundaryApplicationSource {
-    fn specialization(&self, identities: &mut TerminalIdentityTableBuilder) -> terminal_psi::CheckedMachineSpecialization {
+    fn specialization(
+        &self,
+        identities: &mut TerminalIdentityTableBuilder,
+    ) -> terminal_psi::CheckedMachineSpecialization {
         let template = identities.intern(&self.template);
         let semantic = identities.intern(&self.semantic);
-        let mut closed = self.application.publish_specialization(template, semantic, identities);
+        let mut closed = self
+            .application
+            .publish_specialization(template, semantic, identities);
         closed.template_entry = NominalDeclarationIdentity::new(identities.intern(&self.entry));
         closed
     }
@@ -2665,7 +2691,10 @@ pub(crate) fn boundary_declaration(
     commit_structural_guarantees(typed, &sources, signature, identities, &mut commitment)?;
     proof.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);
-    let specialization = source.application.as_ref().map(|source| source.specialization(identities));
+    let specialization = source
+        .application
+        .as_ref()
+        .map(|source| source.specialization(identities));
     Ok(CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(identities.intern(&source.machine)),
         state: NominalDeclarationIdentity::new(identities.intern(&source.state)),
@@ -2777,18 +2806,27 @@ pub(crate) fn intrinsic_boundary_source(
         )?;
         if let Some(row) = typed.machine_specialization(symbol) {
             let sources = source_admission::source_identity::toolchain_source_identities(
-                typed.symbols.source_files()
-            ).map_err(|_| "a specialized primitive lost its source revision")?;
+                typed.symbols.source_files(),
+            )
+            .map_err(|_| "a specialized primitive lost its source revision")?;
             let mut ids = TerminalIdentityTableBuilder::default();
-            let (closed, arguments) = application(typed, &sources, symbol, row.template, binders, &mut ids)?;
-            let text = |id| ids.text(id).map(str::to_owned).ok_or("a specialized primitive lost its template identity");
+            let (closed, arguments) =
+                application(typed, &sources, symbol, row.template, binders, &mut ids)?;
+            let text = |id| {
+                ids.text(id)
+                    .map(str::to_owned)
+                    .ok_or("a specialized primitive lost its template identity")
+            };
             header.application = Some(BoundaryApplicationSource {
                 template: text(closed.template.identity())?,
                 entry: text(closed.template_entry.identity())?,
                 semantic: text(closed.template_semantic_declaration)?,
                 application: RequirementApplicationSource::primitive(
-                    typed, symbol, arguments.ok_or("a specialized primitive has no closed argument record")?,
-                    text(closed.template_callable)?, closed.commitment,
+                    typed,
+                    symbol,
+                    arguments.ok_or("a specialized primitive has no closed argument record")?,
+                    text(closed.template_callable)?,
+                    closed.commitment,
                 )?,
             });
         }

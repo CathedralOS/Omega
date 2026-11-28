@@ -63,13 +63,21 @@ impl TerminalActivationStorage {
             encoding::{atom, bare, compound},
             vocabulary::{Label, NameForm, OwnerForm, TypeForm},
         };
-        let name = compound(NameForm::Nominal, [
-            bare(OwnerForm::Toolchain), atom(Label::Path, "ActivationStorage"),
-        ]);
+        let name = compound(
+            NameForm::Nominal,
+            [
+                bare(OwnerForm::Toolchain),
+                atom(Label::Path, "ActivationStorage"),
+            ],
+        );
         let carrier = compound(TypeForm::Named, [atom(Label::Name, &name)]);
         let value = DecodedCanonicalConstValue::Variant {
             type_name: "ActivationStorage".into(),
-            case_name: match self { Self::Fixed => "Fixed", Self::Split => "Split" }.into(),
+            case_name: match self {
+                Self::Fixed => "Fixed",
+                Self::Split => "Split",
+            }
+            .into(),
             fields: Vec::new(),
         };
         CanonicalConstValue::from_decoded_in_type(&carrier, &value, "")
@@ -81,16 +89,29 @@ impl TerminalPreparedActivationEntry {
     /// root entry, determines which child this code ID is allowed to start.
     /// This checks the link only; it neither admits a plan nor grants backing.
     pub fn selected_body(self, module: &crate::TerminalModule) -> Option<&crate::TerminalMachine> {
-        let binding = module.boundary_machine(self.preparation)?.declaration.as_ref()?;
-        if binding.execution != crate::CheckedBoundaryExecution::OwnedActivation(
-            language_core::sealed_intrinsics::ActivationOperation::Prepare
-        ) {
+        let binding = module
+            .boundary_machine(self.preparation)?
+            .declaration
+            .as_ref()?;
+        if binding.execution
+            != crate::CheckedBoundaryExecution::OwnedActivation(
+                language_core::sealed_intrinsics::ActivationOperation::Prepare,
+            )
+        {
             return None;
         }
-        let [crate::ClosedReachArgument::Type(_), crate::ClosedReachArgument::Type(_),
-            entry @ crate::ClosedReachArgument::Machine { .. }, crate::ClosedReachArgument::Const(plan)] =
-            binding.method_arguments.as_slice() else { return None };
-        if TerminalActivationStorage::from_core_argument(module.identities.text(*plan)?)? != self.storage {
+        let [
+            crate::ClosedReachArgument::Type(_),
+            crate::ClosedReachArgument::Type(_),
+            entry @ crate::ClosedReachArgument::Machine { .. },
+            crate::ClosedReachArgument::Const(plan),
+        ] = binding.method_arguments.as_slice()
+        else {
+            return None;
+        };
+        if TerminalActivationStorage::from_core_argument(module.identities.text(*plan)?)?
+            != self.storage
+        {
             return None;
         }
         entry.checked_body(module, self.entry_machine)

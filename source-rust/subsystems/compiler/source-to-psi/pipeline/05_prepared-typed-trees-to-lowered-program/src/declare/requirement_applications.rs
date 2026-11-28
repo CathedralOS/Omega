@@ -31,29 +31,55 @@ impl RequirementApplicationSource {
         commitment: [u8; 32],
     ) -> Result<Self, &'static str> {
         use crate::source_state::static_applications::StaticMachineBindingValue;
-        let instance = typed.machine_instantiation(symbol)?
+        let instance = typed
+            .machine_instantiation(symbol)?
             .ok_or("a specialized primitive has no retained application")?;
-        let bindings = typed.expression_table
+        let bindings = typed
+            .expression_table
             .static_machine_application_bindings(instance.binding_application());
         if bindings.len() != prepared.telescope.len() {
             return Err("a specialized primitive lost a static argument");
         }
-        let arguments = prepared.telescope.into_iter().zip(bindings)
-            .map(|(parameter, binding)| Ok(match (parameter, &binding.value) {
-                (super::PreparedParameter::Ready(terminal_psi::ClosedReachParameter::Type { argument }),
-                    StaticMachineBindingValue::Type(_)) => RequirementArgumentSource::Type(argument),
-                (super::PreparedParameter::Ready(terminal_psi::ClosedReachParameter::Const { argument }),
-                    StaticMachineBindingValue::Const(_)) => RequirementArgumentSource::Const(
-                        argument.application_identity().ok_or("a specialized primitive lost its typed constant")?
+        let arguments = prepared
+            .telescope
+            .into_iter()
+            .zip(bindings)
+            .map(|(parameter, binding)| {
+                Ok(match (parameter, &binding.value) {
+                    (
+                        super::PreparedParameter::Ready(terminal_psi::ClosedReachParameter::Type {
+                            argument,
+                        }),
+                        StaticMachineBindingValue::Type(_),
+                    ) => RequirementArgumentSource::Type(argument),
+                    (
+                        super::PreparedParameter::Ready(
+                            terminal_psi::ClosedReachParameter::Const { argument },
+                        ),
+                        StaticMachineBindingValue::Const(_),
+                    ) => RequirementArgumentSource::Const(
+                        argument
+                            .application_identity()
+                            .ok_or("a specialized primitive lost its typed constant")?,
                     ),
-                (super::PreparedParameter::Machine { bounds, .. }, StaticMachineBindingValue::Machine(selected)) => {
-                    let body = typed.machine_by_own_or_state_symbol(selected.symbol)
-                        .ok_or("a specialized primitive lost its selected machine")?;
-                    RequirementArgumentSource::Machine(body.symbol, Some(bounds))
-                }
-                _ => return Err("a specialized primitive changed a static argument's kind"),
-            })).collect::<Result<Vec<_>, _>>()?;
-        Ok(Self { callable, arguments, commitment })
+                    (
+                        super::PreparedParameter::Machine { bounds, .. },
+                        StaticMachineBindingValue::Machine(selected),
+                    ) => {
+                        let body = typed
+                            .machine_by_own_or_state_symbol(selected.symbol)
+                            .ok_or("a specialized primitive lost its selected machine")?;
+                        RequirementArgumentSource::Machine(body.symbol, Some(bounds))
+                    }
+                    _ => return Err("a specialized primitive changed a static argument's kind"),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            callable,
+            arguments,
+            commitment,
+        })
     }
 
     pub(super) fn read(
@@ -246,25 +272,34 @@ pub(super) fn complete_callbacks(
         let Some(application) = selected_application(boundary.id) else {
             continue;
         };
-        let is_prepare = boundary.declaration.as_ref().is_some_and(|declaration|
-            declaration.execution == terminal_psi::CheckedBoundaryExecution::OwnedActivation(
-                language_core::sealed_intrinsics::ActivationOperation::Prepare));
+        let is_prepare = boundary.declaration.as_ref().is_some_and(|declaration| {
+            declaration.execution
+                == terminal_psi::CheckedBoundaryExecution::OwnedActivation(
+                    language_core::sealed_intrinsics::ActivationOperation::Prepare,
+                )
+        });
         let mut entry = None;
         let arguments = application
             .publish_arguments(identities, |symbol, bounds| {
                 let key = symbol_key(symbol);
                 let start = contracts.partition_point(|(id, _, _)| *id < key);
                 let (id, body, declaration) = *contracts.get(start)?;
-                if id != key || contracts.get(start + 1).is_some_and(|(id, _, _)| *id == key) {
+                if id != key
+                    || contracts
+                        .get(start + 1)
+                        .is_some_and(|(id, _, _)| *id == key)
+                {
                     return None;
                 }
                 if let Some(bounds) = bounds {
-                    bounds.admits(
-                        &body.published_service_ceiling,
-                        declaration.published_may_suspend,
-                        declaration.published_may_block,
-                        !body.crash_routes.is_empty(),
-                    ).ok()?;
+                    bounds
+                        .admits(
+                            &body.published_service_ceiling,
+                            declaration.published_may_suspend,
+                            declaration.published_may_block,
+                            !body.crash_routes.is_empty(),
+                        )
+                        .ok()?;
                 }
                 if is_prepare && entry.replace(body.id).is_some() {
                     return None;
@@ -274,12 +309,21 @@ pub(super) fn complete_callbacks(
             .ok_or("a requirement callback lost its exact checked declaration and contract")?;
         if is_prepare {
             use terminal_psi::{ClosedReachArgument as Arg, TerminalActivationStorage};
-            let [Arg::Type(_), Arg::Type(_), Arg::Machine { .. }, Arg::Const(storage)] = arguments.as_slice()
-                else { return Err("prepare must select its argument, reply, worker and storage plan"); };
+            let [
+                Arg::Type(_),
+                Arg::Type(_),
+                Arg::Machine { .. },
+                Arg::Const(storage),
+            ] = arguments.as_slice()
+            else {
+                return Err("prepare must select its argument, reply, worker and storage plan");
+            };
             caller_entries.push(terminal_psi::TerminalPreparedActivationEntry {
                 preparation: boundary.id,
                 entry_machine: entry.ok_or("prepare lost its selected worker body")?,
-                storage: identities.text(*storage).and_then(TerminalActivationStorage::from_core_argument)
+                storage: identities
+                    .text(*storage)
+                    .and_then(TerminalActivationStorage::from_core_argument)
                     .ok_or("prepare did not select a core activation storage plan")?,
             });
         }

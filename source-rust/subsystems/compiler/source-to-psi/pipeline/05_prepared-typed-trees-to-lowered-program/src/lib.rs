@@ -1660,9 +1660,14 @@ fn finish_reading_into<'source>(
     // must exist before a crossing can name the borrower's live backing.
     lower::suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     for entry in caller_entries {
-        let demand = terminal_semantics::calls::owned_activation::caller_demand(&elaboration.module, entry)
-            .map_err(declaration_error)?;
-        elaboration.module.execution.task_activation_demands.push(demand);
+        let demand =
+            terminal_semantics::calls::owned_activation::caller_demand(&elaboration.module, entry)
+                .map_err(declaration_error)?;
+        elaboration
+            .module
+            .execution
+            .task_activation_demands
+            .push(demand);
     }
     source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
     program.publish_machine_rows(&mut elaboration);

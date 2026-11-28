@@ -134,7 +134,9 @@ fn validate_carrier(
     };
     match &declaration.shape {
         S::TypeParameter => return Err("quotient carrier requires specialized storage"),
-        S::Opaque | S::BorrowingOpaque { .. } => return Err("quotient carrier has no visible storage representation"),
+        S::Opaque | S::BorrowingOpaque { .. } => {
+            return Err("quotient carrier has no visible storage representation");
+        }
         S::AtomicCell(_) => return Err("quotient carrier contains atomic storage"),
         S::Reference { .. }
         | S::ElementView { .. }

@@ -414,7 +414,9 @@ fn read_structural(
         StructuralTypeShape::TypeParameter => {
             Err("generic result needs a closed application before build-time observation".into())
         }
-        StructuralTypeShape::BorrowingOpaque { .. } => Err("build-time observation cannot expose an opaque owner's borrowed contents".into()),
+        StructuralTypeShape::BorrowingOpaque { .. } => {
+            Err("build-time observation cannot expose an opaque owner's borrowed contents".into())
+        }
         StructuralTypeShape::Opaque => {
             let observed = instance
                 .observe_storage(root, path)

@@ -362,9 +362,12 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                         let callee = machines
                             .get(&callee)
                             .ok_or("closed reach selected callee is absent")?;
-                        if callee.declaration.as_ref().is_none_or(|decl| !decl.matches_selection(
-                            binding.selected_identity, &binding.selected_contract_commitment,
-                        )) || callee.published_service_ceiling != binding.selected_reach
+                        if callee.declaration.as_ref().is_none_or(|decl| {
+                            !decl.matches_selection(
+                                binding.selected_identity,
+                                &binding.selected_contract_commitment,
+                            )
+                        }) || callee.published_service_ceiling != binding.selected_reach
                             || callee.declaration.as_ref().is_none_or(|declaration| {
                                 declaration.published_may_suspend
                                     != binding.selected_may_suspend

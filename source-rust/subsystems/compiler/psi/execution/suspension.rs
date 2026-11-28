@@ -160,7 +160,11 @@ pub enum TerminalSuspensionPlace {
 }
 
 impl TerminalSuspensionPlace {
-    fn commit(&self, identities: &TerminalIdentityTable, hash: &mut crate::digest_encoder::DomainDigestEncoder) {
+    fn commit(
+        &self,
+        identities: &TerminalIdentityTable,
+        hash: &mut crate::digest_encoder::DomainDigestEncoder,
+    ) {
         match self {
             Self::Scalar(value) => {
                 hash.byte(1);
@@ -176,7 +180,8 @@ impl TerminalSuspensionPlace {
     /// A report names the exact live place in this machine, not another
     /// machine's value with the same local number.
     pub fn report_identity(&self, identities: &TerminalIdentityTable, frame: u64) -> u64 {
-        let mut hash = crate::digest_encoder::DomainDigestEncoder::new(b"psi-activation-live-place-v1\0");
+        let mut hash =
+            crate::digest_encoder::DomainDigestEncoder::new(b"psi-activation-live-place-v1\0");
         hash.u64(frame);
         self.commit(identities, &mut hash);
         u64::from_le_bytes(hash.finish()[..8].try_into().expect("eight digest bytes"))

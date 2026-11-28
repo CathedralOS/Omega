@@ -1028,7 +1028,8 @@ pub(crate) mod structural_type_wire {
                         "opaque data cannot supply a visible carrier or authored value predicate",
                     ));
                 }
-                if let StructuralTypeShape::BorrowingOpaque { lifetime_count } = &declaration.shape {
+                if let StructuralTypeShape::BorrowingOpaque { lifetime_count } = &declaration.shape
+                {
                     writer.u8(21);
                     writer.u32(lifetime_count.get());
                 } else {
@@ -1231,7 +1232,9 @@ pub(crate) mod structural_type_wire {
             19 => StructuralTypeShape::Opaque,
             21 => StructuralTypeShape::BorrowingOpaque {
                 lifetime_count: std::num::NonZeroU32::new(reader.u32()?).ok_or(
-                    CodecError::MalformedStructuralFoundation("an opaque borrower has no lifetime parameters"),
+                    CodecError::MalformedStructuralFoundation(
+                        "an opaque borrower has no lifetime parameters",
+                    ),
                 )?,
             },
             tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),

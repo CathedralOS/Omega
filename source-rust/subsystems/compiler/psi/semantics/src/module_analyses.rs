@@ -75,7 +75,10 @@ fn body_calls_dynamically(body: &TerminalMachine) -> bool {
 fn push_callees(row: &DescriptorMachine, pending: &mut Vec<MachineId>) {
     for (_, call) in row.known_invocations() {
         match &call.target {
-            DescriptorInvocationTarget::Machine(callee) | DescriptorInvocationTarget::PrepareWorker { worker: callee, .. } => pending.push(*callee),
+            DescriptorInvocationTarget::Machine(callee)
+            | DescriptorInvocationTarget::PrepareWorker { worker: callee, .. } => {
+                pending.push(*callee)
+            }
             DescriptorInvocationTarget::Public {
                 effects_machine,
                 realizations,

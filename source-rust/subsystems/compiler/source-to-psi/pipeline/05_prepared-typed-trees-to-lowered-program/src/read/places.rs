@@ -440,7 +440,8 @@ impl Program<'_> {
                     }
                 }
             }
-            StorageShape::Opaque | StorageShape::BorrowingOpaque { .. }
+            StorageShape::Opaque
+            | StorageShape::BorrowingOpaque { .. }
             | StorageShape::TypeParameter(_)
             | StorageShape::ByteSequence(_)
             | StorageShape::AtomicCell(_)
@@ -769,8 +770,10 @@ impl Program<'_> {
             return Err(unserved("copy data with an owned field"));
         }
         let shape = if data.supply_mode == language_core::DataSupplyMode::BoundaryOpaque {
-            match std::num::NonZeroU32::new(u32::try_from(data.lifetime_parameters.len())
-                .map_err(|_| unserved("opaque lifetime binder count exceeds u32"))?) {
+            match std::num::NonZeroU32::new(
+                u32::try_from(data.lifetime_parameters.len())
+                    .map_err(|_| unserved("opaque lifetime binder count exceeds u32"))?,
+            ) {
                 None => crate::StorageShape::Opaque,
                 Some(lifetime_count) => crate::StorageShape::BorrowingOpaque { lifetime_count },
             }

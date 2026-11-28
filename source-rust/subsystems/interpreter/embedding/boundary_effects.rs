@@ -3276,7 +3276,9 @@ pub(crate) mod results {
                 return true;
             };
             match &declaration.shape {
-                StructuralTypeShape::Reference { .. } | StructuralTypeShape::BorrowingOpaque { .. } | StructuralTypeShape::TypeParameter => {
+                StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::BorrowingOpaque { .. }
+                | StructuralTypeShape::TypeParameter => {
                     return true;
                 }
                 StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::AtomicCell(_) => {

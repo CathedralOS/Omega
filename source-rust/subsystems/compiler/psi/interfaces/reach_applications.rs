@@ -174,9 +174,18 @@ impl ClosedReachArgument {
         module: &'a crate::TerminalModule,
         selected: MachineId,
     ) -> Option<&'a crate::TerminalMachine> {
-        let Self::Machine { identity, contract_commitment } = self else { return None };
+        let Self::Machine {
+            identity,
+            contract_commitment,
+        } = self
+        else {
+            return None;
+        };
         let body = module.machine(selected)?;
-        body.declaration.as_ref()?.matches_selection(*identity, contract_commitment).then_some(body)
+        body.declaration
+            .as_ref()?
+            .matches_selection(*identity, contract_commitment)
+            .then_some(body)
     }
 
     pub fn same_identity_as(

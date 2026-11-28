@@ -466,8 +466,11 @@ pub(crate) fn declare<'a, 'b>(
         let shape = match &record.shape {
             crate::StorageShape::AtomicCell(cell) => StructuralTypeShape::AtomicCell(*cell),
             crate::StorageShape::Opaque => StructuralTypeShape::Opaque,
-            crate::StorageShape::BorrowingOpaque { lifetime_count } =>
-                StructuralTypeShape::BorrowingOpaque { lifetime_count: *lifetime_count },
+            crate::StorageShape::BorrowingOpaque { lifetime_count } => {
+                StructuralTypeShape::BorrowingOpaque {
+                    lifetime_count: *lifetime_count,
+                }
+            }
             crate::StorageShape::TypeParameter(_) => StructuralTypeShape::TypeParameter,
             crate::StorageShape::Record(_) => {
                 // The natural layout row of a record with no authored layout:

@@ -3736,13 +3736,12 @@ pub(crate) mod task_activation_wire {
         U32, U64, wire_enum, wire_record,
     };
     use terminal_psi::{
-        TerminalTaskActivationDemand, TerminalActivationOrigin, TerminalTaskRuntimeSelection,
-        TerminalPreparedActivationEntry, TerminalActivationStorage,
-        TerminalTaskCarryStorage, TerminalTaskFrame, TerminalTaskFrameCall, TerminalTaskFrameState,
-        TerminalTaskLiveCarry, TerminalTaskResidentValue,
-        TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskSuspensionCrossing,
-        TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
-        TerminalTaskValueType,
+        TerminalActivationOrigin, TerminalActivationStorage, TerminalPreparedActivationEntry,
+        TerminalTaskActivationDemand, TerminalTaskCarryStorage, TerminalTaskFrame,
+        TerminalTaskFrameCall, TerminalTaskFrameState, TerminalTaskLiveCarry,
+        TerminalTaskResidentValue, TerminalTaskRuntimeSelection, TerminalTaskSignatureValue,
+        TerminalTaskStartOperation, TerminalTaskSuspensionCrossing, TerminalTaskUnresolvedCall,
+        TerminalTaskUnresolvedCallKind, TerminalTaskValueType,
     };
 
     wire_record! {

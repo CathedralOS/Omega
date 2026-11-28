@@ -2331,34 +2331,21 @@ mod reference_transport_tests {
         frame.string_terminated(module.identities.text(entry).unwrap());
         let frame = frame.finish_or(1);
         let reference = TerminalTaskValueType::Structural(StructuralTypeId::new(2).unwrap());
-        module.execution.task_activation_demands.push(TerminalTaskActivationDemand {
-            origin: terminal_psi::TerminalActivationOrigin::TaskRuntime(terminal_psi::TerminalTaskRuntimeSelection {
-                operation: TerminalTaskStartOperation::Start,
-                requirement_callable_identity: callable,
-                requirement_owner_path: callable,
-                requirement_owner_package: None,
-                requirement_in_scope: true,
-                authored_requirement_identity: callable,
-            }),
-            report_fingerprint: 1,
-            machine_callable_identity: callable,
-            entry,
-            entry_report_fingerprint: 2,
-            contract_report_fingerprint: 3,
-            specialization_commitment: [4; 32],
-            specialization_report_fingerprint: 4,
-            may_suspend: false,
-            may_block: false,
-            cancellation_required: false,
-            signature_arguments: Vec::new(),
-            signature_outcome: TerminalTaskSignatureValue {
-                value_type: reference,
-                normalized_identity: TerminalIdentityIndex(2),
-                is_mutable: false,
-            },
-            root_frame: frame,
-            frames: vec![TerminalTaskFrame {
-                identity: frame,
+        module
+            .execution
+            .task_activation_demands
+            .push(TerminalTaskActivationDemand {
+                origin: terminal_psi::TerminalActivationOrigin::TaskRuntime(
+                    terminal_psi::TerminalTaskRuntimeSelection {
+                        operation: TerminalTaskStartOperation::Start,
+                        requirement_callable_identity: callable,
+                        requirement_owner_path: callable,
+                        requirement_owner_package: None,
+                        requirement_in_scope: true,
+                        authored_requirement_identity: callable,
+                    },
+                ),
+                report_fingerprint: 1,
                 machine_callable_identity: callable,
                 entry,
                 states: vec![TerminalTaskFrameState {
@@ -2377,15 +2364,20 @@ mod reference_transport_tests {
         // A different owner tag cannot turn a scheduled task into a
         // caller-controlled invocation of a body chosen by its local ID.
         let mut unbound = module.clone();
-        unbound.execution.task_activation_demands[0].origin = terminal_psi::TerminalActivationOrigin::Caller(
-            terminal_psi::TerminalPreparedActivationEntry {
-                preparation: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
-                entry_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-                storage: terminal_psi::TerminalActivationStorage::Fixed,
-            },
-        );
-        assert!(matches!(decode_module(&encode_raw(&unbound).unwrap()),
-            Err(CodecError::MalformedStructuralFoundation("prepare selected a different worker or storage plan"))));
+        unbound.execution.task_activation_demands[0].origin =
+            terminal_psi::TerminalActivationOrigin::Caller(
+                terminal_psi::TerminalPreparedActivationEntry {
+                    preparation: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+                    entry_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    storage: terminal_psi::TerminalActivationStorage::Fixed,
+                },
+            );
+        assert!(matches!(
+            decode_module(&encode_raw(&unbound).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(
+                "prepare selected a different worker or storage plan"
+            ))
+        ));
 
         // ID 1 describes only what a reference points at. Its own storage
         // cannot be used as an activation result or a resident frame value.

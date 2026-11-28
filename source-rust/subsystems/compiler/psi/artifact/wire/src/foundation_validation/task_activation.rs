@@ -28,7 +28,11 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
     for demand in demands {
         match &demand.origin {
             TerminalActivationOrigin::TaskRuntime(runtime) => {
-                for index in [runtime.requirement_callable_identity, runtime.requirement_owner_path, runtime.authored_requirement_identity] {
+                for index in [
+                    runtime.requirement_callable_identity,
+                    runtime.requirement_owner_path,
+                    runtime.authored_requirement_identity,
+                ] {
                     identity(index)?;
                 }
             }
@@ -38,10 +42,13 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 }
                 // The caller reserves backing from this report. Checking just its
                 // signature would allow an image to omit a live value at a park.
-                let required = terminal_semantics::calls::owned_activation::caller_demand(module, *selection)
-                    .map_err(CodecError::MalformedStructuralFoundation)?;
+                let required =
+                    terminal_semantics::calls::owned_activation::caller_demand(module, *selection)
+                        .map_err(CodecError::MalformedStructuralFoundation)?;
                 if *demand != required {
-                    return malformed("prepared activation storage demand differs from its selected worker");
+                    return malformed(
+                        "prepared activation storage demand differs from its selected worker",
+                    );
                 }
             }
         }
