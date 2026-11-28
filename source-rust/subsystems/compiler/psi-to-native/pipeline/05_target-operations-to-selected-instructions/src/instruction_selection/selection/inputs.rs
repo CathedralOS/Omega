@@ -1268,6 +1268,7 @@ pub(crate) mod aggregate_result_input {
                     result,
                     field,
                     declaration,
+                    &declaration.field_type,
                 )?;
                 (shape == placed.shape).then_some((
                     placed.byte_offset,
@@ -3274,6 +3275,7 @@ pub(crate) mod primitive_local_input {
                 source: argument,
                 field,
                 case: None,
+                ..
             } => {
                 let root = projected_read_root(source, argument.place)?;
                 scalar_field_codec(root, &argument.path, *field, source.geometry())
@@ -3300,6 +3302,7 @@ pub(crate) mod primitive_local_input {
                 source: argument,
                 field,
                 case: None,
+                ..
             } => {
                 let root = projected_read_root(source, argument.place)?;
                 scalar_field_fragments(root, &argument.path, *field, source.geometry())
@@ -3494,8 +3497,23 @@ pub(crate) mod primitive_local_input {
             Instruction::StructuralScalarFieldRead {
                 source: argument,
                 field,
+                storage_scalar,
                 ..
             } => {
+                // Opening a callable field changes its checking contract; the descriptor in
+                // storage is still one target code pointer. Other scalar types are invariant.
+                let loaded = scalar.as_checking();
+                if *storage_scalar != loaded
+                    && !matches!(
+                        (*storage_scalar, loaded),
+                        (
+                            semantic_vocabulary::ScalarType::Callable(_),
+                            semantic_vocabulary::ScalarType::Callable(_)
+                        )
+                    )
+                {
+                    return None;
+                }
                 let signature = source.structural.as_ref()?;
                 let structural_type = if let Some(parameter) =
                     read_parameter(source, argument.place)
@@ -3550,14 +3568,14 @@ pub(crate) mod primitive_local_input {
                         path,
                         *case,
                         *field,
-                        scalar.as_checking(),
+                        *storage_scalar,
                         source.geometry(),
                     )?,
                     _ => field_read(
                         structural_type,
                         path,
                         *field,
-                        scalar.as_checking(),
+                        *storage_scalar,
                         source.geometry(),
                     )?,
                 };
@@ -3606,6 +3624,7 @@ pub(crate) mod record_input {
         let LegalizedScalarInstructionKind::EstablishRecord {
             result,
             fields,
+            instantiated,
             shape,
         } = &row.kind
         else {
@@ -3643,7 +3662,18 @@ pub(crate) mod record_input {
             if field.field != expected.id || expected.relevance.is_erased() {
                 return None;
             }
-            let field_shape = field_shape(source, result, field, expected)?;
+            let operand_type = instantiated
+                .get(&field.field)
+                .unwrap_or(&expected.field_type);
+            let field_shape = field_shape(source, result, field, expected, operand_type)?;
+            if operand_type != &expected.field_type
+                && declarations
+                    .field_storage_shape(expected, result.structural_type)
+                    .ok()?
+                    != field_shape
+            {
+                return None;
+            }
             let alignment = u32::from(field_shape.alignment);
             offset = match expected.storage.as_ref() {
                 Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
@@ -3655,7 +3685,7 @@ pub(crate) mod record_input {
             if offset.checked_add(field_shape.byte_size)? > shape.byte_size {
                 return None;
             }
-            placed.push((offset, field_shape, expected.field_type.scalar_type()));
+            placed.push((offset, field_shape, operand_type.scalar_type()));
             offset = offset.checked_add(field_shape.byte_size)?;
         }
         (offset <= shape.byte_size).then_some(placed)
@@ -3666,6 +3696,7 @@ pub(crate) mod record_input {
         parent: &terminal_psi::StructuralOperationResult,
         field: &terminal_psi::RecordFieldInitializer,
         expected: &terminal_psi::StructuralFieldDeclaration,
+        operand_type: &StructuralFieldType,
     ) -> Option<ValueShape> {
         if field.field != expected.id || expected.relevance.is_erased() {
             return None;
@@ -3674,12 +3705,12 @@ pub(crate) mod record_input {
             RecordFieldValue::Scalar {
                 range_obligation, ..
             } => {
-                if terminal_semantics::scalar_field_requires_evidence(&expected.field_type)
+                if terminal_semantics::scalar_field_requires_evidence(operand_type)
                     != range_obligation.is_some()
                 {
                     return None;
                 }
-                let scalar = expected.field_type.scalar_type()?;
+                let scalar = operand_type.scalar_type()?;
                 match expected.storage.as_ref() {
                     Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(fragments)) => {
                         if expected.field_type.atomic_scalar_type().is_some() {
@@ -3702,7 +3733,7 @@ pub(crate) mod record_input {
                 }
             }
             RecordFieldValue::Structural(argument) => {
-                structural_operand_shape(source, parent, argument, &expected.field_type)
+                structural_operand_shape(source, parent, argument, operand_type)
             }
         }
     }
@@ -4527,11 +4558,19 @@ pub(crate) mod reference_input {
         )?;
         let selected = projection.selected;
         let offset = projection.referent_offset;
-        let shape =
-            crate::instruction_selection::structural_inputs::structural_reference_input::shape(
-                selected,
-                declarations,
-            )?;
+        let opaque = calling_conventions::terminal_layout::opaque_borrow_transport(
+            &terminal_psi::find_structural_type(declarations, selected)?.shape,
+            argument.access,
+        );
+        let shape = match opaque {
+            Some(pointer) => pointer,
+            None => {
+                crate::instruction_selection::structural_inputs::structural_reference_input::shape(
+                    selected,
+                    declarations,
+                )?
+            }
+        };
         (target.place == argument.place
             && target.path == argument.path
             && target.access == argument.access
@@ -4539,7 +4578,9 @@ pub(crate) mod reference_input {
             && target.structural_type == selected
             && target.source_byte_offset == offset
             && target.shape
-                == if scalar_storage_type(selected, declarations).is_some()
+                == if let Some(pointer) = opaque {
+                    pointer
+                } else if scalar_storage_type(selected, declarations).is_some()
                     && target.destination.shape.class
                         == calling_conventions::ValueClass::BorrowedScalarReference
                 {

@@ -662,6 +662,7 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
     },
     EstablishRecord {
         result: terminal_psi::StructuralOperationResult,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
         shape: calling_conventions::ValueShape,
     },
@@ -722,6 +723,8 @@ pub enum LegalizedScalarInstructionKind {    InstallStaticInterrupt {
         indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     StructuralScalarFieldRead {
+        /// Type of the field in the stored record, before any package opening.
+        storage_scalar: semantic_vocabulary::ScalarType,
         source: terminal_psi::StructuralArgument,
         case: Option<semantic_vocabulary::StructuralCaseId>,
         field: semantic_vocabulary::StructuralFieldId,

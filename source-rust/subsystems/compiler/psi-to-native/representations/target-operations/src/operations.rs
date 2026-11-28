@@ -220,6 +220,8 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         pointer_slots: Vec<crate::TargetCasePointerSlot>,
     },
     StructuralScalarFieldRead {
+        /// Type of the field in the stored record, before any package opening.
+        storage_scalar: semantic_vocabulary::ScalarType,
         psi_operation: OperationId,
         result: AbstractResult,
         source: StructuralArgument,
@@ -404,6 +406,7 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
     EstablishRecord {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     EstablishAccessReference {

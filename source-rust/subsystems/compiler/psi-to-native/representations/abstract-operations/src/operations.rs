@@ -457,11 +457,14 @@ define_abstract_operations! {
     EstablishRecord {
         psi_operation: OperationId,
         result: OperationResult,
+        instantiated: operation_operands::structural_stores::InstantiatedFieldTypes,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
     CallStructural {
         psi_operation: OperationId,
         callee: AbstractCallTarget,
+        /// Stored referent for each argument the call reborrows through a package opening.
+        opened_referents: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal call order.
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
@@ -548,6 +551,8 @@ define_abstract_operations! {
         value: bool,
     },
     StructuralScalarFieldRead {
+        /// The callable contract specialized to this stable opening, when present.
+        opened_scalar: Option<semantic_vocabulary::ScalarType>,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,

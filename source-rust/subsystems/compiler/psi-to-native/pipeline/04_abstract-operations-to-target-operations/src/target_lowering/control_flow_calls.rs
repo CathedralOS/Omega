@@ -1083,6 +1083,7 @@ pub(crate) mod calls {
         diagnostic_owner: MachineId,
         scalar_arguments: &'a [ValueId],
         structural_arguments: &'a [StructuralArgument],
+        opened_referents: &'a [(usize, semantic_vocabulary::StructuralTypeId)],
         claim_transfers: &'a [ClaimTransfer],
         requirement_obligations: &'a [ObligationId],
         crash_continuations: &'a [CrashRouteBucket],
@@ -1109,6 +1110,7 @@ pub(crate) mod calls {
                 callee,
                 arguments,
                 structural_arguments,
+                opened_referents,
                 claim_transfers,
                 result,
                 requirement_obligations,
@@ -1120,6 +1122,7 @@ pub(crate) mod calls {
                     diagnostic_owner: callee.machine().unwrap_or(function.machine),
                     scalar_arguments: arguments,
                     structural_arguments,
+                    opened_referents,
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
@@ -1146,6 +1149,7 @@ pub(crate) mod calls {
                     diagnostic_owner: *callee,
                     scalar_arguments: arguments,
                     structural_arguments: &[],
+                    opened_referents: &[],
                     claim_transfers: &[],
                     requirement_obligations,
                     crash_continuations,
@@ -1271,9 +1275,17 @@ pub(crate) mod calls {
                     .map(|position| declaration.structural_parameter(position)),
             )
             .zip(&signature.parameters)
-            .map(|((argument, declaration), destination)| {
-                let declaration =
+            .enumerate()
+            .map(|(position, ((argument, declaration), destination))| {
+                let mut declaration =
                     declaration.ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                if let Some((_, stored)) =
+                    call.opened_referents.iter().find(|(i, _)| *i == position)
+                {
+                    // The source projects the stored package field; the destination ABI
+                    // was selected using the corresponding opened callable parameter.
+                    declaration.structural_type = *stored;
+                }
                 structural_argument(
                     argument,
                     &declaration,

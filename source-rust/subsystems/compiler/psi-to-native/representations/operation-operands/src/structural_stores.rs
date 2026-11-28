@@ -104,3 +104,10 @@ impl From<StructuralParameterDeclaration> for StructuralScalarStoreDestination {
 }
 
 pub type StructuralWindowRoot = StructuralScalarStoreDestination;
+
+/// Operand types fixed by this record construction's checked package witnesses.
+/// The public declaration continues to determine field order, offsets and storage.
+pub type InstantiatedFieldTypes = std::collections::BTreeMap<
+    semantic_vocabulary::StructuralFieldId,
+    terminal_psi::StructuralFieldType,
+>;

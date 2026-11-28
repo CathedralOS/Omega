@@ -1365,12 +1365,23 @@ pub(crate) mod normalized_foreign {
                 )
                 .ok_or_else(|| invalid!())?
             };
-            let projected_shape =
-                crate::instruction_selection::structural_inputs::structural_reference_input::shape(
+            let opaque = source
+                .geometry()
+                .iter()
+                .find(|ty| ty.id == projected_type)
+                .and_then(|ty| {
+                    calling_conventions::terminal_layout::opaque_borrow_transport(
+                        &ty.shape,
+                        argument.access,
+                    )
+                });
+            let projected_shape = match opaque {
+                Some(pointer) => pointer,
+                None => crate::instruction_selection::structural_inputs::structural_reference_input::shape(
                     projected_type,
                     source.geometry(),
-                )
-                .ok_or_else(|| invalid!())?;
+                ).ok_or_else(|| invalid!())?,
+            };
             let (storage_shape, abi_shape) = match argument.access {
                 terminal_psi::StructuralAccess::Owned => {
                     let admitted_root = if argument.path.is_empty() {
@@ -1423,10 +1434,12 @@ pub(crate) mod normalized_foreign {
                             return Err(invalid!());
                         }
                         (
-                            ValueShape::borrowed_reference(
-                                projected_shape.byte_size,
-                                projected_shape.alignment,
-                            ),
+                            opaque.unwrap_or_else(|| {
+                                ValueShape::borrowed_reference(
+                                    projected_shape.byte_size,
+                                    projected_shape.alignment,
+                                )
+                            }),
                             ValueShape::integer(u32::from(pointer_size), pointer_alignment),
                         )
                     }

@@ -872,7 +872,7 @@ pub(crate) mod borrowed_windows {
                     full
                 },
                 disposition.required_access(),
-                None,
+                crate::target_lowering::structural_layout::ReferenceEndpoint::Storage(None),
                 types,
             )?;
         let indices = super::scalar_sources::runtime_indices(
@@ -3018,6 +3018,7 @@ pub(crate) mod primitive_storage {
                 source,
                 path,
                 field,
+                opened_scalar,
             } => {
                 let (psi_operation, result, place, field) =
                     (*psi_operation, *result, *source, *field);
@@ -3108,7 +3109,11 @@ pub(crate) mod primitive_storage {
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                if declaration.field_type.scalar_type() != Some(result.scalar_type) {
+                let storage_scalar = declaration
+                    .field_type
+                    .scalar_type()
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                if opened_scalar.unwrap_or(storage_scalar) != result.scalar_type {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let (carrier_path, case) = match path.split_last() {
@@ -3132,6 +3137,7 @@ pub(crate) mod primitive_storage {
                     psi_operation,
                     TargetUnitOperation::StructuralScalarFieldRead {
                         psi_operation,
+                        storage_scalar,
                         result,
                         source: terminal_psi::StructuralArgument {
                             place,
@@ -3331,12 +3337,20 @@ pub(crate) mod records {
         site: &mut RowSite<'_>,
     ) -> Result<(), LoweringError> {
         let (function, types, live, operations, provenance) = site.parts();
-        let (psi_operation, result, fields, result_case, elements) = match operation {
+        let (psi_operation, result, fields, instantiated, result_case, elements) = match operation {
             AbstractOperation::EstablishRecord {
                 psi_operation,
                 result,
                 fields,
-            } => (psi_operation, result, fields.as_slice(), None, None),
+                instantiated,
+            } => (
+                psi_operation,
+                result,
+                fields.as_slice(),
+                Some(instantiated),
+                None,
+                None,
+            ),
             AbstractOperation::EstablishCase {
                 psi_operation,
                 result,
@@ -3346,6 +3360,7 @@ pub(crate) mod records {
                 psi_operation,
                 result,
                 fields.as_slice(),
+                None,
                 Some(*result_case),
                 None,
             ),
@@ -3353,7 +3368,7 @@ pub(crate) mod records {
                 psi_operation,
                 result,
                 elements,
-            } => (psi_operation, result, &[][..], None, Some(elements)),
+            } => (psi_operation, result, &[][..], None, None, Some(elements)),
             _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
         let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
@@ -3455,7 +3470,9 @@ pub(crate) mod records {
                 }
                 destination.push(StructuralPathSegment::Field(declaration.identity));
                 Ok((
-                    &declaration.field_type,
+                    instantiated
+                        .and_then(|types| types.get(&field.field))
+                        .unwrap_or(&declaration.field_type),
                     Some(declaration),
                     destination,
                     Input::Field(&field.value),
@@ -3635,6 +3652,7 @@ pub(crate) mod records {
                 None => TargetUnitOperation::EstablishRecord {
                     psi_operation: *psi_operation,
                     result_home,
+                    instantiated: instantiated.cloned().unwrap_or_default(),
                     fields: fields.to_vec(),
                 },
             }
