@@ -1174,11 +1174,12 @@ impl<'a> DescriptorAnalysis<'a> {
 
     /// The exact backing of this descriptor after this return's cleanup.
     pub(crate) fn returned_origins(
-        &self,
+        &mut self,
         identity: MachineId,
         at: DescriptorPosition,
         location: &DescriptorLocation,
     ) -> Option<Vec<DescriptorStoredOrigin>> {
+        self.replay.prepare_states(identity)?;
         let machine = self.replay.machine(identity)?;
         let state = self
             .replay
@@ -1191,6 +1192,36 @@ impl<'a> DescriptorAnalysis<'a> {
             .read(machine, state, location)?
             .iter()
             .map(|origin| self.replay.exported(machine, origin))
+            .collect()
+    }
+
+    /// Pair each lender of a callee result with the caller origins obtained by
+    /// substituting that lender alone at this call.
+    pub(crate) fn forwarded_origins(
+        &mut self,
+        caller: MachineId,
+        at: DescriptorPosition,
+        field: &[DescriptorPathSegment],
+    ) -> Option<Vec<(DescriptorStoredOrigin, Vec<DescriptorStoredOrigin>)>> {
+        self.replay.prepare_states(caller)?;
+        let row = self.replay.machine(caller)?;
+        let call = row.direct_call(at)?;
+        let summary = self.replay.summary(call.callee()?, 0)?;
+        let slots = summary.result.slots()?;
+        let origins = DescriptorResultSlot::matching(slots, field)?.origins_at(field)?;
+        let state = self.replay.invocation_state(caller, at, call.owner)?;
+        origins
+            .into_iter()
+            .map(|formal| {
+                let actuals = self.replay.substitute(row, state, call, formal)?;
+                Some((
+                    formal.clone(),
+                    actuals
+                        .iter()
+                        .map(|origin| self.replay.exported(row, origin))
+                        .collect::<Option<_>>()?,
+                ))
+            })
             .collect()
     }
 

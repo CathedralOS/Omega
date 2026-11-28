@@ -199,6 +199,35 @@ machine main() {
 }
 
 #[test]
+fn forwarding_a_complete_package_substitutes_each_callee_lender_at_the_call() {
+    let program = Program::of(
+        r"
+data File { byte: u8; }
+data Pair<'a, some S> { slots: [@'a S; 2]; }
+machine pair<'a>(first: @'a File, second: @'a File) -> Pair<'a> {
+    let slots: [@'a File; 2] = [first, second];
+    Pair { slots: slots }
+}
+machine relay<'a>(right: @'a File, left: @'a File) -> Pair<'a> { pair(left, right) }
+machine main() {
+    let left: File = File { byte: 17u8 };
+    let right: File = File { byte: 42u8 };
+    let result: Pair = relay(@right, @left);
+}",
+    );
+    let relay = program.machine("relay");
+    let fields = &relay.result.structural().unwrap().reference_sources;
+    assert_eq!(fields.len(), 2);
+    for (field, parameter) in fields.iter().zip(relay.structural_parameters.iter().rev()) {
+        let [source] = field.sources.as_slice() else {
+            panic!("one forwarded lender per slot")
+        };
+        assert_eq!(source.parameter().unwrap().place, parameter.place);
+    }
+    program.judged(|_| {}).accepted();
+}
+
+#[test]
 fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
     let program = Program::of(
         r"
