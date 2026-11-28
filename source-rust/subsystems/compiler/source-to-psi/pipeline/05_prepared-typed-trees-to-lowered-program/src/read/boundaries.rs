@@ -161,15 +161,12 @@ impl Program<'_> {
         {
             return Ok(Some((id, source.signature.clone())));
         }
-        if matches!(
-            typed.sealed_callable(target),
-            Some(
-                language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts
-                    | language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_)
-            )
-        ) {
+        if typed.sealed_callable(target).is_some_and(|intrinsic| {
+            intrinsic == language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts
+                || intrinsic.specializes_bodyless_header()
+        }) {
             let (_, declared) = typed
-                .bodyless_declaration(target)
+                .bodyless_machine_signature(target)
                 .map_err(|reason| crate::read::unavailable(context, reason))?
                 .ok_or_else(|| {
                     crate::read::unavailable(

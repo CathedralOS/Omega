@@ -1841,6 +1841,7 @@ pub(crate) fn boundary(
     use terminal_psi::CheckedBoundaryExecution;
 
     let intrinsic = match execution {
+        CheckedBoundaryExecution::EmptyRunRelease => Some(SealedIntrinsic::EmptyRunRelease),
         CheckedBoundaryExecution::LayoutTargetFacts => Some(SealedIntrinsic::LayoutTargetFacts),
         CheckedBoundaryExecution::OwnedActivation(operation) => {
             Some(SealedIntrinsic::OwnedActivation(operation))

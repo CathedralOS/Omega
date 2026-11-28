@@ -596,10 +596,9 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
             .preparable_bodyless_declaration(applied.target)
             .map_err(unserved)?
             .is_some()
-        && !matches!(
-            program.sealed_callable(declaration),
-            Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))
-        )
+        && !program
+            .sealed_callable(declaration)
+            .is_some_and(|intrinsic| intrinsic.specializes_bodyless_header())
     {
         installed_interrupts::prepare_registrar(program, site, &applied)?;
         program
@@ -1531,10 +1530,9 @@ fn copied_parts(
     // separate executable body.
     let sealed_header = machine.has_bodyless_signature()
         && machine.supply_mode == source_declarations::MachineSupplyMode::Boundary
-        && matches!(
-            program.sealed_callable(symbol),
-            Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(_))
-        );
+        && program
+            .sealed_callable(symbol)
+            .is_some_and(|intrinsic| intrinsic.specializes_bodyless_header());
     let plain = ((machine.body_is_present
         && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody) || sealed_header)
         && machine.owned_data.is_empty()
