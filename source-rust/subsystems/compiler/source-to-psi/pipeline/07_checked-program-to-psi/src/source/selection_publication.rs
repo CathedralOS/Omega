@@ -1,6 +1,8 @@
 //! Normalize the exact selections of every accepted source form. The output
 //! is a question packet; only receiving execution admission grants permission.
 
+mod package_callables;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
@@ -1471,12 +1473,19 @@ impl SymbolRows<DeclarationIdentity> {
     }
 }
 
+#[derive(Default)]
+struct CallableScope {
+    contracts: Vec<RuntimeCallableContractHandle>,
+    /// Exact (state, opened type) bindings captured by this applied field signature.
+    package_bindings: Vec<(SymbolHandle, SymbolHandle)>,
+}
+
 struct Declarations<'source> {
     typed: &'source TypedTrees,
     build_entry_source: Option<&'source source_admission::SourceFile>,
     ids: SymbolRows<SelectionDeclarationId>,
     identities: SymbolRows<DeclarationIdentity>,
-    contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
+    contracts: SymbolRows<CallableScope>,
     callable_declarations: HashMap<(SelectionPurpose, String), SelectionDeclarationId>,
     sources: Vec<(SelectionDeclarationId, source_text::SourceSpan)>,
     core_operators: BTreeMap<CoreIntegerOperatorSignature, SelectionDeclarationId>,
@@ -1555,13 +1564,15 @@ impl<'source> Declarations<'source> {
         }
         // Prepare this association once. Only an admitted contract's meaning
         // is normalized, so unrelated generic contracts never become work.
-        let mut contracts: SymbolRows<Vec<RuntimeCallableContractHandle>> =
+        let mut contracts: SymbolRows<CallableScope> =
             SymbolRows::new(source.source().symbols.symbols().nodes().len());
         for (handle, contract) in source.source().runtime_callable_contracts.iter() {
             contracts
-                .get_or_insert_with(contract.signature.symbol, Vec::new)?
+                .get_or_insert_with(contract.signature.symbol, CallableScope::default)?
+                .contracts
                 .push(handle);
         }
+        package_callables::retain_bindings(source.source(), &mut contracts)?;
         let build_entry_source = module
             .entry
             .and_then(|entry| match entry {
@@ -1741,7 +1752,7 @@ impl<'source> Declarations<'source> {
                 .get(&symbol)
                 .ok_or_else(|| refused("callable declaration has no retained full contract"))?;
             let mut identity = None;
-            for &contract in contracts {
+            for &contract in &contracts.contracts {
                 let candidate = self
                     .typed
                     .runtime_callable_contract_identity(contract, &[])
@@ -1966,7 +1977,7 @@ impl<'source> Declarations<'source> {
                         .contracts
                         .get(&scope)
                         .into_iter()
-                        .flatten()
+                        .flat_map(|row| &row.contracts)
                         .map(|&handle| self.typed.runtime_callable_contract(handle).lexical_owner);
                     let parent = parents
                         .next()
@@ -2000,7 +2011,11 @@ impl<'source> Declarations<'source> {
                     .typed
                     .executable_application_template(declared_owner)
                     .is_ok_and(|application| application.is_some())
-                && sees_binding(true)?);
+                && sees_binding(true)?)
+            || (kind == SelectionBindingKind::Type
+                && self.contracts.get(&lexical_owner).is_some_and(|row| {
+                    row.package_bindings.contains(&(scope_owner, symbol))
+                }));
         if !visible {
             let description = |symbol: SymbolHandle| {
                 (
@@ -3357,6 +3372,80 @@ machine entry() reaches Input {}
         }
         checked.sort_unstable();
         assert_eq!(checked, ["implicit", "named"]);
+    }
+
+    #[test]
+    fn projected_and_repacked_callbacks_capture_only_their_selected_witness() {
+        use crate::source_state::{expression::ExpressionNode, types::TypeReferenceNode};
+
+        let source = accepted_source(
+            "data Read<S> = machine(state: @S) -> u8 reaches none crashes none;
+             data Reader<some S> { read: Read<S>; }
+             machine copy(left: @Reader, right: @Reader) -> Reader {
+                 right.read;
+                 Reader { read: left.read }
+             }
+             machine entry() {}",
+            &[],
+        );
+        let typed = source.source();
+        let signature = |field| {
+            let TypeReferenceNode::Callable { contract } =
+                typed.type_reference_table.type_reference(field)
+            else {
+                panic!("expected a callback field");
+            };
+            typed.runtime_callable_contract(*contract).signature.symbol
+        };
+        let mut projections = typed.package_projections.iter().map(|field| {
+            let opening = typed.package_opening(field.opening);
+            let [(_, ty)] = opening.witnesses.as_slice() else {
+                panic!("expected one witness");
+            };
+            let TypeReferenceNode::Named { symbol, .. } =
+                typed.type_reference_table.type_reference(*ty)
+            else {
+                panic!("expected an opened witness");
+            };
+            (signature(field.result_type), *symbol, opening.state)
+        });
+        let (right, right_witness, state) = projections.next().unwrap();
+        let (left, left_witness, left_state) = projections.next().unwrap();
+        assert!(projections.next().is_none());
+        assert_eq!(left_state, state);
+        assert_ne!(left_witness, right_witness);
+        let received = typed
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, expression)| {
+                let ExpressionNode::StructLiteral(literal) = expression else {
+                    return None;
+                };
+                let package = literal.package.as_ref()?;
+                Some(signature(package.fields[0].ty))
+            })
+            .unwrap();
+        assert_ne!(received, left);
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        for (owner, own, foreign) in [
+            (left, left_witness, right_witness),
+            (right, right_witness, left_witness),
+            (received, left_witness, right_witness),
+        ] {
+            declarations
+                .local_binding(&mut questions, owner, own, state)
+                .unwrap();
+            let refusal = declarations
+                .local_binding(&mut questions, owner, foreign, state)
+                .unwrap_err();
+            assert!(
+                refusal
+                    .message
+                    .contains("outside its actual lexical context"),
+                "{refusal:?}"
+            );
+        }
     }
 
     #[test]
