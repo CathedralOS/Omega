@@ -1,0 +1,25 @@
+data Index [copy] { value: u32; }
+domain Index::Bounded requires self.value <= 1;
+public boundary trait Required { machine get(index: Index) -> u32 reaches none crashes none; }
+public Actual satisfies Required {
+    machine get(index: Index) -> u32 {
+        transition index in Index::Bounded { true -> read(index), false -> 0u32 }
+        machine read(index: Index) -> u32 requires index in Index::Bounded {
+            let values: [u32; 2] = [7, 11];
+            values[index.value]
+        }
+    }
+}
+machine pick(flag: bool) -> Index {
+    match flag { true -> Index { value: 1 }, false -> Index { value: 17 } }
+}
+machine main() reaches Required crashes Trap {
+    let first: u32 = Required::get(pick(true));
+    let observed: u32 = Required::get(pick(false));
+    transition first == 11 { true -> verify(observed), false -> bad() }
+    machine verify(observed: u32) {
+        transition observed == 0 { true -> done(), false -> bad() }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

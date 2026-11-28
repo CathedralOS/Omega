@@ -466,3 +466,34 @@ machine build(builder: @mutable BuildPlan) {{
         }
     }
 }
+
+#[test]
+fn a_build_registration_cannot_replace_a_providers_required_proof() {
+    let positive = referenced("value + 1");
+    let retired = BUILD.replace(
+        "    Build::bind(builder, linux_x86_64",
+        "    Build::assume_binding_contract::<|app|::Service::go, |app|::Service::go>(builder);\n    Build::bind(builder, linux_x86_64",
+    );
+    let (accepted, report) = project::check(
+        "retired-provider-registration",
+        &[("build.omg", &retired), ("main.omg", &positive)],
+        &["--check", "build.omg", "--target", "linux_x86_64"],
+    );
+    assert!(
+        !accepted
+            && report.contains("no visible declaration in its source scope")
+            && report.contains("build.omg:"),
+        "{report}"
+    );
+
+    let wrong = referenced("12u32");
+    let (accepted, report) = project::check(
+        "provider-promises-eleven-returns-twelve",
+        &[("build.omg", BUILD), ("main.omg", &wrong)],
+        &["--check", "build.omg", "--target", "linux_x86_64"],
+    );
+    assert!(
+        !accepted && report.contains("cannot prove ensures") && report.contains("result <= 11"),
+        "{report}"
+    );
+}
