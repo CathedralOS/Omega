@@ -35,6 +35,7 @@ impl StaticSourceEnvelope {
         &self,
         context: MachineId,
         services: &ServiceMap,
+        names: &terminal_psi::TerminalIdentityTable,
     ) -> Checked<StaticCallableEnvelope> {
         let service_reach = match &self.service_reach {
             SourceServiceCeiling::Open => StaticServiceCeiling::Open,
@@ -45,7 +46,7 @@ impl StaticSourceEnvelope {
         let mut invocations = self
             .invocations
             .iter()
-            .map(|invocation| services.invocation(context, invocation))
+            .map(|invocation| services.invocation(context, invocation, names))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
@@ -325,7 +326,7 @@ impl StaticContracts {
                                     .signature
                                     .as_ref()
                                     .map(Signature::static_signature),
-                                envelope: requirement.envelope.publish(context, services)?,
+                                envelope: requirement.envelope.publish(context, services, qualifications.identities.as_table())?,
                             })
                         })
                         .collect::<Checked<Vec<_>>>()?,
@@ -382,7 +383,7 @@ impl StaticContracts {
                 application: source.application.clone(),
                 implementation,
                 required,
-                envelope: source.envelope.publish(context, services)?,
+                envelope: source.envelope.publish(context, services, qualifications.identities.as_table())?,
                 provider: source
                     .provider
                     .as_ref()

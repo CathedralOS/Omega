@@ -1412,7 +1412,7 @@ impl Program<'_> {
         context: MachineId,
     ) -> Checked<crate::publication::reach::ServiceMap> {
         let bindings = self.prepare_service_bindings(context)?;
-        let mut services = if self.services.is_empty() {
+        let services = if self.services.is_empty() {
             if !bindings.is_empty() {
                 return Err(unavailable(
                     context,
@@ -1443,12 +1443,6 @@ impl Program<'_> {
                 catalog,
             )?
         };
-        for envelope in self.callables.envelopes.values().flatten() {
-            services.retain_invocation_fields(&envelope.invocations);
-        }
-        for envelope in self.checking_envelopes.values().flatten() {
-            services.retain_invocation_fields(&envelope.invocations);
-        }
         let contracts = self.callables.contracts.keys().collect::<Vec<_>>();
         for contract in contracts {
             let row = self.callables.contracts.get_mut(contract).ok_or_else(|| {

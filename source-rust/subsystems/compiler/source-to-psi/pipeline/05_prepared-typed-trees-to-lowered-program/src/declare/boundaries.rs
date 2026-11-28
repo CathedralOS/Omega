@@ -85,7 +85,7 @@ impl BoundaryNamespace {
         }
         qualifications.identities = std::mem::take(&mut module.identities).into_builder();
         for (id, source) in self.rows.iter() {
-            let envelope = services.envelope(context, &source.envelope)?;
+            let envelope = services.envelope(context, &source.envelope, qualifications.identities.as_table())?;
             let header = crate::lower::signature_header(
                 context,
                 &source.signature,

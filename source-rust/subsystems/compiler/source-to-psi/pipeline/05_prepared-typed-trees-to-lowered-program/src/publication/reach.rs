@@ -97,8 +97,6 @@ struct ServiceSource {
 pub(crate) struct ServiceMap {
     declarations: Vec<ServiceSource>,
     bindings: Vec<(ServiceReachId, ServiceId)>,
-    invocation_fields:
-        std::collections::BTreeMap<String, Option<terminal_psi::TerminalIdentityIndex>>,
 }
 impl ServiceMap {
     pub(crate) fn prepare(
@@ -186,7 +184,6 @@ impl ServiceMap {
         Ok(Self {
             declarations,
             bindings,
-            ..Self::default()
         })
     }
     pub(crate) fn service(&self, context: MachineId, source: ServiceReachId) -> Checked<ServiceId> {
@@ -216,36 +213,11 @@ impl ServiceMap {
         row.dedup();
         Ok(row)
     }
-    pub(crate) fn retain_invocation_fields(&mut self, invocations: &[SourceInvocation]) {
-        for entry in invocations {
-            if let SourceInvocation::ParameterPath { path, .. } = entry {
-                for step in path {
-                    if let InvocationStep::Field(name) = step {
-                        self.invocation_fields.entry(name.clone()).or_default();
-                    }
-                }
-            }
-        }
-    }
-
-    pub(crate) fn with_declared_fields(
-        &self,
-        names: &terminal_psi::TerminalIdentityTable,
-    ) -> std::borrow::Cow<'_, Self> {
-        if self.invocation_fields.is_empty() {
-            return std::borrow::Cow::Borrowed(self);
-        }
-        let mut resolved = self.clone();
-        for (name, identity) in &mut resolved.invocation_fields {
-            *identity = names.index_of(name);
-        }
-        std::borrow::Cow::Owned(resolved)
-    }
-
     pub(crate) fn invocation(
         &self,
         context: MachineId,
         source: &SourceInvocation,
+        names: &terminal_psi::TerminalIdentityTable,
     ) -> Checked<TerminalCallableInvocation> {
         use terminal_psi::StructuralPathSegment as Segment;
         match source {
@@ -258,7 +230,7 @@ impl ServiceMap {
             SourceInvocation::ParameterPath { parameter, path } => {
                 let path = path.iter().map(|step| Ok(match step {
                     InvocationStep::Case(case) => Segment::Case(*case),
-                    InvocationStep::Field(name) => Segment::Field(self.invocation_fields.get(name).copied().flatten()
+                    InvocationStep::Field(name) => Segment::Field(names.index_of(name)
                         .ok_or_else(|| unavailable(context, "invoked formal field is absent from its declared identities"))?),
                     InvocationStep::FixedIndex(index) => Segment::FixedIndex(*index),
                     InvocationStep::Referent => Segment::Referent,
@@ -274,11 +246,12 @@ impl ServiceMap {
         &self,
         context: MachineId,
         source: &SourceEnvelope,
+        names: &terminal_psi::TerminalIdentityTable,
     ) -> Checked<TerminalCallableEnvelope> {
         let mut invocations = source
             .invocations
             .iter()
-            .map(|target| self.invocation(context, target))
+            .map(|target| self.invocation(context, target, names))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
