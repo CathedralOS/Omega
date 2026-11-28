@@ -1293,6 +1293,11 @@ fn catalog_graph<'function, 'boundary>(
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions.into_iter().collect::<Vec<_>>();
     let boundaries = boundaries.into_iter().collect::<Vec<_>>();
+    let track_native_address_effects = functions.iter().any(|function| {
+        function
+            .block_nodes()
+            .any(|node| matches!(node.operation, O::BorrowAt { .. }))
+    });
     let build = |selector_graph: Option<&[DescriptorMachine]>| {
         let mut identities = BTreeSet::new();
         functions
@@ -1312,6 +1317,7 @@ fn catalog_graph<'function, 'boundary>(
                     slot_kind,
                     &preserves_boundary,
                     selector_graph,
+                    track_native_address_effects,
                 )
             })
             .collect::<Option<Vec<_>>>()
@@ -1379,6 +1385,7 @@ fn adapt(
     slot_kind: kernel::DescriptorSlotKind,
     preserves_boundary: &impl Fn(&PsiOptimizationFunction, &OptimizationNode) -> bool,
     selector_graph: Option<&[DescriptorMachine]>,
+    track_native_address_effects: bool,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = ScalarExpressions::new(function);
     let selector = |value| {
@@ -1634,6 +1641,7 @@ fn adapt(
                             .map(|formal| formal.value)
                             .zip(actuals.iter().copied()),
                         |actual| scalar_expressions.native_address(actual),
+                        track_native_address_effects,
                     )
                 };
             if let O::IntegerConstant {
