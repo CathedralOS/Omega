@@ -352,7 +352,7 @@ fn project_callable_values<'m>(
                         operation.id,
                         contract,
                         packages
-                            .invocation_witnesses(module, machine.id, operation.id)
+                            .admitted_invocation_contracts(module, machine.id, operation.id)
                             .ok_or("package call lacks its checked witness tuple")?,
                         referents,
                     )?;
@@ -531,7 +531,6 @@ fn project_callable_values<'m>(
         }
     }
     Ok(CallableValueProgram {
-        module: Some(module),
         catalog: &module.execution.callables,
         structural_types: &module.types.structural_types,
         graph,

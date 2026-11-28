@@ -2124,22 +2124,32 @@ fn lower_program_with_parallel<'source>(
                     Unserved::Machine("contract identity overflow"),
                 )
             })?;
-        let mut lowered = lower::machine_with_read_only_qualifications(
-            id,
-            contract,
-            bodies,
-            component,
-            components.has_separate_entry(id),
-            components.forwarded_consts(id),
-            signatures,
-            &outcomes,
-            &declared.records,
-            &module.types.structural_types,
-            callables,
-            boundaries,
-            requirements.contains(&id),
-            &qualifications,
-        )?;
+        let lower_members = |component: &[MachineId]| {
+            lower::machine_with_read_only_qualifications(
+                id,
+                contract,
+                bodies,
+                component,
+                components.has_separate_entry(id),
+                components.forwarded_consts(id),
+                signatures,
+                &outcomes,
+                &declared.records,
+                &module.types.structural_types,
+                callables,
+                boundaries,
+                requirements.contains(&id),
+                &qualifications,
+            )
+        };
+        let mut lowered = if components.needs_rank_identity(id)
+            && let Ok(entry) = lower_members(&[])
+            && components::preserves_entry_rank(&entry, component, signatures.machines)
+        {
+            entry
+        } else {
+            lower_members(component)?
+        };
         if let Some(typed) = typed_source {
             lower::operational::retain_callee_spans(typed, &mut lowered);
         }

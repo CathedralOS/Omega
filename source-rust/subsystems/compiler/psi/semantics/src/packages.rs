@@ -223,14 +223,29 @@ impl CheckedPackageSites {
             )
     }
 
-    pub(crate) fn invocation_witnesses<'m>(
+    /// Contracts a selected descriptor may implement at this opened package call.
+    /// This bounds the type of a descriptor already found by value flow.
+    pub fn admitted_invocation_contracts(
         &self,
-        module: &'m TerminalModule,
+        module: &TerminalModule,
         machine: MachineId,
         operation: OperationId,
-    ) -> Option<&'m [StructuralTypeId]> {
-        let &(index, _) = self.descriptors.get(&(machine, operation))?;
-        Some(&opening(module, machine, index).ok()?.witnesses)
+    ) -> Option<Vec<CallableContractId>> {
+        let &(index, contract) = self.descriptors.get(&(machine, operation))?;
+        let witnesses = &opening(module, machine, index).ok()?.witnesses;
+        Some(
+            module
+                .execution
+                .callables
+                .contracts
+                .iter()
+                .filter(|candidate| {
+                    candidate.id != contract
+                        && opened_callable_admits(module, witnesses, contract, candidate.id)
+                })
+                .map(|candidate| candidate.id)
+                .collect(),
+        )
     }
 
     /// Check the concrete contract on the descriptor actually read. Repeated
@@ -445,7 +460,7 @@ fn fields(
     }
 }
 
-fn schema(
+pub(crate) fn schema(
     module: &TerminalModule,
     record: StructuralTypeId,
 ) -> Result<&TerminalPackageSchema, &'static str> {

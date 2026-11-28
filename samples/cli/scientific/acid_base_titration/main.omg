@@ -12,7 +12,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     main.reader.consumed = 0;
     let mutable input: |input|::Input;
     let valid: bool = block |input|::read_input(@mutable main.reader, @mutable input);
-    transition valid { true -> rows(main, @input, 6), _ -> invalid(main) }
+    transition valid { true -> rows(main, @input, 6 as +Wrapping), _ -> invalid(main) }
     machine rows(main: @mutable Main, input: @|input|::Input, position: i32 in Wrapping) {
         transition position >= 6 && position < 22 && position < input.count {
             true -> row(main, input, position),
@@ -21,8 +21,8 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     }
     machine row(main: @mutable Main, input: @|input|::Input, position: i32 in Wrapping) {
         let mutable result: |equilibrium|::Equilibrium;
-        |equilibrium|::solve(input, input.values[position], @mutable result);
-        |report|::report(input.values[position], @result);
+        |equilibrium|::solve(input, input.values[position as -Wrapping], @mutable result);
+        |report|::report(input.values[position as -Wrapping], @result);
         transition { _ -> rows(main, input, position + 1) }
     }
     machine done(main: @mutable Main) { |console|::Console::write_line("status=ok"); |process_exit|::ProcessExit::exit_process(0); }
