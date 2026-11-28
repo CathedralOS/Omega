@@ -6,11 +6,9 @@ The Rust compiler checks grants for raw-address borrows and mutability upgrades 
 
 ## Follow a compilation
 
-The [Fixed activation layout](pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/fixed_activation.rs)
-sizes a caller-owned Linux x86-64 worker from its allocated frames, its own
-resolved calls and the instructions needed to enter it. Its two saved contexts,
-job and result must fit beside that stack in the supplied byte view. Computing
-this layout does not admit a platform stack switch or run a generator.
+On Linux x86-64, preparing a fixed activation measures the worker's frames, reachable calls and entry adapter. Its two saved contexts, job, result and stack must fit inside the caller's byte view. A rejected preparation returns the job and the original view. [Fixed activation layout](pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/fixed_activation.rs)
+
+Stepping enters the selected worker or continues its parked call. A park hands control back to the caller. A matching typed reply writes the answer into the suspended call, which continues on the next step. The worker's ordinary return delivers its result and restores custody of the original byte view. The native object links each step to its selected worker in the same text section. [Stack transfer](pipeline/11_bound-framed-machine-to-selected-form-encoding/src/fixed_activation.rs) · [Object linkage](pipeline/14_placed-functions-to-objects/src/body_object/fixed_activations.rs)
 
 | Work | Owner |
 | --- | --- |
