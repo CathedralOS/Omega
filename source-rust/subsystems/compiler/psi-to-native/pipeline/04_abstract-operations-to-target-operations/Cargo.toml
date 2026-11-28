@@ -9,6 +9,8 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+native-body-plan = { path = "../../representations/target-operations/body-plan" }
+native-body-plan-issuer = { path = "../../representations/target-operations/body-plan/issuer" }
 operation-evidence = { path = "../../representations/operation-evidence" }
 compiler-check-site = { path = "../../../foundation/check-site" }
 abstract-operations = { path = "../../representations/abstract-operations" }

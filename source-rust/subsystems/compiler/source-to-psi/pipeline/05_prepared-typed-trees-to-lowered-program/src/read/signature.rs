@@ -2779,7 +2779,10 @@ impl<'p> Converter<'p, '_> {
             formal_names: Vec::new(),
             machine_name: owner_name,
             text,
-            source: program.names.get(id).and_then(|names| names.declared),
+            source: program
+                .machine_context(id)
+                .map(|row| &row.names)
+                .and_then(|names| names.declared),
         });
         Ok(())
     }
@@ -4929,7 +4932,7 @@ impl<'p> Converter<'p, '_> {
             match statement {
                 Statement::Dispatch { arms, .. } => {
                     for (_, target, _) in arms {
-                        if let Target::Value(value) = target {
+                        if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
                             walk(value, &mut found);
                         }
                     }
@@ -5262,7 +5265,7 @@ impl<'p> Converter<'p, '_> {
             SignatureEntryKind::Statement { law },
             format!("{} fuel bound", defining.name),
         );
-        let names = self.program.names.get(id);
+        let names = self.program.machine_context(id).map(|row| &row.names);
         let mut formal_names: Vec<String> = (0..parameters)
             .map(|position| format!("parameter {position}"))
             .collect();
@@ -5432,7 +5435,7 @@ impl<'p> Converter<'p, '_> {
             SignatureEntryKind::Statement { law },
             format!("{} recursive equation", defining.name),
         );
-        let names = self.program.names.get(id);
+        let names = self.program.machine_context(id).map(|row| &row.names);
         let mut formal_names: Vec<String> = (0..parameters)
             .map(|position| format!("parameter {position}"))
             .collect();
@@ -5546,7 +5549,7 @@ impl<'p> Converter<'p, '_> {
                 self.citations(id, id, before, &scope, &mut script)?;
                 match target {
                     Target::Unit => {}
-                    Target::Value(value) => {
+                    Target::Value(value) | Target::AssemblyReturn(_, value) => {
                         self.cite_within(id, id, value, &scope, &mut script, false)?
                     }
                     Target::Crash(_) => return Err(unserved(id, "law case that crashes")),
@@ -6623,8 +6626,8 @@ impl<'p> Converter<'p, '_> {
                 continue;
             }
             let source = program
-                .names
-                .get(valuing.owner)
+                .machine_context(valuing.owner)
+                .map(|row| &row.names)
                 .and_then(|names| names.declared);
             self.owe_statement(
                 id,
@@ -6680,8 +6683,8 @@ impl<'p> Converter<'p, '_> {
                 continue;
             }
             let source = program
-                .names
-                .get(valuing.owner)
+                .machine_context(valuing.owner)
+                .map(|row| &row.names)
                 .and_then(|names| names.declared);
             self.owe_statement(
                 id,
@@ -6754,8 +6757,8 @@ impl<'p> Converter<'p, '_> {
             .unwrap_or_default();
         let source = call.source.span().or_else(|| {
             self.program
-                .names
-                .get(valuing.owner)
+                .machine_context(valuing.owner)
+                .map(|row| &row.names)
                 .and_then(|names| names.declared)
         });
         self.owe_statement(
@@ -8369,7 +8372,7 @@ impl<'p> Converter<'p, '_> {
             self.citations(id, id, before, &scope, &mut script)?;
             match target {
                 Target::Unit => {}
-                Target::Value(value) => {
+                Target::Value(value) | Target::AssemblyReturn(_, value) => {
                     self.cite_within(id, id, value, &scope, &mut script, false)?
                 }
                 Target::Crash(_) => return Err(unserved(id, "law case that crashes")),
@@ -8513,7 +8516,7 @@ impl<'p> Converter<'p, '_> {
                 converter.citations(law, machine, before, scope, &mut nested)?;
                 match target {
                     Target::Unit => {}
-                    Target::Value(value) => {
+                    Target::Value(value) | Target::AssemblyReturn(_, value) => {
                         converter.cite_within(law, machine, value, scope, &mut nested, false)?
                     }
                     Target::Crash(_) => return Err(unserved(machine, "law case that crashes")),

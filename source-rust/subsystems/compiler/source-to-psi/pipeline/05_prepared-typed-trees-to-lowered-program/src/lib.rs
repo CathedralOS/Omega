@@ -1186,12 +1186,7 @@ fn finish_logical_witness<'source>(
     program.prepare_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
-    let components = prepare_call_components(
-        &bodies,
-        &mut program.signatures,
-        &program.theorem_parameters,
-        &program.const_scopes,
-    )?;
+    let components = program.prepare_call_components(&bodies)?;
     let mut witness = lower_program(
         Some(entry),
         &bodies,
@@ -1219,10 +1214,8 @@ fn finish_logical_witness<'source>(
     // declarations without deriving executable reach from the synthetic body.
     witness.program.reach.names = services.publish(entry, &mut witness.program.module)?;
     witness.source.records = program.source_record_correspondence(entry)?;
+    program.publish_machine_rows(&mut witness.program);
     witness.program.machines = program.symbols;
-    witness.program.names = program.names;
-    witness.program.value_parameters = program.value_parameters;
-    witness.program.value_arguments = program.value_arguments;
     witness.program.applications = program.applications;
     witness.program.selections = program.selections;
     witness.source.selection_questions = Some(
@@ -1424,12 +1417,7 @@ fn finish_reading_into<'source>(
                 program.application_binders(next)?
             });
         }
-        let components = prepare_call_components(
-            &bodies,
-            &mut program.signatures,
-            &program.theorem_parameters,
-            &program.const_scopes,
-        )?;
+        let components = program.prepare_call_components(&bodies)?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
         let more = program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
@@ -1650,8 +1638,8 @@ fn finish_reading_into<'source>(
         .map_err(|refusal| {
             let span = refusal.source_span.or_else(|| {
                 program
-                    .names
-                    .get(refusal.site.in_machine()?.0)
+                    .machine_context(refusal.site.in_machine()?.0)
+                    .map(|row| &row.names)
                     .and_then(|names| names.declared)
             });
             refusal.with_source_span(span)
@@ -1670,14 +1658,12 @@ fn finish_reading_into<'source>(
     // must exist before a crossing can name the borrower's live backing.
     lower::suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
+    program.publish_machine_rows(&mut elaboration);
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
-    elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
-    elaboration.value_parameters = program.value_parameters;
     elaboration.generic_binders = program.generic_binders;
-    elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
     let calling = match (policies, descriptions) {
@@ -1785,7 +1771,7 @@ fn lower_generic_for<'source>(
         bodies,
         &mut machine_signatures,
         signatures.theorems,
-        &Default::default(),
+        std::iter::empty(),
     )?;
     let signatures = body::Signatures {
         machines: &machine_signatures,
@@ -1811,11 +1797,11 @@ fn lower_generic_for<'source>(
 
 /// Validate call positions and prepare the graph once for this body closure.
 /// Progress inference and lowering borrow the same component/ranking data.
-fn prepare_call_components(
+fn prepare_call_components<'a>(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
     theorems: &[terminal_psi::TheoremParameter],
-    const_scopes: &IdTable<MachineId, Vec<read::ConstBinding>>,
+    const_scopes: impl Iterator<Item = (MachineId, &'a [read::ConstBinding])>,
 ) -> Checked<components::Components> {
     for (machine, body) in bodies.iter() {
         lower::operational::positions(machine, body)?;
@@ -2698,8 +2684,7 @@ mod publication_scope_tests {
         let lower = |publication| {
             let mut signatures = signatures.clone();
             let components =
-                prepare_call_components(&bodies, &mut signatures, &[], &Default::default())
-                    .unwrap();
+                prepare_call_components(&bodies, &mut signatures, &[], std::iter::empty()).unwrap();
             lower_program(
                 Some(entry),
                 &bodies,

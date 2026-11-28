@@ -71,6 +71,15 @@ pub(crate) fn runtime_permission_rows(
     builder.finish().map(|(rows, _)| rows)
 }
 
+fn restricted_request_schema(request: &crate::record::PackagePolicyRestrictedBuildRequest) -> u16 {
+    match request.operation {
+        build_consent::RestrictedBuildOperation::SendDatagram { .. } => {
+            crate::encoding::BASELINE_WITH_NETWORK_REQUESTS
+        }
+        _ => crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS,
+    }
+}
+
 pub fn restricted_build_request_acceptance_text(
     package: PackageKeyIdentity,
     target: target::TargetProfile,
@@ -84,7 +93,7 @@ pub fn restricted_build_request_acceptance_text(
             target,
             (
                 PackagePolicyRowKind::RestrictedBuildRequest,
-                crate::encoding::BASELINE_WITHOUT_STRUCTURAL_PARAMETERS,
+                restricted_request_schema(&request),
             ),
             true,
             true,

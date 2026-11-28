@@ -1462,6 +1462,7 @@ mod identity_tests {
         };
         let streams = text(BuildCompanionFile::SandboxStreams);
         let program = text(BuildCompanionFile::BuildProgram);
+        let network = text(BuildCompanionFile::SandboxDatagram);
         let filesystem = text(BuildCompanionFile::SystemFilesystem);
         let package = source_provenance::PackageKeyIdentity::from_digest([7; 32]);
         let mut sources = SourceMap::default();
@@ -1488,6 +1489,27 @@ mod identity_tests {
             "/compiler/build/program.omg",
             &program,
             "/compiler/build",
+            false,
+            library,
+        );
+        let network_id = admit(
+            "/compiler/core/sandbox/datagram.omg",
+            &network,
+            "/compiler/core",
+            false,
+            library,
+        );
+        let user_network_id = admit(
+            "/workspace/core/sandbox/datagram.omg",
+            &network,
+            "/workspace/core",
+            false,
+            SourceOrigin::User,
+        );
+        let edited_network_id = admit(
+            "/compiler/core/sandbox/datagram.omg",
+            &network.replace("::NetworkSend", "::NetworkReceive"),
+            "/compiler/core",
             false,
             library,
         );
@@ -1536,6 +1558,9 @@ mod identity_tests {
         let expected = [
             (streams_id, Some(BuildCompanionFile::SandboxStreams)),
             (program_id, Some(BuildCompanionFile::BuildProgram)),
+            (network_id, Some(BuildCompanionFile::SandboxDatagram)),
+            (user_network_id, None),
+            (edited_network_id, None),
             (filesystem_id, Some(BuildCompanionFile::SystemFilesystem)),
             (user_streams_id, None),
             (packaged_program_id, None),

@@ -272,6 +272,9 @@ pub enum Discharged {
     RetainedMembership,
     /// A typed source Identity checked against its actual mathematical term.
     Identity(equality::Judgment),
+    /// A conjunction of same-type integer comparisons, each the truth that
+    /// identity of its operands proves.
+    Identities(Vec<equality::Judgment>),
     /// The result conserves the declared projection of every listed owned entry claim on all normal returns.
     ConservedContent(Vec<semantic_vocabulary::ClaimId>),
     /// A certificate the kernel accepted.
@@ -341,6 +344,7 @@ impl Discharged {
         match self {
             Self::Certificate(evidence) => Some(evidence),
             Self::Identity(_)
+            | Self::Identities(_)
             | Self::Law(_)
             | Self::ConservedContent(_)
             | Self::TargetCondition(_)
@@ -1129,6 +1133,16 @@ fn check_prepared_machine(
         )
         .map_err(|detail| refusal(RefusalReason::Unestablished, id, Construct::Machine, detail))?;
     let mut knowledge = KnowledgeIndex::new(graph, tables, id)?;
+    let has_call_congruence = tables
+        .knowledge
+        .iter()
+        .any(|(_, row)| matches!(row.justification, Justification::CallCongruence { .. }));
+    let identity_known = tables.knowledge.iter().any(|(_, row)| {
+        matches!(
+            tables.propositions.get(row.proposition),
+            Some(Proposition::DeclarationIdentity(_))
+        )
+    });
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -1278,25 +1292,70 @@ fn check_prepared_machine(
                 },
                 _ => None,
             };
-            let comparison = match truth {
-                Some((left, right))
-                    if left.scalar_type() == ScalarType::Boolean
-                        && right.scalar_type() == ScalarType::Boolean
-                        && tables.knowledge.iter().any(|(_, row)| {
-                            matches!(row.justification, Justification::CallCongruence { .. })
-                        }) =>
+            let boolean = |term: ScalarTerm| ClauseValue {
+                carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
+                operand: ClauseOperand::Scalar(term),
+            };
+            // `x == y` over one builtin integer type is the truth of that
+            // comparison, which identity of its operands proves
+            // (contracts.md: "Conversely, that identity establishes that the
+            // same comparison is true"), and so is `x == y` over `bool`. A
+            // conjunction of such comparisons, as a synthesized record
+            // comparison states, is proved one comparison at a time.
+            let identical_truth = |part: &Proposition| match part {
+                Proposition::Equal(left, right)
+                    if let (ScalarType::Integer(scalar_type), ScalarType::Integer(other)) =
+                        (left.scalar_type(), right.scalar_type())
+                        && scalar_type == other
+                        && !scalar_type.is_address() =>
                 {
-                    let value = |term: ScalarTerm| ClauseValue {
-                        carrier: ClauseCarrier::Scalar(ScalarType::Boolean),
-                        operand: ClauseOperand::Scalar(term),
-                    };
                     Some(ClauseIdentity {
-                        values: vec![value(left), value(right)],
+                        values: vec![
+                            boolean(ScalarTerm::IntegerEqual {
+                                scalar_type,
+                                left: Box::new(left.clone()),
+                                right: Box::new(right.clone()),
+                            }),
+                            boolean(ScalarTerm::Boolean(true)),
+                        ],
+                        left: 0,
+                        right: 1,
+                    })
+                }
+                // Two Booleans are equal exactly when they are identical.
+                Proposition::Equal(left, right)
+                    if left.scalar_type() == ScalarType::Boolean
+                        && right.scalar_type() == ScalarType::Boolean =>
+                {
+                    Some(ClauseIdentity {
+                        values: vec![boolean(left.clone()), boolean(right.clone())],
                         left: 0,
                         right: 1,
                     })
                 }
                 _ => None,
+            };
+            let comparisons = match truth {
+                Some((left, right))
+                    if left.scalar_type() == ScalarType::Boolean
+                        && right.scalar_type() == ScalarType::Boolean
+                        && has_call_congruence =>
+                {
+                    vec![ClauseIdentity {
+                        values: vec![boolean(left), boolean(right)],
+                        left: 0,
+                        right: 1,
+                    }]
+                }
+                _ if identity_known => match &goal {
+                    Proposition::Conjunction(parts) => parts
+                        .iter()
+                        .map(identical_truth)
+                        .collect::<Option<Vec<_>>>()
+                        .unwrap_or_default(),
+                    part => identical_truth(part).into_iter().collect(),
+                },
+                _ => Vec::new(),
             };
             let decided = decide_indexed(
                 context,
@@ -1311,17 +1370,36 @@ fn check_prepared_machine(
                 activity,
             )
             .map(Discharged::Certificate);
-            match (decided, comparison) {
-                (Err(unproved), Some(clause)) => {
-                    let identity = match row.kind {
-                        ObligationKind::NormalGuarantee { exit, .. } => {
-                            let mut at_exit = storage.at_return(
-                                references,
-                                tables,
-                                exit,
-                                Construct::Obligation(obligation),
-                            )?;
-                            equality::discharge(
+            match decided {
+                Err(unproved)
+                    if matches!(unproved.reason, RefusalReason::Unproved(_))
+                        && !comparisons.is_empty() =>
+                {
+                    let mut identities = Vec::with_capacity(comparisons.len());
+                    for clause in &comparisons {
+                        let identity = match row.kind {
+                            ObligationKind::NormalGuarantee { exit, .. } => {
+                                let mut at_exit = storage.at_return(
+                                    references,
+                                    tables,
+                                    exit,
+                                    Construct::Obligation(obligation),
+                                )?;
+                                equality::discharge(
+                                    module,
+                                    lowered,
+                                    tables,
+                                    graph,
+                                    storage,
+                                    row.created_at,
+                                    obligation,
+                                    clause,
+                                    law_instances.instances,
+                                    law_instances.identities,
+                                    &mut at_exit,
+                                )
+                            }
+                            _ => equality::discharge(
                                 module,
                                 lowered,
                                 tables,
@@ -1329,29 +1407,20 @@ fn check_prepared_machine(
                                 storage,
                                 row.created_at,
                                 obligation,
-                                &clause,
+                                clause,
                                 law_instances.instances,
                                 law_instances.identities,
-                                &mut at_exit,
-                            )
-                        }
-                        _ => equality::discharge(
-                            module,
-                            lowered,
-                            tables,
-                            graph,
-                            storage,
-                            row.created_at,
-                            obligation,
-                            &clause,
-                            law_instances.instances,
-                            law_instances.identities,
-                            &mut storage.at_entry(references, tables),
-                        ),
-                    };
-                    identity.map(Discharged::Identity).map_err(|_| unproved)
+                                &mut storage.at_entry(references, tables),
+                            ),
+                        };
+                        identities.push(identity.map_err(|_| unproved.clone())?);
+                    }
+                    Ok(match <[_; 1]>::try_from(identities) {
+                        Ok([identity]) => Discharged::Identity(identity),
+                        Err(identities) => Discharged::Identities(identities),
+                    })
                 }
-                (decided, _) => decided,
+                decided => decided,
             }
         });
         decided[index] = Some(verdict);
@@ -1391,7 +1460,14 @@ fn check_prepared_machine(
         if decided[index].is_none()
             && let ObligationKind::PublishedGuarantee { clause } = row.kind
         {
-            decided[index] = Some(published(tables, id, obligation, clause, &decided));
+            decided[index] = Some(published(
+                tables,
+                prepared.normal_guarantees,
+                id,
+                obligation,
+                clause,
+                &decided,
+            ));
         }
     }
     // A store or a zero establishment that was not shown to keep a clause
@@ -2002,6 +2078,7 @@ struct PreparedMachine<'scope, 'analysis> {
     graph: &'scope Graph,
     context: &'scope PropositionContext,
     ranking_bindings: &'scope rankings::Bindings,
+    normal_guarantees: &'scope minted::NormalGuarantees,
     storage: &'scope places::Storage<'analysis>,
     references: &'scope mut terminal_semantics::descriptor_results::DescriptorAnalysis<'analysis>,
 }
@@ -2137,7 +2214,8 @@ fn with_prepared_machine<'r, Outcome>(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, rows)?;
+    let normal_guarantees =
+        minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, rows)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     // A machine check of the module the replays were built from reads the
@@ -2261,6 +2339,7 @@ fn with_prepared_machine<'r, Outcome>(
                 graph: &graph,
                 context: &context,
                 ranking_bindings: &ranking_bindings,
+                normal_guarantees: &normal_guarantees,
                 storage: &storage,
                 references: &mut references,
             },
@@ -2287,6 +2366,7 @@ fn with_prepared_machine<'r, Outcome>(
 /// must establish the published guarantees."
 fn published(
     tables: &MachineTables,
+    guarantees: &minted::NormalGuarantees,
     id: MachineId,
     published: ObligationId,
     clause: u32,
@@ -2305,15 +2385,7 @@ fn published(
         if row.destination != Destination::Return {
             continue;
         }
-        let guarantee = tables.obligations.iter().find(|(_, candidate)| {
-            candidate.kind
-                == ObligationKind::NormalGuarantee {
-                    exit: edge,
-                    clause,
-                    published,
-                }
-        });
-        let Some((obligation, _)) = guarantee else {
+        let Some(obligation) = guarantees.get(edge, clause, published) else {
             return Err(unproved(
                 "a normal return owes no guarantee for this clause",
             ));
@@ -2323,6 +2395,7 @@ fn published(
             Some(Some(Ok(
                 Discharged::Certificate(_)
                 | Discharged::Identity(_)
+                | Discharged::Identities(_)
                 | Discharged::Law(_)
                 | Discharged::ConservedContent(_),
             ))) => exits.push(obligation),

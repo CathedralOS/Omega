@@ -79,13 +79,16 @@ impl DemandOrder {
         for (reader, read) in reads.iter().enumerate() {
             need_starts.push(needs.len() as u32);
             let first = needs.len();
-            for &(holder, value) in &held {
-                if (value as usize != reader || waits_for_itself[reader])
-                    && read
-                        .binary_search_by_key(&holder, |symbol| key(*symbol))
-                        .is_ok()
+            for declarations in read.chunk_by(|a, b| a == b) {
+                let holder = key(declarations[0]);
+                let start = held.partition_point(|&(candidate, _)| candidate < holder);
+                for &(_, value) in held[start..]
+                    .iter()
+                    .take_while(|&&(candidate, _)| candidate == holder)
                 {
-                    needs.push(value);
+                    if value as usize != reader || waits_for_itself[reader] {
+                        needs.push(value);
+                    }
                 }
             }
             needs[first..].sort_unstable();
@@ -255,6 +258,16 @@ mod tests {
         let (seen, end) = rounds(&mut order);
         assert_eq!(seen, [vec![2, 3], vec![1], vec![0]]);
         assert_eq!(end, Round::Finished);
+    }
+
+    #[test]
+    fn a_shared_holder_waits_for_each_value_of_its_generation_once() {
+        let holder = SymbolHandle::from_parts(3, 1);
+        let other_generation = SymbolHandle::from_parts(3, 2);
+        let holders: [&[SymbolHandle]; 4] = [&[holder], &[other_generation], &[holder], &[]];
+        let reads = [vec![], vec![], vec![], vec![holder, holder]];
+        let order = DemandOrder::new(&holders, &reads, &[true; 4]);
+        assert_eq!(order.needs(3).collect::<Vec<_>>(), [0, 2]);
     }
 
     #[test]

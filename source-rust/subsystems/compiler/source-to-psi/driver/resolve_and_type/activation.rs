@@ -220,10 +220,6 @@ pub(super) fn select_retained_source(
         {
             continue;
         }
-        let pre_checks = pre_checks
-            .iter()
-            .map(|pending| pending.activate_sources(typing.typed()))
-            .collect::<Result<Vec<_>, _>>()?;
         return Ok(Some(ActivatedSource {
             typing,
             pre_checks,

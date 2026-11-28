@@ -34,7 +34,7 @@ fn build_entry_image(
 
 pub(crate) mod dynamic_elf {
     use diagnostics::Diagnostic;
-    use image::{EmittedImageOutput, emitted_direct_executable_output, final_image_symbol_digest};
+    use image::{EmittedImageOutput, final_image_symbol_digest};
     use image_elf::{
         ElfDynamicExecutableEmissionError, ValidatedElfDynamicExecutable,
         emit_elf_dynamic_executable,
@@ -100,17 +100,16 @@ pub(crate) mod dynamic_elf {
     #[derive(Debug)]
     #[must_use = "dynamic ELF production emission retains admitted byte custody"]
     pub struct DynamicElfImageEmission {
-        admitted: ValidatedElfDynamicExecutable,
-        output: EmittedImageOutput,
+        admitted: ValidatedElfDynamicExecutable<EmittedImageOutput>,
     }
 
     impl DynamicElfImageEmission {
-        pub const fn admitted(&self) -> &ValidatedElfDynamicExecutable {
+        pub const fn admitted(&self) -> &ValidatedElfDynamicExecutable<EmittedImageOutput> {
             &self.admitted
         }
 
         pub const fn output(&self) -> &EmittedImageOutput {
-            &self.output
+            self.admitted.output()
         }
     }
 
@@ -193,23 +192,22 @@ pub(crate) mod dynamic_elf {
         })?;
         let admitted = emit_elf_dynamic_executable(image, interpreter)
             .map_err(|error| Box::new(DynamicElfOrchestrationError::Elf(error)))?;
-        let output = match emitted_output(artifact, &admitted) {
-            Ok(output) => output,
-            Err(diagnostic) => {
-                return Err(Box::new(DynamicElfOrchestrationError::ProductionBridge(
-                    Box::new(DynamicElfImageEmissionError { diagnostic }),
-                )));
-            }
-        };
-        Ok(DynamicElfImageEmission { admitted, output })
+        validate_target(artifact, admitted.image()).map_err(|diagnostic| {
+            Box::new(DynamicElfOrchestrationError::ProductionBridge(Box::new(
+                DynamicElfImageEmissionError { diagnostic },
+            )))
+        })?;
+        Ok(DynamicElfImageEmission {
+            admitted: admitted.into_emitted(),
+        })
     }
 
-    fn emitted_output(
+    fn validate_target(
         artifact: &ObjectArtifact,
-        admitted: &ValidatedElfDynamicExecutable,
-    ) -> Result<EmittedImageOutput, Diagnostic> {
+        image: &image::FinalImage,
+    ) -> Result<(), Diagnostic> {
         let target = artifact.target();
-        if target != admitted.image().target
+        if target != image.target
             || target.object_format != ObjectFormat::Elf
             || !matches!(
                 target.architecture,
@@ -220,7 +218,7 @@ pub(crate) mod dynamic_elf {
                 "admitted dynamic ELF target does not match the exact Linux object artifact",
             ));
         }
-        Ok(emitted_direct_executable_output(admitted.output().clone()))
+        Ok(())
     }
 
     pub(crate) fn validate_dynamic_elf_image_emission(
@@ -228,24 +226,13 @@ pub(crate) mod dynamic_elf {
         emission: &DynamicElfImageEmission,
     ) -> Result<(), Diagnostic> {
         crate::object::function_fragments::replay::validate(artifact)?;
-        let expected = derive_output(artifact, &emission.admitted)?;
-        if emission.output != expected {
-            return Err(Diagnostic::error(
-                "dynamic ELF production output drifted from exact admitted-byte custody",
-            ));
-        }
-        Ok(())
-    }
-
-    fn derive_output(
-        artifact: &ObjectArtifact,
-        admitted: &ValidatedElfDynamicExecutable,
-    ) -> Result<EmittedImageOutput, Diagnostic> {
+        let admitted = emission.admitted();
         let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
         let prepared =
             crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-        let output = emitted_output(artifact, admitted)?;
-        validate_terminal_image(artifact, &prepared, &output)?;
+        validate_target(artifact, admitted.image())?;
+        let output = admitted.output();
+        validate_terminal_image(artifact, &prepared, output)?;
         let mut replayed_image = super::build_entry_image(artifact, &prepared)?;
         let symbol_digest = final_image_symbol_digest(&replayed_image);
         replayed_image.memory.text = output.final_text_bytes.clone();
@@ -257,7 +244,7 @@ pub(crate) mod dynamic_elf {
                 "admitted dynamic ELF final image does not replay from the exact object artifact",
             ));
         }
-        Ok(output)
+        Ok(())
     }
 }
 

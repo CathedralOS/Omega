@@ -71,7 +71,7 @@ pub(super) const PSI_STAGES: [&str; 8] = [
 /// Each row is a link that existed when this check landed. Never add a row.
 /// The PR that removes a link deletes its row; `stale_allowance_violations`
 /// refuses a row whose link is gone, so the list only shrinks.
-pub(super) const LEGACY_REPRESENTATION_STAGE_LINKS: [(&str, &str); 3] = [
+pub(super) const LEGACY_REPRESENTATION_STAGE_LINKS: [(&str, &str); 2] = [
     // Encoding admission calls each target encoder's selected-form validators.
     (
         "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission",
@@ -80,11 +80,6 @@ pub(super) const LEGACY_REPRESENTATION_STAGE_LINKS: [(&str, &str); 3] = [
     (
         "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission",
         "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64",
-    ),
-    // Evaluation receipts name Psi publication's call-site and program records.
-    (
-        "source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts",
-        "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
     ),
 ];
 
@@ -146,7 +141,7 @@ fn stage(path: &str) -> Option<Phase> {
 /// stage that produces it, and the representation whose constructor asks for
 /// the capability. A product can be built only where its issuer is linked, so
 /// no other package may link one, in a test either.
-const SOURCE_PRODUCT_ISSUERS: [(&str, usize, &str); 3] = [
+const SOURCE_PRODUCT_ISSUERS: [(&str, usize, &str); 4] = [
     (
         "source-rust/subsystems/compiler/source-to-psi/representations/prepared-source/issuer",
         4,
@@ -161,6 +156,11 @@ const SOURCE_PRODUCT_ISSUERS: [(&str, usize, &str); 3] = [
         "source-rust/subsystems/compiler/source-to-psi/representations/checked-program/issuer",
         6,
         "source-rust/subsystems/compiler/source-to-psi/representations/checked-program",
+    ),
+    (
+        "source-rust/subsystems/compiler/source-to-psi/representations/published-source-invocation/issuer",
+        7,
+        "source-rust/subsystems/compiler/source-to-psi/representations/published-source-invocation",
     ),
 ];
 
@@ -469,8 +469,10 @@ mod tests {
             "source-rust/subsystems/compiler/psi-to-native/representations/new-records";
         const SOURCE_RECORDS: &str =
             "source-rust/subsystems/compiler/source-to-psi/representations/new-records";
-        let [(encoding, aarch64), (_, x86), (receipts, publication)] =
-            LEGACY_REPRESENTATION_STAGE_LINKS;
+        let [(encoding, aarch64), (_, x86)] = LEGACY_REPRESENTATION_STAGE_LINKS;
+        let publication = PSI_STAGES[7];
+        let receipts =
+            "source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts";
         let metadata = Metadata {
             workspace_root: "/repo".into(),
             packages: vec![
@@ -495,6 +497,11 @@ mod tests {
                     &[("aarch64", aarch64, None), ("x86", x86, None)],
                 ),
                 pkg("receipts", receipts, &[("publication", publication, None)]),
+                pkg(
+                    "build-result",
+                    "source-rust/subsystems/compiler/build/evaluation/result",
+                    &[("publication", publication, None)],
+                ),
                 pkg(
                     "allocation",
                     NATIVE_STAGES[7],
@@ -522,39 +529,46 @@ mod tests {
             ": records -> encoding -> aarch64 (",
             ": records -> encoding -> x86 (",
             ": source-records -> typing (",
+            ": receipts -> publication (",
         ] {
             assert!(
                 errors.iter().any(|error| error.contains(chain)),
                 "{chain}: {errors:?}"
             );
         }
-        assert_eq!(errors.len(), 5, "{errors:?}");
+        assert_eq!(errors.len(), 6, "{errors:?}");
+        let rules = crate::boundary::forbidden_rules();
+        let direct = crate::boundary::forbidden_dependency_violations(&metadata, &rules).unwrap();
+        for owner in ["receipts", "build-result"] {
+            assert!(
+                direct
+                    .iter()
+                    .any(|row| row.starts_with(&format!("{owner} -> 07_checked-program-to-psi:"))),
+                "{direct:?}"
+            );
+        }
 
         // Dropping a legacy link leaves its row behind, which the shared
         // allowance check refuses so the row is deleted with the link.
-        let mut without_receipts = metadata.clone();
-        let receipts_package = without_receipts
+        let mut without_x86 = metadata;
+        let encoders = without_x86
             .packages
             .iter_mut()
-            .find(|package| package.name == "receipts")
+            .find(|package| package.name == "encoding")
             .unwrap();
-        receipts_package.dependencies.clear();
-        let stale = crate::boundary::stale_allowance_violations(
-            &without_receipts,
-            &crate::boundary::forbidden_rules(),
-        )
-        .unwrap();
+        encoders
+            .dependencies
+            .retain(|dependency| dependency.name != "x86");
+        let stale = crate::boundary::stale_allowance_violations(&without_x86, &rules).unwrap();
         assert!(
             stale.iter().any(|error| error
-                == &format!(
-                    "{receipts} -> {publication}: edge removed; remove the obsolete allowance"
-                )),
+                == &format!("{encoding} -> {x86}: edge removed; remove the obsolete allowance")),
             "{stale:?}"
         );
         assert!(
             !stale
                 .iter()
-                .any(|error| error.starts_with(&format!("{encoding} -> "))),
+                .any(|error| error.starts_with(&format!("{encoding} -> {aarch64}:"))),
             "{stale:?}"
         );
     }
@@ -713,7 +727,7 @@ mod tests {
         let name = |path: &'static str| path.rsplit('/').next().unwrap();
         for (issuer, producer, representation) in SOURCE_PRODUCT_ISSUERS {
             let key = |kind| [("issuer", issuer, kind)];
-            let consumer = PSI_STAGES[producer + 1];
+            let consumer = PSI_STAGES[(producer + 1) % PSI_STAGES.len()];
             let metadata = Metadata {
                 workspace_root: "/repo".into(),
                 packages: vec![

@@ -226,9 +226,7 @@ pub(crate) fn machine_with_read_only_qualifications(
     if requirement {
         lowering.blocks = IdTable::default();
         lowering.sources.blocks = IdTable::default();
-        return lowering.finish(entry, formals, result, contract, structural_types);
-    }
-    if component.is_empty() {
+    } else if component.is_empty() {
         // Even an acyclic body must prove formation of its authored measure.
         lowering.begin_ranking(id)?;
         lowering.body(id, body)?;
@@ -242,7 +240,9 @@ pub(crate) fn machine_with_read_only_qualifications(
             forwarded_consts,
         )?;
     }
-    lowering.finish(entry, formals, result, contract, structural_types)
+    let mut lowered = lowering.finish(entry, formals, result, contract, structural_types)?;
+    terminal_check_tables::bindings::compact_projection_storage(&mut lowered.tables.places);
+    Ok(lowered)
 }
 
 /// A signature's declarations, shared by named bodies and stored callable
@@ -996,6 +996,7 @@ impl<T> Reached<T> {
 
 #[derive(Default)]
 struct Draft {
+    assembly_exit: Option<terminal_psi::AssemblyExitConstraint>,
     parameters: Vec<ValueDeclaration>,
     structural_parameters: Vec<StructuralParameterDeclaration>,
     operations: Vec<Operation>,
@@ -1154,7 +1155,8 @@ impl<'a> Lowering<'a> {
                 | Statement::Evaluate {
                     expression: value, ..
                 } => Some(value.source),
-                Statement::Declare { source, .. }
+                Statement::AssemblyAdjacent { source, .. }
+                | Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }
                 | Statement::Arm { source, .. } => Some(*source),
@@ -1505,6 +1507,7 @@ impl<'a> Lowering<'a> {
             };
             let mut block = Block::plain(block, block_parameters, terminator);
             block.structural_parameters = std::mem::take(&mut draft.structural_parameters);
+            block.assembly_exit = draft.assembly_exit.take();
             block.operations = operations;
             blocks.push(block);
         }

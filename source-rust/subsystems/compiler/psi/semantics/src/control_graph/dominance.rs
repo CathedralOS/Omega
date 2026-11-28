@@ -22,20 +22,35 @@ impl DominanceInterval {
     }
 }
 
-/// Compute immediate dominators with Cooper, Harvey and Kennedy's iterative
-/// reverse-postorder algorithm, then retain only traversal intervals. Its space
-/// is linear in the supplied topology; construction is iterative, not a claim
-/// of worst-case linear running time.
-/// https://hipersoft.cs.rice.edu/grads/publications/dom14.pdf
+/// Return each local slot's immediate dominator as a local slot. A parent of
+/// `None` denotes the virtual entry shared by the roots.
 ///
 /// Every root has an independent virtual entry, even if real edges enter it.
 /// `ordered` must contain each local slot once in reverse postorder. Missing
 /// roots, foreign slots, and nodes unreachable from the roots return `None`.
-pub fn dominance_forest(
+pub fn immediate_dominators(
     predecessors: &[Vec<usize>],
     ordered: &[usize],
     roots: &[bool],
-) -> Option<Vec<DominanceInterval>> {
+) -> Option<Vec<Option<usize>>> {
+    let ranked = ranked_immediate_dominators(predecessors, ordered, roots)?;
+    let mut parents = vec![None; ordered.len()];
+    for (&block, &parent) in ordered.iter().zip(&ranked[1..]) {
+        if parent != 0 {
+            parents[block] = Some(ordered[parent - 1]);
+        }
+    }
+    Some(parents)
+}
+
+/// Cooper, Harvey and Kennedy's iterative algorithm uses linear space.
+/// Parents are reverse-postorder ranks, with rank zero for the virtual entry.
+/// https://hipersoft.cs.rice.edu/grads/publications/dom14.pdf
+fn ranked_immediate_dominators(
+    predecessors: &[Vec<usize>],
+    ordered: &[usize],
+    roots: &[bool],
+) -> Option<Vec<usize>> {
     let count = predecessors.len();
     if ordered.len() != count || roots.len() != count {
         return None;
@@ -94,6 +109,17 @@ pub fn dominance_forest(
     if immediate.contains(&usize::MAX) {
         return None;
     }
+    Some(immediate)
+}
+
+/// Compute traversal intervals for the same prepared graph as [`immediate_dominators`].
+pub fn dominance_forest(
+    predecessors: &[Vec<usize>],
+    ordered: &[usize],
+    roots: &[bool],
+) -> Option<Vec<DominanceInterval>> {
+    let immediate = ranked_immediate_dominators(predecessors, ordered, roots)?;
+    let count = ordered.len();
     // The tree is construction scratch, represented by links rather than one
     // small allocation per block. Only the interval rows survive publication.
     let mut first_child = vec![usize::MAX; count + 1];

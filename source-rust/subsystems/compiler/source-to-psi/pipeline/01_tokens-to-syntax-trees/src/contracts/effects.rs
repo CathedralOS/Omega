@@ -54,7 +54,12 @@ pub(crate) fn parse_effect_reference<'tokens, 'source>(
     syntax_trees::types::TypeReferenceHandle,
 > {
     let (name, rest) = input.take_path_head()?;
-    crate::types::references::parse_named_type_reference(trees, name, rest, false)
+    crate::types::references::parse_named_type_reference(
+        trees,
+        name,
+        rest,
+        crate::types::references::TypePosition::WithoutDomainSuffix,
+    )
 }
 
 fn take_service_reach_row_member<'tokens, 'source>(
@@ -65,8 +70,12 @@ fn take_service_reach_row_member<'tokens, 'source>(
     use tokens::PunctuationKind;
     let (service, rest) = input.take_path_head()?;
     reject_retired_operational_reach(&service, rest)?;
-    let (reference, mut input) =
-        crate::types::references::parse_named_type_reference(trees, service, rest, false)?;
+    let (reference, mut input) = crate::types::references::parse_named_type_reference(
+        trees,
+        service,
+        rest,
+        crate::types::references::TypePosition::WithoutDomainSuffix,
+    )?;
     service_reaches.push(reference);
     if input.at_punctuation(PunctuationKind::Comma) {
         input = input.take_punctuation(PunctuationKind::Comma, ",")?;

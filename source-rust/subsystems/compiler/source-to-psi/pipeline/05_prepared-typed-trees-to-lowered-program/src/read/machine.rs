@@ -89,6 +89,20 @@ pub(super) enum ApplicationTypes<'a> {
 }
 
 impl<'t> Program<'t> {
+    pub(crate) fn prepare_call_components(
+        &mut self,
+        bodies: &arena::IdTable<MachineId, Body>,
+    ) -> Checked<crate::components::Components> {
+        crate::prepare_call_components(
+            bodies,
+            &mut self.signatures,
+            &self.theorem_parameters,
+            self.machine_rows
+                .iter()
+                .map(|(machine, row)| (machine, row.context.const_scope.as_slice())),
+        )
+    }
+
     fn boundary_conformer_call_refusal(
         &self,
         id: MachineId,
@@ -462,7 +476,7 @@ impl<'t> Program<'t> {
     }
 
     pub(super) fn next_identity(&self) -> Checked<MachineId> {
-        MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
+        MachineId::new(self.machine_rows.len() as u64 + 1).ok_or_else(|| {
             refuse_at(
                 MachineId::new(1).expect("1 is nonzero"),
                 Unserved::Machine("identity overflow"),
@@ -470,23 +484,14 @@ impl<'t> Program<'t> {
         })
     }
 
-    /// Takes the next identity for `symbol` and reserves its row in every
-    /// machine table before its signature is read. A signature can read
-    /// machines of its own, such as a mathematical machine one of its clauses
-    /// applies. Each of those must take a later identity: pushed at this one,
-    /// it would become the machine a call of `symbol` names. The row holds
-    /// placeholders until `complete_row` fills it.
+    /// Reserve the machine before reading its signature. A clause can read
+    /// another machine recursively, which must receive a later identity.
+    /// The symbol and signature columns use the reserved row's identity.
     pub(super) fn reserve_row(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        self.machine_rows.push(ReservedMachineRow::default());
         self.symbols.push(symbol);
         self.signatures.push(crate::body::Signature::unread());
-        self.names.push(MachineNames::default());
-        self.value_parameters.push(0);
-        self.value_arguments.push(Vec::new());
-        self.scopes.push(Vec::new());
-        self.source_scopes.push(Default::default());
-        self.const_scopes.push(Vec::new());
-        self.unread_rows.push(id);
         Ok(id)
     }
 
@@ -498,19 +503,16 @@ impl<'t> Program<'t> {
                 Unserved::Machine("a read signature lost its reserved row"),
             )
         };
-        let position = self
-            .unread_rows
-            .iter()
-            .position(|unread| *unread == id)
+        let reserved = self
+            .machine_rows
+            .get_mut(id)
+            .filter(|row| !row.complete)
             .ok_or_else(lost)?;
         *self.signatures.get_mut(id).ok_or_else(lost)? = row.signature;
-        *self.names.get_mut(id).ok_or_else(lost)? = row.names;
-        *self.value_parameters.get_mut(id).ok_or_else(lost)? = row.value_parameters;
-        *self.value_arguments.get_mut(id).ok_or_else(lost)? = row.value_arguments;
-        *self.scopes.get_mut(id).ok_or_else(lost)? = row.scope;
-        *self.source_scopes.get_mut(id).ok_or_else(lost)? = row.source_scope;
-        *self.const_scopes.get_mut(id).ok_or_else(lost)? = row.const_scope;
-        self.unread_rows.remove(position);
+        *reserved = ReservedMachineRow {
+            complete: true,
+            context: row.context,
+        };
         Ok(())
     }
 
@@ -519,18 +521,12 @@ impl<'t> Program<'t> {
     /// row stays unread: lookups by symbol and `read_bodies` skip it, and the
     /// refusal already refuses the compilation.
     pub(super) fn abandon_row(&mut self, id: MachineId) {
-        if self.symbols.len() as u64 != id.get() {
+        if self.machine_rows.len() as u64 != id.get() {
             return;
         }
         self.symbols.pop();
         self.signatures.pop();
-        self.names.pop();
-        self.value_parameters.pop();
-        self.value_arguments.pop();
-        self.scopes.pop();
-        self.source_scopes.pop();
-        self.const_scopes.pop();
-        self.unread_rows.retain(|unread| *unread != id);
+        self.machine_rows.pop();
     }
 
     /// Reserves a row for `symbol`, reads it with `read` and fills it, or
@@ -581,14 +577,45 @@ impl<'t> Program<'t> {
         self.signatures.get(id).ok_or_else(|| missing_row(id))
     }
 
+    pub(crate) fn machine_context(&self, id: MachineId) -> Option<&MachineContext> {
+        Some(&self.machine_rows.get(id)?.context)
+    }
+
     /// The source names `complete_row` recorded in `id`'s reserved row.
     pub(crate) fn machine_names(&self, id: MachineId) -> Checked<&MachineNames> {
-        self.names.get(id).ok_or_else(|| missing_row(id))
+        self.machine_context(id)
+            .map(|row| &row.names)
+            .ok_or_else(|| missing_row(id))
+    }
+
+    pub(super) fn machine_names_mut(&mut self, id: MachineId) -> Option<&mut MachineNames> {
+        Some(&mut self.machine_rows.get_mut(id)?.context.names)
+    }
+
+    /// Move the reader's names and value arguments into the published tables.
+    pub(crate) fn publish_machine_rows(
+        &mut self,
+        elaboration: &mut terminal_check_tables::program::Elaboration,
+    ) {
+        elaboration.names = Default::default();
+        elaboration.value_parameters = Default::default();
+        elaboration.value_arguments = Default::default();
+        for (_, row) in self.machine_rows.iter_mut() {
+            elaboration
+                .names
+                .push(std::mem::take(&mut row.context.names));
+            elaboration
+                .value_parameters
+                .push(row.context.value_parameters);
+            elaboration
+                .value_arguments
+                .push(std::mem::take(&mut row.context.value_arguments));
+        }
     }
 
     /// Whether `id` names a machine whose signature has been read.
     pub(crate) fn row_is_read(&self, id: MachineId) -> bool {
-        !self.unread_rows.contains(&id)
+        self.machine_rows.get(id).is_some_and(|row| row.complete)
     }
 
     /// Checking a declaration does not call its bare name. A boundary
@@ -858,7 +885,9 @@ impl<'t> Program<'t> {
                 // The signature scope holds every type slot in declaration order,
                 // including the map arguments inherited by a private helper.
                 let arguments =
-                    terminal_check_tables::row(&self.scopes, id, id, Construct::Machine)?
+                    terminal_check_tables::row(&self.machine_rows, id, id, Construct::Machine)?
+                        .context
+                        .scope
                         .iter()
                         .map(|(_, value)| *value)
                         .collect();
@@ -951,12 +980,14 @@ impl<'t> Program<'t> {
         }
         Ok(MachineRow {
             signature,
-            names,
-            value_parameters,
-            value_arguments: Vec::new(),
-            scope,
-            source_scope,
-            const_scope: widths,
+            context: MachineContext {
+                names,
+                value_parameters,
+                value_arguments: Vec::new(),
+                scope,
+                source_scope,
+                const_scope: widths,
+            },
         })
     }
 
@@ -988,9 +1019,12 @@ impl<'t> Program<'t> {
                     bindings.push((parameter.symbol, reference));
                 }
             } else {
-                let scope = self.scopes.get(caller).ok_or_else(|| {
-                    refuse_at(caller, Unserved::Call("map member lost its calling scope"))
-                })?;
+                let scope = self
+                    .machine_context(caller)
+                    .map(|row| &row.scope)
+                    .ok_or_else(|| {
+                        refuse_at(caller, Unserved::Call("map member lost its calling scope"))
+                    })?;
                 for parameter in parameters {
                     let (_, value) = scope
                         .iter()
@@ -1026,10 +1060,13 @@ impl<'t> Program<'t> {
         let mut ancestor = Some(caller);
         while let Some(current) = ancestor {
             if self.machine_symbol(current)? == symbol
-                && !self.scopes.get(current).is_some_and(|scope| {
-                    let enclosing: Vec<_> = scope.iter().map(|(_, value)| *value).collect();
-                    self.same_type_arguments(&enclosing, &arguments)
-                })
+                && !self
+                    .machine_context(current)
+                    .map(|row| &row.scope)
+                    .is_some_and(|scope| {
+                        let enclosing: Vec<_> = scope.iter().map(|(_, value)| *value).collect();
+                        self.same_type_arguments(&enclosing, &arguments)
+                    })
             {
                 return Err(refuse_at(
                     caller,
@@ -1309,12 +1346,14 @@ impl<'t> Program<'t> {
         }
         Ok(MachineRow {
             signature,
-            names,
-            value_parameters,
-            value_arguments: arguments.to_vec(),
-            scope: self.scope.clone(),
-            source_scope: self.source_scope.clone(),
-            const_scope: Vec::new(),
+            context: MachineContext {
+                names,
+                value_parameters,
+                value_arguments: arguments.to_vec(),
+                scope: self.scope.clone(),
+                source_scope: self.source_scope.clone(),
+                const_scope: Vec::new(),
+            },
         })
     }
 
@@ -1534,10 +1573,11 @@ impl<'t> Program<'t> {
         for &(known, id) in &self.requirement_headers {
             if known == origin
                 && self.symbols.get(id) == Some(&symbol)
-                && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
-                && self.value_parameters.get(id) == Some(&parameters)
-                && self.scopes.get(id) == Some(&self.scope)
-                && self.source_scopes.get(id) == Some(&self.source_scope)
+                && let Some(row) = self.machine_context(id)
+                && row.value_arguments == arguments
+                && row.value_parameters == parameters
+                && row.scope == self.scope
+                && row.source_scope == self.source_scope
             {
                 return Ok(id);
             }
@@ -1559,12 +1599,14 @@ impl<'t> Program<'t> {
             program.admitted_declarations.include(declared.symbol);
             Ok(MachineRow {
                 signature,
-                names,
-                value_parameters: parameters,
-                value_arguments: arguments.to_vec(),
-                scope: program.scope.clone(),
-                source_scope: program.source_scope.clone(),
-                const_scope: Vec::new(),
+                context: MachineContext {
+                    names,
+                    value_parameters: parameters,
+                    value_arguments: arguments.to_vec(),
+                    scope: program.scope.clone(),
+                    source_scope: program.source_scope.clone(),
+                    const_scope: Vec::new(),
+                },
             })
         })?;
         self.requirements.push(id);
@@ -3371,10 +3413,11 @@ impl<'t> Program<'t> {
         for &(known, id) in &self.requirement_headers {
             if known == origin
                 && self.symbols.get(id) == Some(&target)
-                && self.value_arguments.get(id).map(Vec::as_slice) == Some(&[])
-                && self.value_parameters.get(id) == Some(&primitive.immediates())
-                && self.scopes.get(id) == Some(&self.scope)
-                && self.source_scopes.get(id) == Some(&self.source_scope)
+                && let Some(row) = self.machine_context(id)
+                && row.value_arguments.is_empty()
+                && row.value_parameters == primitive.immediates()
+                && row.scope == self.scope
+                && row.source_scope == self.source_scope
             {
                 return Ok(id);
             }
@@ -3508,12 +3551,14 @@ impl<'t> Program<'t> {
                 .extend(type_parameters.iter().map(|parameter| parameter.symbol));
             Ok(MachineRow {
                 signature,
-                names,
-                value_parameters: rigid.len(),
-                value_arguments: Vec::new(),
-                scope: program.scope.clone(),
-                source_scope: program.source_scope.clone(),
-                const_scope: Vec::new(),
+                context: MachineContext {
+                    names,
+                    value_parameters: rigid.len(),
+                    value_arguments: Vec::new(),
+                    scope: program.scope.clone(),
+                    source_scope: program.source_scope.clone(),
+                    const_scope: Vec::new(),
+                },
             })
         })?;
         self.requirements.push(id);
@@ -4861,9 +4906,10 @@ impl<'t> Program<'t> {
                 statements: Vec::new(),
             });
         }
-        self.scope = self.scopes.get(id).cloned().unwrap_or_default();
-        self.source_scope = self.source_scopes.get(id).cloned().unwrap_or_default();
-        self.const_scope = self.const_scopes.get(id).cloned().unwrap_or_default();
+        let row = self.machine_rows.get(id).ok_or_else(|| missing_row(id))?;
+        self.scope.clone_from(&row.context.scope);
+        self.source_scope.clone_from(&row.context.source_scope);
+        self.const_scope.clone_from(&row.context.const_scope);
         self.lifetime_owner = symbol;
         let formals = span(
             |span| typed.state_parameters.span(span),
@@ -4873,9 +4919,10 @@ impl<'t> Program<'t> {
         )?;
         // A generic check form's value parameters are the formals after the
         // authored ones, as its signature was read.
-        let binders = match self.value_parameters.get(id) {
-            Some(0) | None => Vec::new(),
-            Some(_) => self.value_binders(id, machine)?,
+        let binders = if row.context.value_parameters == 0 {
+            Vec::new()
+        } else {
+            self.value_binders(id, machine)?
         };
         if formals.len() + binders.len() != signature.parameters.len() {
             return Err(refuse_at(
@@ -4934,7 +4981,7 @@ impl<'t> Program<'t> {
             .ok_or_else(|| refuse_at(id, Unserved::Machine("missing signature")))?
             .ranking = ranking;
         let statements = typed.statement_table.statements(state.statement_nodes);
-        if let Some(names) = self.names.get_mut(id) {
+        if let Some(names) = self.machine_names_mut(id) {
             for (position, statement) in statements.iter().enumerate() {
                 if let StatementNode::Transition(transition) = statement {
                     names.exits.push((transition.source_span, position));
@@ -5000,6 +5047,52 @@ impl<'t> Program<'t> {
             self.join_block_slots(&mut slots, &mut slot_names);
             self.block_slot_base = slots.len();
             let read = match statement {
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::AssemblyRegister =>
+                {
+                    if local.initial_value.is_valid() || !local.is_mutable {
+                        return Err(refuse_at(
+                            id,
+                            Unserved::Statement("assembly register with an implicit initial value"),
+                        ));
+                    }
+                    let value_type = self.local_type(id, local.type_reference)?;
+                    slots.push(Slot {
+                        symbol: local.symbol,
+                        value_type,
+                        assignable: true,
+                        homed: false,
+                        erased: false,
+                        borrowed: None,
+                        borrowed_regions: crate::body::Regions::NONE,
+                    });
+                    slot_names.push(local.name.as_str().to_owned());
+                    position += 1;
+                    continue;
+                }
+                StatementNode::Assembly(
+                    crate::source_state::statement::AssemblyControlPoint::Entry(graph),
+                ) => {
+                    let graph = typed.statement_table.assembly(*graph);
+                    let end = position + 1 + graph.statement_count as usize;
+                    if end != statements.len() {
+                        return Err(refuse_at(
+                            id,
+                            Unserved::Statement("inline assembly control flow"),
+                        ));
+                    }
+                    body.extend(self.assembly_machine(
+                        id,
+                        state.symbol,
+                        &slots,
+                        graph,
+                        &statements[position + 1..end],
+                        signature.result,
+                    )?);
+                    completed = true;
+                    position = end;
+                    continue;
+                }
                 StatementNode::Assembly(_) => {
                     return Err(refuse_at(id, Unserved::Statement("assembly")));
                 }
@@ -5048,7 +5141,7 @@ impl<'t> Program<'t> {
                             }
                             completed = true;
                             if let (Some(names), Some(span)) =
-                                (self.names.get_mut(id), expression.source.span())
+                                (self.machine_names_mut(id), expression.source.span())
                             {
                                 names.exits.push((span, position));
                             }
@@ -5174,7 +5267,7 @@ impl<'t> Program<'t> {
             position += 1;
         }
         self.join_block_slots(&mut slots, &mut slot_names);
-        if let Some(names) = self.names.get_mut(id) {
+        if let Some(names) = self.machine_names_mut(id) {
             for statement in &body {
                 bindings(statement, &slot_names, &mut names.bindings);
                 value_exits(statement, &mut names.exits);
@@ -5231,7 +5324,8 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::CaptureReference { .. }
+        Statement::AssemblyAdjacent { .. }
+        | Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
@@ -5251,7 +5345,8 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .map(|(_, target, source)| (target, *source))
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
-        Statement::CaptureReference { .. }
+        Statement::AssemblyAdjacent { .. }
+        | Statement::CaptureReference { .. }
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
@@ -5261,7 +5356,9 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Evaluate { .. } => Vec::new(),
     };
     for (target, arm) in arms {
-        let (Target::Value(value), Some(arm)) = (target, arm.span()) else {
+        let (Target::Value(value) | Target::AssemblyReturn(_, value), Some(arm)) =
+            (target, arm.span())
+        else {
             continue;
         };
         let Some(span) = value.source.span() else {
@@ -5278,7 +5375,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
 }
 
 fn target_spans(target: &Target, out: &mut Vec<(SourceSpan, Binder)>) {
-    if let Target::Value(value) = target {
+    if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
         spans(value, &Binder::ReturnValue, out);
     }
 }
@@ -5458,12 +5555,23 @@ pub(super) struct ValueBinder {
 /// (`Program::complete_row`).
 pub(super) struct MachineRow {
     pub(super) signature: crate::body::Signature,
-    pub(super) names: MachineNames,
-    pub(super) value_parameters: usize,
-    pub(super) value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
+    pub(super) context: MachineContext,
+}
+
+#[derive(Default)]
+pub(crate) struct MachineContext {
+    pub(crate) names: MachineNames,
+    pub(crate) value_parameters: usize,
+    pub(crate) value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
     pub(super) scope: Vec<(SymbolHandle, ValueType)>,
     pub(super) source_scope: std::sync::Arc<crate::source_state::SourceTypeScope>,
     pub(super) const_scope: Vec<super::ConstBinding>,
+}
+
+#[derive(Default)]
+pub(super) struct ReservedMachineRow {
+    complete: bool,
+    context: MachineContext,
 }
 
 /// How a machine's declaration is read.

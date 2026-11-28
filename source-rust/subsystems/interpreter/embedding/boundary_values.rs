@@ -1361,7 +1361,7 @@ pub(crate) mod results {
     pub enum TerminalExecutionStatus {
         Complete(TerminalExecutionResult),
         SponsorExhausted(WorkBudgetExhausted),
-        AwaitingEffect(TerminalEffectWait),
+        AwaitingEffect(crate::TerminalSuspension),
         HostComputationPending(TerminalEffectWait),
         Crashed(TerminalCrash),
         ExternalCompletion(TerminalExternalCompletion),

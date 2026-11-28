@@ -3307,6 +3307,13 @@ pub(crate) mod payloads {
                     expression::ExpressionNode::StructLiteral(mut literal) => {
                         literal.application_type =
                             self.type_reference(program, literal.application_type)?;
+                        for reference in literal
+                            .package
+                            .iter_mut()
+                            .flat_map(|package| package.type_references_mut())
+                        {
+                            *reference = self.type_reference(program, *reference)?;
+                        }
                         Some(expression::ExpressionNode::StructLiteral(literal))
                     }
                     // The block's statements are applied with the body's.
@@ -3358,7 +3365,7 @@ pub(crate) mod payloads {
                             runtime.contract = self.runtime_contract(program, runtime.contract)?;
                         }
                         if let Some(request) = &mut call.installed_interrupt_operation {
-                            request.invalidate_preparation();
+                            request.prepared = None;
                         }
                         call.requirement_application =
                             self.type_reference(program, call.requirement_application)?;
@@ -9563,7 +9570,7 @@ impl TypedTrees {
                                 application.runtime_contract(self, runtime.contract)?;
                         }
                         if let Some(request) = &mut call.installed_interrupt_operation {
-                            request.invalidate_preparation();
+                            request.prepared = None;
                         }
                         application.static_arguments(self, &mut call.machine_arguments)?;
                         application.apply_call_application(

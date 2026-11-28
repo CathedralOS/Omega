@@ -180,10 +180,9 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
 pub(crate) fn validate_direct_const_arguments(
     syntax: &SyntaxTrees,
     base_name: &Identifier,
-    arguments: HandleSpan<TypeReferenceHandle>,
+    arguments: &[TypeReferenceHandle],
     selection: Option<&ConstantSelection>,
 ) -> Result<(), Diagnostic> {
-    let arguments = syntax.type_references.type_reference_handles(arguments);
     let has_direct = arguments.iter().any(|argument| {
         syntax_type_references(syntax)
             .const_argument_normalization(*argument)
@@ -199,8 +198,12 @@ pub(crate) fn validate_direct_const_arguments(
     let definition = selection
         .data(syntax, base_name)
         .map_err(|message| Diagnostic::error(message).with_source_span(base_name.source_span()))?;
-    let parameters = syntax.items.type_parameters(definition.type_parameters);
-    if parameters.len() != arguments.len() {
+    let parameters = syntax
+        .items
+        .type_parameters(definition.type_parameters)
+        .iter()
+        .filter(|parameter| !matches!(parameter.kind, TypeParameterKind::SomeType));
+    if parameters.clone().count() != arguments.len() {
         return Err(
             Diagnostic::error("direct constant argument lost its exact template slot")
                 .with_source_span(base_name.source_span()),

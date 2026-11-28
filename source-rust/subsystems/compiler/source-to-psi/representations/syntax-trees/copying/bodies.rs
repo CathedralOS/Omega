@@ -678,6 +678,9 @@ impl SyntaxCopy<'_> {
                     .insert(TypeReferenceNode::ConstExpression(expression))
             }
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
+            TypeReferenceNode::SomeOpening(name) => self
+                .type_references
+                .insert(TypeReferenceNode::SomeOpening(name.clone())),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         };
         if self.retain_alias_header_role && other.type_references.is_alias_header_reference(handle)

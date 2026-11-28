@@ -84,6 +84,13 @@ pub(crate) type PackageReviewOpaqueRepresentationMovementRole =
     calling_conventions::BoundaryOpaqueRepresentationMovementRole;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(
+    not(any(test, feature = "full-policy-recovery")),
+    expect(
+        dead_code,
+        reason = "only full policy recovery constructs these wire variants"
+    )
+)]
 pub(crate) enum PackageReviewOpaqueRepresentationPathElement {
     FixedArrayElement,
     RecordField { ordinal: u16 },

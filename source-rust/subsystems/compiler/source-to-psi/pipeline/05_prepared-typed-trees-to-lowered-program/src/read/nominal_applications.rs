@@ -99,7 +99,7 @@ impl Program<'_> {
         source: &SourceTypeApplication,
         callee: MachineId,
     ) -> Option<Vec<ConstInput>> {
-        let inputs = self.const_scopes.get(callee)?;
+        let inputs = self.machine_context(callee).map(|row| &row.const_scope)?;
         let mut pending = vec![(source.reference, source.scope.clone())];
         let mut used = Vec::new();
         let mut visited = std::collections::BTreeSet::new();
@@ -332,11 +332,15 @@ impl Program<'_> {
                     let Some(slot) = slots.get(slot) else {
                         return Ok(None);
                     };
-                    let Some(input) = self.const_scopes.get(caller).and_then(|inputs| {
-                        inputs
-                            .iter()
-                            .find(|input| input.owner == caller && input.symbol == slot.symbol)
-                    }) else {
+                    let Some(input) = self
+                        .machine_context(caller)
+                        .map(|row| &row.const_scope)
+                        .and_then(|inputs| {
+                            inputs
+                                .iter()
+                                .find(|input| input.owner == caller && input.symbol == slot.symbol)
+                        })
+                    else {
                         return Ok(None);
                     };
                     ScalarTerm::value(input.value, input.scalar_type)

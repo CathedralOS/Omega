@@ -1,7 +1,7 @@
 use crate::expressions::parse::parse_expression_handle;
 use crate::statements::expressions::expression_handle_to_statement_call;
 use crate::token_input::cursor::{Input, ParseResult};
-use crate::types::references::parse_type_reference_handle_allowing_borrow;
+use crate::types::references::parse_binding_type_reference;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableMemberExpression,
@@ -110,8 +110,7 @@ pub(crate) fn parse_local_data<'tokens, 'source>(
         return Err(input.error_here("a named local must declare its type"));
     }
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-    let (type_reference, input) =
-        parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+    let (type_reference, input) = parse_binding_type_reference(syntax_trees, input)?;
     let (initial_value, input) = if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
         let (expression, input) = parse_expression_handle(syntax_trees, input)?;

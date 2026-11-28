@@ -55,6 +55,24 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 305 adds the supplier's counted provider exports after its provider
+selections. Each export names its schema declaration and application, its
+provider declaration and identity, and the checked boundary/machine pair for
+each operation. An internal provider selection does not add an export.
+
+Marker 304 appends an optional assembly exit constraint immediately after each
+block terminator. Tag 1 carries a successor block ID followed by a counted list
+of register-view bytes. The successor is the jump target or the conditional's
+not-taken target. Each register holds the ordinary scalar edge argument at the
+same position and supplies the corresponding successor parameter. Tag 2 carries
+one register-view byte for the ordinary scalar return value.
+
+Register bytes 0–13 select `eax`, `ebx`, `ecx`, `edx`, `esi`, `edi`, then
+`r8d` through `r15d`. Bytes 22–50 select `w0` through `w28`. Other bytes
+reject. These views hold live 32-bit integers and require their architecture
+on the machine. Each view can occur once on an edge. Readers reject earlier
+format markers before reading the payload.
+
 Marker 303 encodes section 54 as a counted list of task activation demands.
 Structural arguments, outcomes and frame residents refer to the module's
 structural storage declarations by ID. The module's target layout applications
@@ -3351,7 +3369,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 300 | yes |
+| semantic module | `PSITERM\0` | 305 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

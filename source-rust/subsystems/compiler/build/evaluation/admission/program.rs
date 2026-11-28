@@ -17,6 +17,7 @@ use symbols::SymbolHandle;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
+    pub(crate) network: package_compilation::build_execution::BuildNetworkInvocation,
     pub(crate) programs: std::sync::Arc<crate::host::programs::ProgramInstallation>,
     pub(crate) prepared: std::sync::Arc<source_compiler::publication::AcceptedTerminalSource>,
     pub(crate) produced: std::sync::Arc<source_compiler::publication::ProducedTerminalProgram>,
@@ -51,6 +52,14 @@ impl AdmittedBuildProgram {
             self.artifact_only,
         );
         requests.extend(self.programs.requests(&bounds, self.execution_profile));
+        if let Some(send) = &self.providers.network {
+            requests.push(RestrictedBuildRequest::for_datagram(
+                send.peer,
+                send.call_path.clone(),
+                bounds,
+                self.execution_profile,
+            ));
+        }
         requests
     }
 }
@@ -67,6 +76,8 @@ pub(crate) fn admit_build_program(
     source: package_compilation::BuildSourceSelection,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
     programs: &package_compilation::build_execution::BuildProgramInvocation,
+    network: package_compilation::build_execution::BuildNetworkInvocation,
+    root_path: &std::path::Path,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let prepared = invocation.accepted();
     let typed = prepared.source();
@@ -113,6 +124,8 @@ pub(crate) fn admit_build_program(
             &prepared,
             diagnostic_output_bytes,
             &filesystem_scope,
+            &network,
+            root_path,
         )
         .map_err(|mut errors| {
             if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
@@ -134,6 +147,7 @@ pub(crate) fn admit_build_program(
     )?;
     Ok(AdmittedBuildProgram {
         programs,
+        network,
         prepared: std::sync::Arc::new(prepared),
         produced: std::sync::Arc::new(produced),
         providers,

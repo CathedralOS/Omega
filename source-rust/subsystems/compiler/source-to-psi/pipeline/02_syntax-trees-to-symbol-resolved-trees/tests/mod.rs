@@ -4,6 +4,7 @@ mod constant_use_tests;
 mod domain_lookup_tests;
 mod equation_specialization_tests;
 mod nested_data_tests;
+mod package_type_tests;
 mod pattern_binding_name_tests;
 mod primitive_family_binding_tests;
 mod resolved_name_handoff;

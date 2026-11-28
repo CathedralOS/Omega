@@ -9,6 +9,8 @@ Versioned magic headers and schema version constants live at this boundary so bo
 
 mod encode;
 mod intrinsic_tags;
+mod limits;
+#[cfg(any(test, feature = "full-policy-recovery"))]
 mod recovery;
 pub use encode::membership::{
     MalformedIdentityExcerpt, PackagePolicyMembershipError, PackagePolicyMembershipFailure,
@@ -17,7 +19,8 @@ pub use encode::membership::{
 pub(crate) use encode::runtime_permission_rows;
 pub use encode::{restricted_build_request_acceptance_text, restricted_build_request_payload};
 
-pub use recovery::PackagePolicyRecoveryLimits;
+pub use limits::PackagePolicyRecoveryLimits;
+#[cfg(any(test, feature = "full-policy-recovery"))]
 pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
 
 // Calling plans distinguish Darwin integer composites from scalar values.
@@ -36,7 +39,8 @@ pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 64;
 pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 65;
 pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 66;
 pub(crate) const BASELINE_WITH_UNUSED_GENERIC_IMPORTS: u16 = 67;
-pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_UNUSED_GENERIC_IMPORTS;
+pub(crate) const BASELINE_WITH_NETWORK_REQUESTS: u16 = 68;
+pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_NETWORK_REQUESTS;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 11;

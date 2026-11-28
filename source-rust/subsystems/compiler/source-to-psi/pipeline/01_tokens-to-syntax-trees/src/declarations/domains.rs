@@ -42,7 +42,12 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             let (name, input) = input.take_identifier()?;
             (name.clone(), name, input)
         };
-        let (handle, input) = parse_named_type_reference(syntax_trees, target_name, input, false)?;
+        let (handle, input) = parse_named_type_reference(
+            syntax_trees,
+            target_name,
+            input,
+            crate::types::references::TypePosition::WithoutDomainSuffix,
+        )?;
         (
             handle,
             member.as_str(syntax_trees).to_owned(),

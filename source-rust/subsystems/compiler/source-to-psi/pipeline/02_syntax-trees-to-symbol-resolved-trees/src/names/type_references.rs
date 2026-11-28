@@ -1185,7 +1185,7 @@ mod assignment {
         let attached = scopes::attached_machines(program);
         let roles = scopes::BinderRoles::of(program, &program.symbols);
         for (owner, target, arguments) in applications {
-            let local = runtime_callable_types::lexical_parameters(program, &captured, owner)
+            let local = runtime_callable_types::owner_parameters(program, &captured, &Default::default(), owner, Vec::new())
                 .map_err(|diagnostic| vec![diagnostic])?;
             if program.trait_definition(target).is_none() {
                 continue;
@@ -1276,7 +1276,7 @@ mod assignment {
             .unwrap_or_else(|| top_level_symbol_for_source(symbols, SymbolKind::Const, name))
     }
 
-    pub(super) fn introduces_value(kind: &TypeParameterKind) -> bool {
+    pub(in crate::resolution::names) fn introduces_value(kind: &TypeParameterKind) -> bool {
         matches!(
             kind,
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
@@ -2477,7 +2477,7 @@ pub(super) use assignment::{
     assign_trait_implementation_argument_symbols,
     assign_type_reference_argument_symbols_with_constraints,
     assign_type_reference_symbol_with_locals_and_constraints, assign_type_reference_symbols,
-    assign_type_reference_with_definitions, resolve_value_in_type_symbol,
+    assign_type_reference_with_definitions, introduces_value, resolve_value_in_type_symbol,
 };
 pub(super) use queries::call_target_for_type_reference;
 

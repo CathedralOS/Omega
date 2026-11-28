@@ -39,17 +39,37 @@ pub(crate) struct ElfImportRequest {
 pub(crate) fn canonical_referenced_imports(
     image: &FinalImage,
 ) -> Result<Vec<ElfImportRequest>, Diagnostic> {
-    let mut requests = Vec::new();
-    let mut import_handles = Vec::new();
-    let mut normalized_imports = Vec::<(FinalImageSymbolHandle, NormalizedImportLocator)>::new();
+    let imports = &image.symbol_table.imports;
+    let mut requests = Vec::with_capacity(imports.len());
+    // The first row for a handle is the one that the import validator sees first.
+    let mut by_symbol: Vec<_> = imports
+        .iter()
+        .enumerate()
+        .map(|(row, (_, import))| {
+            (
+                import.symbol_handle.arena_index(),
+                import.symbol_handle.generation(),
+                row,
+            )
+        })
+        .collect();
+    by_symbol.sort_unstable();
+    let row_for = |handle: FinalImageSymbolHandle| {
+        let key = (handle.arena_index(), handle.generation());
+        let index = by_symbol.partition_point(|&(slot, generation, _)| (slot, generation) < key);
+        by_symbol
+            .get(index)
+            .filter(|&&(slot, generation, _)| (slot, generation) == key)
+            .map(|&(_, _, row)| row)
+    };
+    let mut normalized_imports = std::collections::BTreeMap::new();
 
-    for (_, import) in image.symbol_table.imports.iter() {
-        if import_handles.contains(&import.symbol_handle) {
+    for (row, (_, import)) in imports.iter().enumerate() {
+        if row_for(import.symbol_handle) != Some(row) {
             return Err(Diagnostic::error(
                 "ELF final image retains duplicate import rows for one symbol handle",
             ));
         }
-        import_handles.push(import.symbol_handle);
         let symbol = image
             .symbol_table
             .symbols
@@ -110,12 +130,10 @@ pub(crate) fn canonical_referenced_imports(
                         image.target,
                     )));
                 }
-                if let Some((earlier_handle, earlier_locator)) =
-                    normalized_imports.iter().find(|(_, earlier)| {
-                        earlier.non_authoritative_compatibility_fingerprint()
-                            == locator.non_authoritative_compatibility_fingerprint()
-                    })
-                {
+                if let Some((earlier_handle, earlier_locator)) = normalized_imports.insert(
+                    locator.non_authoritative_compatibility_fingerprint(),
+                    (import.symbol_handle, locator),
+                ) {
                     let detail = if earlier_locator == locator {
                         "the same exact locator is attached to more than one import symbol"
                     } else {
@@ -128,7 +146,6 @@ pub(crate) fn canonical_referenced_imports(
                         import.symbol_handle,
                     )));
                 }
-                normalized_imports.push((import.symbol_handle, locator.clone()));
                 normalized
             }
             FinalImageImportPlan::None => {
@@ -139,20 +156,11 @@ pub(crate) fn canonical_referenced_imports(
             }
         };
 
-        let relocations = image
-            .relocation_table
-            .relocations
-            .iter()
-            .filter(|&(_, relocation)| relocation.symbol_handle == import.symbol_handle)
-            .map(|(_, relocation)| relocation.clone())
-            .collect::<Vec<_>>();
-        if !relocations.is_empty() {
-            requests.push(ElfImportRequest {
-                symbol_handle: import.symbol_handle,
-                locator,
-                relocations,
-            });
-        }
+        requests.push(ElfImportRequest {
+            symbol_handle: import.symbol_handle,
+            locator,
+            relocations: Vec::new(),
+        });
     }
 
     for (_, relocation) in image.relocation_table.relocations.iter() {
@@ -164,18 +172,17 @@ pub(crate) fn canonical_referenced_imports(
             continue;
         }
         let symbol = image.symbol_table.symbols.get(relocation.symbol_handle);
-        if symbol.kind == SymbolKind::Import
-            && !requests
-                .iter()
-                .any(|request| request.symbol_handle == relocation.symbol_handle)
-        {
-            return Err(Diagnostic::error(format!(
-                "ELF relocation references import `{}` without one exact import row",
-                symbol.name
-            )));
+        if symbol.kind == SymbolKind::Import {
+            let row = row_for(relocation.symbol_handle).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "ELF relocation references import `{}` without one exact import row",
+                    symbol.name
+                ))
+            })?;
+            requests[row].relocations.push(relocation.clone());
         }
     }
-
+    requests.retain(|request| !request.relocations.is_empty());
     Ok(requests)
 }
 
@@ -211,6 +218,67 @@ mod tests {
             .clone();
         duplicate.symbol_table.imports.insert(imported);
         assert!(canonical_referenced_imports(&duplicate).is_err());
+    }
+
+    #[test]
+    fn shared_component_bytes_preserve_import_sites_with_interleaved_relocations() {
+        use crate::test_support::{UTF8_IMPORTS, dynamic_import_inputs, text_entry};
+        use crate::{ElfComponentExport, emit_elf_shared_component};
+
+        for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            let (mut image, _, _) =
+                dynamic_import_inputs(target, &UTF8_IMPORTS, "import", "valid", "valid");
+            text_entry(&mut image, 0);
+            let exports = vec![ElfComponentExport {
+                symbol: image.symbol_table.entry_symbol,
+                name: b"component_entry".to_vec(),
+                slot_commitment: [1; 32],
+            }];
+            let grouped = emit_elf_shared_component(image.clone(), exports.clone()).unwrap();
+            // Move the first import's second site past the second import's site.
+            let sites = &mut image.relocation_table.relocations;
+            let handles: Vec<_> = sites.iter().map(|(handle, _)| handle).collect();
+            let second = sites.get(handles[1]).clone();
+            let third = std::mem::replace(sites.get_mut(handles[2]), second);
+            *sites.get_mut(handles[1]) = third;
+            let interleaved = emit_elf_shared_component(image, exports).unwrap();
+            assert_eq!(&grouped.contents()[16..18], &3_u16.to_le_bytes());
+            assert_eq!(interleaved.contents(), grouped.contents());
+            assert_eq!(interleaved.final_text_bytes(), grouped.final_text_bytes());
+        }
+    }
+
+    #[test]
+    fn stale_relocations_do_not_bind_to_a_reused_symbol_slot() {
+        let mut image = imported_image();
+        let row = image.symbol_table.imports.iter().next().unwrap().0;
+        let stale = image.symbol_table.imports.get(row).symbol_handle;
+        let symbol = image.symbol_table.symbols.get(stale).clone();
+        assert!(image.symbol_table.symbols.free(stale));
+        let live = image.symbol_table.symbols.insert(symbol);
+        assert_eq!(live.arena_index(), stale.arena_index());
+        assert_ne!(live.generation(), stale.generation());
+        assert_eq!(
+            canonical_referenced_imports(&image).unwrap_err().message,
+            "ELF final image import names an invalid symbol handle"
+        );
+        image.symbol_table.imports.get_mut(row).symbol_handle = live;
+        assert!(canonical_referenced_imports(&image).unwrap().is_empty());
+
+        let site = image.relocation_table.relocations.iter().next().unwrap().0;
+        image
+            .relocation_table
+            .relocations
+            .get_mut(site)
+            .symbol_handle = live;
+        assert!(image.symbol_table.imports.free(row));
+        assert_eq!(
+            canonical_referenced_imports(&image).unwrap_err().message,
+            format!(
+                "ELF relocation references import `{}` without one exact import row",
+                image.symbol_table.symbols.get(live).name
+            )
+        );
     }
 
     fn normalized_versioned_image(

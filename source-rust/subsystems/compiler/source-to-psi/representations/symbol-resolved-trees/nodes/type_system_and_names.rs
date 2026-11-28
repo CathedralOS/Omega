@@ -387,9 +387,26 @@ pub mod type_system {
             pub base_name: DiagnosticName,
             pub lifetime_arguments: Vec<DiagnosticName>,
             pub arguments: HandleSpan<TypeReference>,
+            /// Explicit names for hidden slots in this parameter or local's annotation.
+            pub openings: HandleSpan<PackageOpening>,
+        }
+
+        #[derive(Default, Debug, Clone, PartialEq, Eq, record_storage::Record)]
+        pub struct PackageOpening {
+            /// Position in the declaration telescope, including its hidden parameters.
+            pub position: u32,
+            pub name: DiagnosticName,
+            pub symbol: SymbolHandle,
         }
 
         deref_to_storage!(GenericTypeReference => GenericTypeReferenceStorage);
+
+        impl GenericTypeReference {
+            /// Opening a hidden slot contributes no argument to the public type.
+            pub fn opens_bare_package(&self) -> bool {
+                !self.openings.is_empty() && self.arguments.is_empty() && self.lifetime_arguments.is_empty()
+            }
+        }
 
         pub type ReceivingApplicationHandle = Handle<ReceivingApplication>;
 
@@ -412,8 +429,35 @@ pub mod type_system {
         /* Copying/moving type storage keeps its receiving records under the same owner. */
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct TypeReferenceArena {
+            pub package_openings: Arena<PackageOpening>,
             references: Arena<TypeReference>,
             pub receiving_applications: Arena<ReceivingApplication>,
+        }
+
+        impl TypeReferenceArena {
+            /// The package immediately owned or borrowed by this binding. An
+            /// opening inside a type argument or an element type does not belong to it.
+            pub fn annotation_opening_span<'a>(
+                &'a self,
+                mut reference: &'a TypeReference,
+            ) -> HandleSpan<PackageOpening> {
+                loop {
+                    match reference {
+                        TypeReference::Generic(generic) => return generic.openings,
+                        TypeReference::Reference(borrow) => reference = self.get(borrow.referee),
+                        TypeReference::Constrained(qualified) => {
+                            reference = self.get(qualified.base_type)
+                        }
+                        TypeReference::AliasUse { expansion, .. } => reference = expansion,
+                        _ => return HandleSpan::empty(),
+                    }
+                }
+            }
+
+            pub fn annotation_openings(&self, reference: &TypeReference) -> &[PackageOpening] {
+                self.package_openings
+                    .span_or_empty(self.annotation_opening_span(reference))
+            }
         }
 
         impl Deref for TypeReferenceArena {
@@ -723,6 +767,12 @@ pub mod type_system {
                             source_expressions,
                         );
                         self.insert(TypeReferenceNode::Slice { element_type })
+                    }
+                    TypeReference::Generic(generic) if generic.opens_bare_package() => {
+                        self.insert(TypeReferenceNode::Named {
+                            symbol: generic.base_symbol,
+                            name: generic.base_name.clone(),
+                        })
                     }
                     TypeReference::Generic(generic) => {
                         let arguments = self.insert_type_reference_handle_span_from_trees(

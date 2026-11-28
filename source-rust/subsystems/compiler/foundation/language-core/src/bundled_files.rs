@@ -101,21 +101,24 @@ pub enum BuildCompanionFile {
     SandboxStreams,
     /// `Launcher::run` asks the host to launch a checked program.
     BuildProgram,
+    /// `Datagram::send` uses the invocation's fixed network peer.
+    SandboxDatagram,
     /// The installed system package's public filesystem operations.
     SystemFilesystem,
 }
 
 impl BuildCompanionFile {
-    pub const ALL: [Self; 3] = [
+    pub const ALL: [Self; 4] = [
         Self::SandboxStreams,
         Self::BuildProgram,
+        Self::SandboxDatagram,
         Self::SystemFilesystem,
     ];
 
     /// The library package directory that supplies this file.
     pub const fn package_directory(self) -> &'static str {
         match self {
-            Self::SandboxStreams => "core",
+            Self::SandboxStreams | Self::SandboxDatagram => "core",
             Self::BuildProgram => "build",
             Self::SystemFilesystem => "system",
         }
@@ -126,6 +129,7 @@ impl BuildCompanionFile {
         match self {
             Self::SandboxStreams => "sandbox/streams.omg",
             Self::BuildProgram => "program.omg",
+            Self::SandboxDatagram => "sandbox/datagram.omg",
             Self::SystemFilesystem => "filesystem.omg",
         }
     }

@@ -37,8 +37,19 @@ impl TypedTrees {
         owner: SymbolHandle,
         sources: &[(source_text::SourceId, [u8; 32])],
     ) -> Result<(), String> {
-        self.close_private_callback_slot(selected, owner, None, sources)?;
-        Ok(())
+        self.private_callback_slot_selection(selected, owner, sources)
+            .map(|_| ())
+    }
+
+    /// An installation cites the closed slot without running the layout policy.
+    pub fn private_callback_slot_selection(
+        &self,
+        selected: &StaticMachineArgument,
+        owner: SymbolHandle,
+        sources: &[(source_text::SourceId, [u8; 32])],
+    ) -> Result<PrivateCallbackSlotSelection, String> {
+        let (slot, _) = self.close_private_callback_slot(selected, owner, None, sources)?;
+        Ok(slot.selection)
     }
 
     /// A policy's ordinary checked body returns its public LayoutPlan. Only

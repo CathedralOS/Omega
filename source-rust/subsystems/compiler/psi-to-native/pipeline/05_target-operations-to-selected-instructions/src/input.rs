@@ -1,8 +1,19 @@
 //! The prepared target body and the installations bound to its entry.
 use legalized_operations::{LegalizedOperationPlan, PreparationReceipt, PreparedExecutionPlan};
 
+/// Selection may consume a published plan but cannot replace its private callees
+/// and issue another plan from the same instructions and facts.
+///
+/// ```compile_fail,E0433
+/// fn replace_callees(plan: native_body_plan::NativeBodyPlan) -> native_body_plan::NativeBodyPlan {
+///     let (selection, facts, _) = plan.into_selection();
+///     native_body_plan::NativeBodyPlan::from_lowering(
+///         native_body_plan_issuer::TARGET_LOWERING, selection, facts, Vec::new(),
+///     )
+/// }
+/// ```
 pub struct SelectionInput {
-    pub body: target_lowering::NativeBodyPlan,
+    pub body: native_body_plan::NativeBodyPlan,
     pub entry_execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
     pub stack: Vec<installation_conditions::InstalledInterruptStackRequirement>,
 }

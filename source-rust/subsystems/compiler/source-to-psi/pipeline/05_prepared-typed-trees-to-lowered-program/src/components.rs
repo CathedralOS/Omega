@@ -128,11 +128,11 @@ fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph<'_>, Comp
     Ok((calls, table))
 }
 
-pub(crate) fn components(
+pub(crate) fn components<'a>(
     bodies: &IdTable<MachineId, Body>,
     signatures: &mut IdTable<MachineId, Signature>,
     theorems: &[terminal_psi::TheoremParameter],
-    const_scopes: &IdTable<MachineId, Vec<crate::read::ConstBinding>>,
+    const_scopes: impl Iterator<Item = (MachineId, &'a [crate::read::ConstBinding])>,
 ) -> Checked<Components> {
     let (calls, mut table) = call_graph(bodies)?;
     rankings::carry(&calls, &table, signatures)?;
@@ -231,7 +231,7 @@ pub(crate) fn components(
     for machine in forwarding {
         table.forward_entry(machine);
     }
-    for (machine, inputs) in const_scopes.iter() {
+    for (machine, inputs) in const_scopes {
         if inputs.is_empty() || table.members(machine)? != [machine] {
             continue;
         }
@@ -651,7 +651,8 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body,
                 expression(value, false, sites);
             }
             // Declarations, erased terms and reference captures call nothing.
-            Statement::Declare { .. }
+            Statement::AssemblyAdjacent { .. }
+            | Statement::Declare { .. }
             | Statement::Witness { .. }
             | Statement::CaptureReference { .. } => {}
             Statement::Dispatch {
@@ -734,7 +735,7 @@ fn cyclic_theorems(
 fn target<'body>(target: &'body Target, sites: &mut BodyWalk<'body, '_>) {
     match target {
         Target::Unit | Target::Crash(_) => {}
-        Target::Value(value) => expression(value, true, sites),
+        Target::Value(value) | Target::AssemblyReturn(_, value) => expression(value, true, sites),
     }
 }
 

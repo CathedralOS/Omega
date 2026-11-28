@@ -172,6 +172,7 @@ pub(in crate::resolution::declarations::generic_data) fn generic_inline_data_edg
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::SomeOpening(_)
             | TypeReferenceNode::Unit => {}
         }
     }
