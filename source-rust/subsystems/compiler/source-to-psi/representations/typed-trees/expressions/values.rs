@@ -5219,6 +5219,18 @@ pub mod expression {
                     symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
                 )
         }
+
+        /// A resolved bare path describes its declaration, not a partly
+        /// supplied application. The lexical spelling adds no identity.
+        pub fn is_bare_declaration(&self) -> bool {
+            self.symbol.is_valid()
+                && self.type_reference == Default::default()
+                && self.authored_machine_application == Default::default()
+                && self.authored_selection.is_none()
+                && self.application.is_none()
+                && self.const_literal.is_none()
+                && self.evidence_projection.is_none()
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]

@@ -167,6 +167,7 @@ impl Fields<'_> {
             return false;
         };
         if private.binary_search(&call.callee).is_ok()
+            || !callee.membership_requires.is_empty()
             || callee.has_structural_guarantees()
             || callee.structural_result_place().is_some()
             || callee.observing_clauses().any(|p| p != &Proposition::Truth)
@@ -240,6 +241,7 @@ pub(super) fn observed<'a>(
         || !machine.contract.requires.is_empty()
         || !machine.contract.ensures.is_empty()
         || !machine.contract.source_checked_requires.is_empty()
+        || !machine.contract.membership_requires.is_empty()
         || !machine.contract.membership_ensures.is_empty()
         || !machine.contract.outcome_specific_ensures.is_empty()
     {

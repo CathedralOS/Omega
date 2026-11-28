@@ -9,6 +9,49 @@ use sha2::{Digest, Sha256};
 
 use crate::plans::selected_plan_fixture::selected_plan;
 
+/// The independent native reader's frozen plan must come from the current writer.
+#[test]
+fn checked_provider_fixture_matches_the_published_plan() {
+    use service_surface::{
+        ServiceDomainMembership, ServiceMembershipProjection, ServiceMembershipSubject,
+        ServiceSynchronousInvocation,
+    };
+
+    let mut plan = selected_plan();
+    let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+    let opaque = declaration.identities.intern("opaque");
+    let method = &mut declaration.methods[0];
+    method.parameter_count = 1;
+    method.parameter_type_identities = vec![opaque];
+    method.has_result = true;
+    method.result_type_identity = opaque;
+    method.declared_type_signature =
+        service_surface::declared_type_signature(["opaque"].into_iter(), "opaque").unwrap();
+    method.domain_memberships.push(ServiceDomainMembership {
+        subject: ServiceMembershipSubject::NormalResult,
+        path: vec![
+            ServiceMembershipProjection::Field("field".into()),
+            ServiceMembershipProjection::Case("case".into()),
+            ServiceMembershipProjection::FixedIndex(73),
+        ],
+        domain: "domain-A".into(),
+    });
+    method.synchronous_invocations = vec![
+        ServiceSynchronousInvocation::Parameter(0),
+        ServiceSynchronousInvocation::Service("scheduler".into()),
+    ];
+
+    let errors = plan.validate_against_schema();
+    assert!(errors.is_empty(), "{errors:?}");
+    let bytes = plan.identity_preimage();
+    assert_eq!(
+        bytes.as_slice(),
+        include_bytes!(
+            "../../../psi-to-native/verification/component-description/tests/checked-provider.v8"
+        ),
+    );
+}
+
 #[test]
 fn table_field_correspondence_is_committed_and_received_in_full() {
     use crate::plans::TableFieldStorage;

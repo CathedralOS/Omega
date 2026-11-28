@@ -16,6 +16,14 @@ compiler-derived risk acceptances and decisions, trusting whoever lands it.
 Compiler proof/reach checks and native artifact validation are independent of
 installation.
 
+A selected-provider service method records each routed domain membership as a
+counted path followed by its domain identity. For an input, the first path
+entry has tag 4 and a little-endian `u32` runtime parameter ordinal. The
+remaining entries are field (1), case (2) or fixed index (3) projections.
+A path with only projections, including the empty path, retains the existing
+normal-result encoding. Service validation checks the ordinal against the
+method's parameter count and requires a result for each normal-result row.
+
 Whole-package baseline version 42 records a service application in reach,
 synchronous entry, installation and permission evidence. An applied service
 stores the checked declaration and the complete normalized receiver, including

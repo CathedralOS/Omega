@@ -1,3 +1,4 @@
+// Expected exit: 0.
 public boundary trait Required { machine get() -> u32 reaches none ensures result <= 1 crashes none; }
 public Actual satisfies Required { machine get() -> u32 ensures result <= 1 { 1 } }
 const LENGTH: u64 = 2;

@@ -54,6 +54,7 @@ impl ReviewedProviders {
         declarations: &AcceptedDeclarations<'_>,
         callables: &[PackagePolicyCallable],
         traits: &[PackagePolicyTraitShape],
+        unsafe_services: &[ServiceId],
     ) -> Result<(), Vec<Diagnostic>> {
         use std::collections::{BTreeMap, BTreeSet};
         let signatures = traits
@@ -84,7 +85,11 @@ impl ReviewedProviders {
                     .or_insert(Some(*id));
             }
         }
-        let cited: BTreeSet<_> = applications.into_values().flatten().collect();
+        let cited: BTreeSet<_> = applications
+            .into_values()
+            .flatten()
+            .chain(unsafe_services.iter().copied())
+            .collect();
         for ReviewedService {
             id: service,
             owner,
@@ -1952,7 +1957,7 @@ pub(super) fn service_method_policy(
         result_type_identity: method
             .has_result
             .then(|| schema.identity_text(method.result_type_identity).to_owned()),
-        normal_result_memberships: method.normal_result_memberships.clone(),
+        domain_memberships: method.domain_memberships.clone(),
         result_claims: method.result_claims.clone(),
         service_reach: method.service_reach.clone(),
         synchronous_invocations: method.synchronous_invocations.clone(),

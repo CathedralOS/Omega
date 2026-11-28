@@ -90,6 +90,19 @@ impl TerminalProviderExport {
     /// A candidate may be an internal dependency. Only the members of this
     /// declared record, proved for this schema and this provider, are exported.
     pub fn check_members(&self, module: &crate::TerminalModule) -> Result<(), &'static str> {
+        self.check_member_contracts(module, |_, _| Ok(()))
+    }
+
+    /// Apply the receiver's contract check to the boundary and public method
+    /// matched by the same checked provider and closed requirement identity.
+    pub fn check_member_contracts(
+        &self,
+        module: &crate::TerminalModule,
+        mut check: impl FnMut(
+            semantic_vocabulary::BoundaryMachineId,
+            &service_surface::ServiceMethod,
+        ) -> Result<(), &'static str>,
+    ) -> Result<(), &'static str> {
         let schema = module
             .service_schema(self.schema_declaration, self.schema_application)
             .map_err(|_| "export does not name a closed schema")?;
@@ -142,18 +155,18 @@ impl TerminalProviderExport {
             {
                 return Err("exported member belongs to a different schema application");
             }
-            provided.push(requirement);
+            provided.push((requirement, member.boundary));
         }
         provided.sort_unstable();
-        let mut required = schema
-            .surface
-            .methods
-            .iter()
-            .map(|method| schema.surface.identity_text(method.requirement_identity))
-            .collect::<Vec<_>>();
-        required.sort_unstable();
-        if required != provided {
-            return Err("exported members differ from the closed requirement record");
+        let mut required = schema.surface.methods.iter().collect::<Vec<_>>();
+        required.sort_unstable_by_key(|method| {
+            schema.surface.identity_text(method.requirement_identity)
+        });
+        for ((identity, boundary), method) in provided.into_iter().zip(required) {
+            if identity != schema.surface.identity_text(method.requirement_identity) {
+                return Err("exported members differ from the closed requirement record");
+            }
+            check(boundary, method)?;
         }
         Ok(())
     }
@@ -362,6 +375,11 @@ impl crate::TerminalModule {
         }
         row.surface.validate_receiver_applications()?;
         for method in &row.surface.methods {
+            service_surface::ServiceDomainMembership::validate_entries(
+                &method.domain_memberships,
+                method.parameter_count,
+                method.has_result,
+            )?;
             ServiceSynchronousInvocation::validate_entries(
                 &method.synchronous_invocations,
                 method.parameter_count,
