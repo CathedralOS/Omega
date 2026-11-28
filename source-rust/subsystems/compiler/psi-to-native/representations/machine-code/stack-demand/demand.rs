@@ -153,6 +153,9 @@ fn visit(
     }
     for call in &function.foreign_calls {
         let foreign_bytes = match &call.extent {
+            ForeignStackExtent::FixedActivation { caller_bytes } => {
+                caller_bytes.ok_or(Error::UnaccountedTerminalStack(machine))?
+            }
             ForeignStackExtent::Admitted(contribution) => {
                 composition.reports.insert(contribution.report_identity());
                 composition.commitments.insert(contribution.commitment());

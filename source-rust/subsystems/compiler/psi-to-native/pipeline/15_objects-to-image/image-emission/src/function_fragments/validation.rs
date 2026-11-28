@@ -420,11 +420,15 @@ fn validate(
     }
     let text = source.text_section();
     let layout = &artifact.object.layout;
+    let resolved_text = object_file::body_object::fixed_activations::resolved_text(
+        source.publication(),
+        &artifact.foreign_calls,
+    )?;
     let code_text_len =
         artifact
             .private_functions
             .iter()
-            .try_fold(text.bytes.len(), |total, carrier| {
+            .try_fold(resolved_text.len(), |total, carrier| {
                 total
                     .checked_add(carrier.function.byte_count)
                     .ok_or(Error::Overflow)
@@ -476,7 +480,7 @@ fn validate(
         || artifact.entry != text.semantic_entry
         || artifact.object.target != text.target
         || artifact.text_bytes.len() != expected_text_len
-        || !artifact.text_bytes.starts_with(&text.bytes)
+        || !artifact.text_bytes.starts_with(resolved_text.as_ref())
         || artifact.relocations.target != text.target
         || artifact.port_effects != super::port_effects::produce(source)?
         || layout.function_symbols.len() != private_identities.len()
@@ -638,7 +642,7 @@ fn validate(
         ));
     }
     let mut private_symbols = layout.symbols.iter().skip(text.functions.len());
-    let mut private_offset = text.bytes.len();
+    let mut private_offset = resolved_text.len();
     for (carrier, (_, function_symbol)) in artifact
         .private_functions
         .iter()

@@ -9,13 +9,14 @@ pub(super) fn placed_calls<'a>(
         .iter()
         .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
         .collect::<Vec<_>>();
-    let fields = &source.text().unresolved_normalized_foreign_calls;
+    let fields = &source.object().unresolved_normalized_foreign_calls;
     if fields.len() != import_calls.len() {
         return Err(Error::Mismatch("fragment import field roster changed"));
     }
     fields
         .iter()
-        .map(|field| {
+        .map(|row| {
+            let field = &row.resolution;
             let (call, locator) = call_for_import_field(&import_calls, field)?;
             let function = super::find_object_function(functions, field.caller)
                 .ok_or(Error::Mismatch("fragment import caller is absent"))?;
@@ -80,7 +81,7 @@ pub fn readback(
         source.text(),
     )
     .map_err(Error::ForeignCalls)?;
-    let fields = &source.text().unresolved_normalized_foreign_calls;
+    let fields = &source.object().unresolved_normalized_foreign_calls;
     let import_calls = calls
         .iter()
         .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
@@ -89,7 +90,8 @@ pub fn readback(
         return Err(Error::Mismatch("fragment import field roster changed"));
     }
     let mut records = relocations.records();
-    for field in fields {
+    for row in fields {
+        let field = &row.resolution;
         let (call, locator) = call_for_import_field(&import_calls, field)?;
         let function = super::find_object_function(functions, field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;

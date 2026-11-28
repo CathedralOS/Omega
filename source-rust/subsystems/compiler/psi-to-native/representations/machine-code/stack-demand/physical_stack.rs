@@ -21,6 +21,10 @@ pub struct PhysicalStackCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ForeignStackExtent {
+    /// The wrapper runs on the caller's stack. Its selected worker uses its own backing.
+    FixedActivation {
+        caller_bytes: Option<u64>,
+    },
     None,
     Admitted(provider_stack_contribution::AdmittedSameStackContribution),
     Hosted { receipt: Option<[u8; 32]> },
@@ -46,6 +50,9 @@ impl ForeignStackExtent {
             Mechanism::Table { source: target_vocabulary::TableBindingSource::BuildBinding { stack, receipt, .. }, .. }
             | Mechanism::BuildImport { stack, receipt, .. } => Self::from_native_binding(*stack, *receipt),
             Mechanism::CompilerImport { import, .. } => Self::CompilerImport(*import),
+            Mechanism::FixedActivation(_) => Self::FixedActivation {
+                caller_bytes: binding.fixed_activation_stack_bytes(),
+            },
             Mechanism::SystemCall(_) => Self::None,
         }
     }

@@ -67,6 +67,14 @@ impl crate::ObjectPlan {
 pub fn publish_function_object(
     placement: function_layout::FunctionPlacement<BodyPublication>,
 ) -> Result<PublishedFunctionObject, RelocationFreeObjectContainerError> {
+    publish_function_object_with_activations(placement, Vec::new())
+}
+
+/// Publish the local routines issued for this body's fixed activation calls.
+pub fn publish_function_object_with_activations(
+    placement: function_layout::FunctionPlacement<BodyPublication>,
+    fixed_activations: Vec<placement::IssuedFixedActivationCall>,
+) -> Result<PublishedFunctionObject, RelocationFreeObjectContainerError> {
     let (source, frame_application) = placement.into_parts();
     let bindings = &source.placed_body().bindings;
     if bindings.imports.target != source.text_section().target
@@ -94,6 +102,7 @@ pub fn publish_function_object(
         object: Arc::new(object),
         text: source.shared_text_section(),
         native_layouts: source.shared_native_code_layouts(),
+        fixed_activations: fixed_activations.into(),
         body: Arc::clone(source.placed_body()),
     };
     let sections = Arc::new(
@@ -264,9 +273,14 @@ pub struct ObjectPublication {
     text: Arc<machine_code::RelocationFreeTextSectionPlacement>,
     native_layouts: Result<Arc<[NativeCodeLayout]>, NativeCodeLayoutError>,
     body: Arc<function_layout::PlacedBodyEvidence>,
+    fixed_activations: Arc<[placement::IssuedFixedActivationCall]>,
 }
 
 impl ObjectPublication {
+    pub fn fixed_activations(&self) -> &[placement::IssuedFixedActivationCall] {
+        &self.fixed_activations
+    }
+
     /// Clones of one publication share the object issued for that body.
     pub fn same_issuance(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.object, &other.object)
@@ -301,7 +315,7 @@ impl ObjectPublication {
     /// Two publications place the same code when their placed text sections
     /// are equal. Clones of one publication share the text and compare by address.
     pub fn same_text(&self, other: &Self) -> bool {
-        self.text == other.text
+        self.text == other.text && self.fixed_activations == other.fixed_activations
     }
 }
 

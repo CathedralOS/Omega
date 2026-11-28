@@ -106,6 +106,11 @@ pub(super) fn replay_provider_executions(
             ));
         }
         let execution = match foreign.provider_execution {
+            machine_code::ExternalExecutionRecord::FixedActivation(binding) => {
+                rejoin_fixed_activation(module, boundary, foreign, binding)
+                    .map_err(ProviderExecutionReplayError::Shared)?;
+                continue;
+            }
             machine_code::ExternalExecutionRecord::CompilerImport(import) => {
                 let requirement = module
                     .identities
@@ -158,6 +163,72 @@ pub(super) fn replay_provider_executions(
         &required_executions,
     )
     .map_err(ProviderExecutionReplayError::Shared)
+}
+
+/// Recover the worker and reply from the source declaration that authorized this operation.
+pub(crate) fn rejoin_fixed_activation(
+    module: &terminal_psi::TerminalModule,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    foreign: &ObjectForeignCall,
+    binding: target_vocabulary::FixedActivationBinding,
+) -> Result<target_vocabulary::ExternalExecutionBinding, &'static str> {
+    use target_vocabulary::FixedActivationAction as Action;
+    use terminal_semantics::calls::owned_activation as activation;
+
+    let call = foreign
+        .binding
+        .fixed_activation()
+        .ok_or("fixed call has no activation mechanism")?;
+    let execution = target_vocabulary::ExternalExecutionBinding::FixedActivation(binding);
+    if call.binding() != binding
+        || binding.boundary != declaration.id
+        || !foreign.binding.matches_execution(execution)
+        || declaration
+            .declaration
+            .as_ref()
+            .map(|checked| checked.execution)
+            != Some(terminal_psi::CheckedBoundaryExecution::OwnedActivation(
+                binding.operation,
+            ))
+    {
+        return Err("fixed call differs from its authenticated core declaration");
+    }
+    let selected = match call.action {
+        Action::Prepare { worker, .. } => Some((
+            worker,
+            activation::prepare_shape(module, declaration)?.selected,
+        )),
+        Action::Step { worker, .. } => {
+            let preparation = activation::preparation_for(module, declaration)?;
+            Some((
+                worker,
+                activation::step_shape(module, declaration, preparation)?.selected,
+            ))
+        }
+        Action::Park { reply_type, .. } => {
+            if reply_type != activation::park_shape(module, declaration)?.reply {
+                return Err("fixed park uses another reply type");
+            }
+            None
+        }
+        Action::Resume {
+            worker, reply_type, ..
+        } => {
+            let preparation = activation::preparation_for(module, declaration)?;
+            let shape = activation::resume_shape(module, declaration, preparation)?;
+            if reply_type != shape.permit.reply {
+                return Err("fixed resume uses another reply type");
+            }
+            Some((worker, shape.selected))
+        }
+    };
+    if selected.is_some_and(|(worker, entry)| {
+        entry.entry_machine != worker
+            || entry.storage != terminal_psi::TerminalActivationStorage::Fixed
+    }) {
+        return Err("fixed call differs from the worker selected by its preparation");
+    }
+    Ok(execution)
 }
 
 pub(crate) fn rejoin_compiler_import(

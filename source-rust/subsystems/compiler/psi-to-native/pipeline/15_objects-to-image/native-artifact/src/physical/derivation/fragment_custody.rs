@@ -124,6 +124,27 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
             }
             Some((field, import))
         }
+        (None, None, None) if foreign.binding.fixed_activation().is_some() => {
+            let mut local = plan
+                .unresolved_fixed_activation_calls
+                .iter()
+                .filter(|field| {
+                    field.caller == occurrence.machine() && field.invocation_site == invocation_site
+                });
+            let (Some(field), None) = (local.next(), local.next()) else {
+                return Err("fixed activation has no unique section-local call");
+            };
+            if field.instruction != record.instruction
+                || field.block != transport.block
+                || field.boundary != occurrence.boundary()
+                || usize::try_from(field.ordinal) != Ok(ordinal)
+                || field.call_section_offset != call_span.section_offset
+                || usize::try_from(field.field_section_offset) != Ok(foreign.text_offset)
+            {
+                return Err("fixed activation field moved away from its selected instruction");
+            }
+            None
+        }
         (None, None, None) => {
             let section = publication.text_section();
             let fragment = section
