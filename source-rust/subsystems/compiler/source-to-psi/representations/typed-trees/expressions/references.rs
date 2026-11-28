@@ -2796,7 +2796,12 @@ impl MachineSidecarIndex {
                         .closed_requirement_application(application.declaration)
                         .is_some_and(|closed| closed.template == head)))
             .then_some(head);
-            visit_static_argument_with_product_head(program, roots, &application.argument, designated);
+            visit_static_argument_with_product_head(
+                program,
+                roots,
+                &application.argument,
+                designated,
+            );
             application.scope.visit_references_with_product_head(
                 program,
                 roots,
