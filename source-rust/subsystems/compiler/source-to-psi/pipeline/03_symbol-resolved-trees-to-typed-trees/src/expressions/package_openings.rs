@@ -71,8 +71,26 @@ impl OpeningScope<'_> {
                 statement,
                 StatementNode::Assignment(_) | StatementNode::Call(_) | StatementNode::Assembly(_)
             );
+            let inferred_initializer = match statement {
+                StatementNode::LocalData(local) if local.type_is_inferred => {
+                    local.ordinary_value_initializer()
+                }
+                _ => None,
+            };
             for (_, root) in program.expression_roots(statement) {
                 self.visit(program, root)?;
+            }
+            if let Some(ty) = inferred_initializer
+                .and_then(|initializer| program.package_projection(initializer))
+                .map(|projection| projection.result_type)
+            {
+                // A consuming pattern binds each field as an inferred local.
+                // The local carries its subject's opened type into later uses.
+                let StatementNode::LocalData(local) = program.statement_table.statement_mut(handle)
+                else {
+                    unreachable!("the initializer comes from this local")
+                };
+                local.type_reference = ty;
             }
             if writes {
                 self.invalidate()?;
@@ -291,6 +309,34 @@ fn package_place(program: &TypedTrees, expression: ExpressionHandle) -> Option<P
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn destructuring_binds_one_opened_type_to_state_and_operation() {
+        let resolved = crate::resolve_fixture(
+            r#"
+            data Owner<T> { receipt: @T; }
+            data Finish<T> = machine(owner: Owner<T>) -> u8 reaches none crashes none;
+            data Job<some S> [linear] { owner: Owner<S>; finish: Finish<S>; }
+            machine settle(job: Job) -> u8 {
+                let { owner, finish } = move job;
+                (finish)(move owner)
+            }
+        "#,
+        );
+        let program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+        let state = &program.machine_states(&program.machines()[0])[0];
+        let mut opened = Vec::new();
+        for handle in state.statement_nodes.handles() {
+            if let StatementNode::LocalData(local) = program.statement_table.statement(handle)
+                && let Some(projection) = program.package_projection(local.initial_value)
+            {
+                assert_eq!(local.type_reference, projection.result_type);
+                opened.push(projection.opening);
+            }
+        }
+        assert_eq!(opened.len(), 2);
+        assert_eq!(opened[0], opened[1]);
+    }
 
     #[test]
     fn paired_projections_open_one_abstract_type_per_subject() {
