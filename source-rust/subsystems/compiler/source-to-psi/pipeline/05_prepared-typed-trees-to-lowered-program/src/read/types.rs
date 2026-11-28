@@ -1273,7 +1273,7 @@ impl Program<'_> {
 
     /// Resolve a forwarded domain telescope to its prepared application in the
     /// supplying scope. An out-of-scope argument still owes the ordinary check.
-    fn supplied_domain_instance(
+    pub(super) fn supplied_domain_instance(
         &self,
         id: MachineId,
         domain: crate::body::DomainInstance,

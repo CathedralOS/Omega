@@ -709,7 +709,10 @@ data Placement {}
 data Run { count: u64; }
 domain<P,T> Run::Live<P,T>;
 data Cells<P,T> = Run in Run::Live<P,T>;
-machine recertify<P,T>(r: Cells<P,T>) -> Cells<P,T> { r }
+machine recertify<P,T>(r: Cells<P,T>) -> Cells<P,T> {
+    let bare: Run = r as -Run::Live<P,T>;
+    bare as +Run::Live<P,T>
+}
 machine forward<P,T>(r: Cells<P,T>) -> Cells<P,T> { recertify::<P,T>(r) }
 machine carry(r: Cells<Placement,Word>) -> Cells<Placement,Word> { forward::<Placement,Word>(r) }
 machine main() {}";

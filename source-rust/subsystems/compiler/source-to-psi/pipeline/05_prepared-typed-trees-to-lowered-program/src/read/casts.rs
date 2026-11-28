@@ -639,10 +639,13 @@ impl Program<'_> {
         if Policy::of_domain(cast.domain).is_some() {
             return Ok(DomainSet::EMPTY);
         }
-        let selected = crate::body::DomainInstance {
-            declaration: cast.semantic_domain_symbol,
-            identity: cast.semantic_domain_id,
-        };
+        let selected = self.supplied_domain_instance(
+            id,
+            DomainInstance {
+                declaration: cast.semantic_domain_symbol,
+                identity: cast.semantic_domain_id,
+            },
+        )?;
         let definition = self.domain_theory(id, selected)?;
         if definition.alias.is_none() {
             return Ok(DomainSet::EMPTY.with(selected).expect("one domain fits"));
