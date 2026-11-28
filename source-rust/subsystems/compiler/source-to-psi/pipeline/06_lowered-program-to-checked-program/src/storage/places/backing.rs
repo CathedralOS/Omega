@@ -74,7 +74,9 @@ impl Backing {
     pub(super) fn native_address(descriptor: &Lineage, sources: Vec<Self>, exact: bool) -> Self {
         let mut regions = sources.into_iter().flat_map(|source| source.regions).collect::<Vec<_>>();
         if regions.is_empty() {
-            return Self::direct(descriptor.clone());
+            let mut referent = descriptor.clone();
+            referent.segments.push(Segment::Referent);
+            return Self::direct(referent);
         }
         if !exact {
             for region in &mut regions {
@@ -791,6 +793,54 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.unsupported(concerns, "captured storage family is empty"))
     }
 
+    /// Use a native formation as a symbolic name for its referent when the
+    /// address has no known guest storage. A foreign formation has no local
+    /// place ID. Its current descriptor bounds uses without supplying an
+    /// exact place for predecessor substitution or a fact about guest storage.
+    pub(super) fn native_referent_backing(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        subject: &Lineage,
+        at: (BlockId, u32),
+        concerns: Construct,
+    ) -> Checked<Option<Backing>> {
+        use terminal_semantics::descriptor_results::DescriptorSourceOrigin;
+        let Some((_, _, descriptor)) = self.reference_parent(subject, concerns)? else {
+            return Ok(None);
+        };
+        let Some(origins) = references.symbolic_source_origins(self.machine, at, &descriptor) else {
+            return Ok(None);
+        };
+        if origins.is_empty() || !origins.iter().all(|origin| matches!(origin,
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. }))) {
+            return Ok(None);
+        }
+        let crossing = subject.segments.iter().rposition(|step| *step == Segment::Referent)
+            .ok_or_else(|| self.foreign(concerns, "native borrow has no referent crossing"))?;
+        let mut regions = Vec::with_capacity(origins.len());
+        for origin in origins {
+            let DescriptorSourceOrigin::Backing(origin @ DescriptorCallOrigin::NativeAddress { .. }) = origin else { unreachable!() };
+            let DescriptorCallOrigin::NativeAddress { machine, place, projection, .. } = &origin else { unreachable!() };
+            let local = *machine == self.machine;
+            let (storage, exact) = if local && let Some(path) = projection.validate_captured_storage_address(|_| true)
+                .map_err(|detail| self.unsupported(concerns, detail))? {
+                let mut path_to_value = vec![StructuralPathSegment::Referent];
+                path_to_value.extend(path);
+                (self.stored_beneath(*place, &path_to_value, &subject.segments[crossing + 1..], concerns)?, true)
+            } else {
+                (subject.clone(), false)
+            };
+            regions.push(CapturedRegion {
+                place: storage,
+                place_is_exact: exact,
+                origin: Some(origin),
+                index_can_change_on_reentry: true,
+            });
+        }
+        Backing::captured(subject, regions, None).map(Some)
+            .map_err(|detail| self.unsupported(concerns, detail))
+    }
+
     /// Like `backing`, returning `Ok(None)` when a conservative call write
     /// names a reference slot that is inactive on every arrival.
     pub(super) fn optional_backing(
@@ -809,6 +859,9 @@ impl<'a> Storage<'a> {
             before.min(self.block(block)?.operations.len()),
             self.machine,
         )?;
+        if let Some(backing) = self.native_referent_backing(references, place, (block, before), concerns)? {
+            return Ok(Some(backing));
+        }
         let split = place
             .segments
             .iter()

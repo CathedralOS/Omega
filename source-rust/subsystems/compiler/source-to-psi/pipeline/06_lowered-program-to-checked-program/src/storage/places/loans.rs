@@ -632,7 +632,7 @@ impl<'a> Storage<'a> {
         Ok(LoanRegion::Provider(access))
     }
 
-    fn reference_parent(
+    pub(super) fn reference_parent(
         &self,
         raw: &super::Lineage,
         concerns: Construct,
