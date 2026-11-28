@@ -9,7 +9,9 @@ use crate::descriptor_lifetimes::{
     descriptor_entry_lifetime_with_contents_indexed,
     descriptor_location_lifetime_with_contents_indexed, descriptor_path,
 };
-use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
+use crate::descriptor_results::{
+    DescriptorAnalysis, DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin,
+};
 use crate::descriptors::row_source::DescriptorRowSource;
 use crate::module_analyses::DescriptorRows;
 use arena::IdTable;
@@ -726,6 +728,44 @@ fn machine_candidates(
                     lifetimes.push(retained.lifetime);
                 }
             }
+            // Forming a reference from the address of a local descriptor cell
+            // retains that cell until the new reference ends, just as an
+            // explicit structural borrow does. External addresses have no local owner.
+            let mut native_lenders = Vec::new();
+            if matches!(operation.kind, OperationKind::BorrowAt { .. }) {
+                let after = (
+                    birth.0,
+                    birth.1.checked_add(1).ok_or_else(|| {
+                        Error::local(
+                            machine.id,
+                            Some(operation.id),
+                            "native reference formation position overflows",
+                        )
+                    })?,
+                );
+                for origin in analysis
+                    .symbolic_source_origins(
+                        machine.id,
+                        after,
+                        &DescriptorLocation::whole(output.place),
+                    )
+                    .into_iter()
+                    .flatten()
+                {
+                    if let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        source,
+                        projection,
+                    }) = origin
+                        && let Some(path) = projection.captured_storage_path()
+                    {
+                        native_lenders.push(StructuralArgument {
+                            place: source,
+                            path,
+                            access: StructuralAccess::SharedBorrow,
+                        });
+                    }
+                }
+            }
             for slot in inventory.slots {
                 let lifetime = descriptor_location_lifetime_with_contents_indexed(
                     flow,
@@ -735,7 +775,10 @@ fn machine_candidates(
                     &slot,
                     needs_contents,
                 );
-                if let Some(source) = retained_loan_source(&operation.kind) {
+                for source in retained_loan_source(&operation.kind)
+                    .into_iter()
+                    .chain(&native_lenders)
+                {
                     add_dependencies(
                         module,
                         prepared,

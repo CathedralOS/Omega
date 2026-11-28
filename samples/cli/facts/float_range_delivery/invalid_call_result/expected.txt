@@ -1,2 +1,2 @@
 cannot prove requires contract for call admit
-value >= 0.0 && value <= 0.5
+Float::greater_or_equal(value, 0.0) && Float::less_or_equal(value, 0.5)

@@ -38,7 +38,7 @@ pub(super) fn refine_package_writes(
                 .and_then(|b| b.operations.get(at.1 as usize));
             if let Some(footprint) = operation.and_then(|op| {
                 if op.kind.callable_invocation().is_some() {
-                    local_shared_callback(module, packages, machine, op, at, &mut references)
+                    local_opened_callback(module, packages, machine, op, at, &mut references)
                 } else {
                     local_package_arguments(module, packages, machine, op, at, &mut references)
                 }
@@ -84,10 +84,10 @@ fn closed_callback(envelope: &terminal_psi::TerminalCallableEnvelope) -> bool {
         && !envelope.blocks
 }
 
-/// An opened callback with only shared local numeric inputs has no writable
-/// argument. Recover each input from its checked capture before applying the
-/// same read-only rule as an ordinary operand of its concrete type.
-fn local_shared_callback(
+/// Recover the checked lender of every opened input. A mutable borrow of
+/// local data-only storage can write through that lender but cannot follow
+/// another reference. A shared input also needs a read-only storage policy.
+fn local_opened_callback(
     module: &TerminalModule,
     packages: &CheckedPackageSites,
     machine: &TerminalMachine,
@@ -102,10 +102,6 @@ fn local_shared_callback(
         || !call.arguments.is_empty()
         || !call.claim_transfers.is_empty()
         || call.structural_arguments.is_empty()
-        || call
-            .structural_arguments
-            .iter()
-            .any(|actual| actual.access != StructuralAccess::SharedBorrow)
     {
         return None;
     }
@@ -120,16 +116,27 @@ fn local_shared_callback(
     if homes.len() != call.structural_arguments.len() {
         return None;
     }
-    for (_, home) in homes {
+    let mut writes = Vec::new();
+    for (actual, (_, home)) in call.structural_arguments.iter().zip(homes) {
         let root = machine.structural_place_type(home.root)?;
         let types = &module.types.structural_types;
         let path = descriptor_path(types, root, &home.path)?;
         let concrete = crate::runtime_structural_path_tip(types.iter(), root, &path)?;
-        if !read_only_numeric_storage(module, concrete.id) {
-            return None;
+        match actual.access {
+            StructuralAccess::SharedBorrow if read_only_numeric_storage(module, concrete.id) => {}
+            StructuralAccess::MutableBorrow
+                if machine.structural_parameter(home.root).is_none()
+                    && path
+                        .iter()
+                        .all(|step| matches!(step, Step::Field(_) | Step::FixedIndex(_)))
+                    && numeric_storage(module, concrete.id) =>
+            {
+                writes.push(Some(DescriptorContentsQuery::from_location(&home)));
+            }
+            _ => return None,
         }
     }
-    Some(Vec::new())
+    Some(writes)
 }
 
 /// Cover every possible backing of the live output view. A fixed array of

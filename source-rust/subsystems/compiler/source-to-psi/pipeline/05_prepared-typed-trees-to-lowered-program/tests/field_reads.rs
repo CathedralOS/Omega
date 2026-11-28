@@ -339,6 +339,63 @@ machine main() crashes Trap {
     }
 }
 
+/// A borrowed callback argument reads the member of the stored Link, even
+/// though the source expression has the fresh type of this Reader's opening.
+#[test]
+fn an_opened_nominal_record_lends_the_field_at_its_stored_coordinate() {
+    let source = r"
+data File { byte: u8; }
+data Link<'a, T> { target: @'a T; }
+data Read<T> = machine(input: @T) -> u8 reaches none crashes none;
+data Reader<'a, some S> { link: Link<'a, S>; read: Read<S>; }
+machine get(f: @File) -> u8 { f.byte }
+machine apply(reader: @Reader) -> u8 { (reader.read)(reader.link.target) }
+machine inspect<'a>(file: @'a File) -> u8 {
+    let link: Link<'a, File> = Link { target: file };
+    let reader: Reader<'a> = Reader { link: link, read: get };
+    apply(@reader)
+}";
+    let program = Program::of(source);
+    let module = &program.elaboration().module;
+    let call = program
+        .machine("apply")
+        .operations()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::CallMachine {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .expect("apply invokes the stored callback");
+    let [input] = call.as_slice() else {
+        panic!("a single borrowed input: {call:?}")
+    };
+    let [
+        StructuralPathSegment::Field(link),
+        StructuralPathSegment::Field(target),
+        StructuralPathSegment::Referent,
+    ] = input.path.as_slice()
+    else {
+        panic!("callback takes the stored target: {input:?}")
+    };
+    assert_eq!(module.identities.text(*link), Some("link"));
+    assert_eq!(module.identities.text(*target), Some("target"));
+    program.judged(|_| {}).accepted();
+
+    let crossed = source
+        .replace(
+            "apply(reader: @Reader)",
+            "apply(reader: @Reader, other: @Reader)",
+        )
+        .replace("(reader.link.target)", "(other.link.target)")
+        .replace("apply(@reader)", "apply(@reader, @reader)");
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .expect("separately opened witness");
+    assert!(refusal.message.contains("argument types"), "{refusal:?}");
+}
+
 #[test]
 fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
     let program = Program::of(
