@@ -643,7 +643,10 @@ pub(crate) mod descriptor_operands {
         if !geometry.readable || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
             return None;
         }
-        let shape = terminal_psi::find_structural_type(function.geometry(), geometry.selected)?
+        let shape = function
+            .geometry()
+            .declaration(geometry.selected)
+            .ok()?
             .shape
             .clone();
         Some((geometry, shape))
@@ -1918,8 +1921,8 @@ pub(crate) mod activation_storage {
         source.structural.as_ref().ok_or_else(invalid)?;
         let declarations = source.geometry();
         let declaration = declarations
-            .iter()
-            .find(|ty| ty.id == result.structural_type)
+            .declaration(result.structural_type)
+            .ok()
             .ok_or_else(invalid)?;
         let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Err(invalid());
@@ -3809,9 +3812,11 @@ pub(crate) mod ieee_float_classify {
             return Err(invalid());
         };
         source.structural.as_ref().ok_or_else(invalid)?;
-        let declaration =
-            terminal_psi::find_structural_type(source.geometry(), result.structural_type)
-                .ok_or_else(invalid)?;
+        let declaration = source
+            .geometry()
+            .declaration(result.structural_type)
+            .ok()
+            .ok_or_else(invalid)?;
         if !result.is_unrestricted_plain()
             || !result.qualification_establishments.is_empty()
             || target_vocabulary::conventional_float_class_layout(declaration).as_ref()
@@ -6287,15 +6292,6 @@ pub(crate) fn view_element_pointer(
     )
 }
 
-macro_rules! dispatch_kind {
-    ($row:expr, $pattern:pat, $emit:expr) => {
-        if matches!($row.kind, $pattern) {
-            $emit?;
-            return Ok(true);
-        }
-    };
-}
-
 pub(crate) fn operation(
     function: usize,
     source: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
@@ -6305,217 +6301,106 @@ pub(crate) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
+    use crate::instruction_selection::selection_scalar_graph::{normalized_foreign, unit_call};
     use LegalizedScalarInstructionKind as Kind;
-    dispatch_kind!(
-        row,
-        Kind::InstallStaticInterrupt { .. },
-        interrupt_installation::emit(function, source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::IeeeFloatClassify { .. },
-        ieee_float_classify::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishByteSequenceConcatenation { .. },
-        byte_concatenation::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralByteSequenceFieldByteStore { .. },
-        byte_field_store::replace_byte(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ByteSequenceStore { .. } | Kind::StructuralByteSequenceFieldStore { .. },
-        byte_field_store::replace(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralByteViewFieldStore { .. },
-        byte_view_field_store::replace(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ByteSequenceWrite { .. },
-        byte_views::write(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ElementViewWrite { .. },
-        element_view_write::write(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishPrimitiveLocal { .. } | Kind::PrimitiveLocalStore { .. },
-        primitive_locals::write(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishRecord { .. },
-        record::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StaticInterrupt { .. },
-        static_interrupts::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::AccessLifecycle { .. },
-        access_lifecycles::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishCase { .. },
-        scalar_case::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralLeafCopy { .. },
-        leaf_copy::copy(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StoreStructuralField { .. },
-        leaf_copy::reseat(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::PackedIntegerUnary { .. },
-        packed_integer::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::PackedIntegerBinary { .. },
-        packed_integer::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishStructuralArray { .. },
-        structural_array::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishScalarArray { .. },
-        scalar_array::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishZeroedStructural { .. },
-        zeroed::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishStructuralLocal { .. },
-        structural_local::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::StructuralScalarFieldStore { .. } | Kind::WriteOnlyPrimitiveStore { .. },
-        scalar_store::emit(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
+    match &row.kind {
+        Kind::InstallStaticInterrupt { .. } => {
+            interrupt_installation::emit(function, source, row, builder)?
+        }
+        Kind::IeeeFloatClassify { .. } => ieee_float_classify::establish(source, builder, row)?,
+        Kind::EstablishByteSequenceConcatenation { .. } => {
+            byte_concatenation::establish(source, builder, row)?
+        }
+        Kind::StructuralByteSequenceFieldByteStore { .. } => {
+            byte_field_store::replace_byte(source, builder, row)?
+        }
+        Kind::ByteSequenceStore { .. } | Kind::StructuralByteSequenceFieldStore { .. } => {
+            byte_field_store::replace(source, builder, row)?
+        }
+        Kind::StructuralByteViewFieldStore { .. } => {
+            byte_view_field_store::replace(source, builder, row)?
+        }
+        Kind::ByteSequenceWrite { .. } => byte_views::write(source, builder, row)?,
+        Kind::ElementViewWrite { .. } => element_view_write::write(source, builder, row)?,
+        Kind::EstablishPrimitiveLocal { .. } | Kind::PrimitiveLocalStore { .. } => {
+            primitive_locals::write(source, row, builder)?
+        }
+        Kind::EstablishRecord { .. } => record::establish(source, row, builder)?,
+        Kind::StaticInterrupt { .. } => static_interrupts::emit(source, row, builder)?,
+        Kind::AccessLifecycle { .. } => access_lifecycles::emit(source, row, builder)?,
+        Kind::EstablishCase { .. } => scalar_case::establish(source, row, builder)?,
+        Kind::StructuralLeafCopy { .. } => leaf_copy::copy(source, row, builder)?,
+        Kind::StoreStructuralField { .. } => leaf_copy::reseat(source, row, builder)?,
+        Kind::PackedIntegerUnary { .. } | Kind::PackedIntegerBinary { .. } => {
+            packed_integer::emit(source, row, builder)?
+        }
+        Kind::EstablishStructuralArray { .. } => structural_array::establish(source, row, builder)?,
+        Kind::EstablishScalarArray { .. } => scalar_array::establish(source, row, builder)?,
+        Kind::EstablishZeroedStructural { .. } => zeroed::establish(source, row, builder)?,
+        Kind::EstablishStructuralLocal { .. } => structural_local::establish(source, row, builder)?,
+        Kind::StructuralScalarFieldStore { .. } | Kind::WriteOnlyPrimitiveStore { .. } => {
+            scalar_store::emit(source, row, builder)?
+        }
         Kind::EstablishActivationClaim { .. }
-            | Kind::SplitActivationClaim { .. }
-            | Kind::MergeActivationClaim { .. }
-            | Kind::ReleaseActivationClaim { .. },
-        activation_storage::emit(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishNativeCodeLayout { .. },
-        native_code_layout::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishByteSequenceLiteral { .. },
-        literals::establish(builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ByteSequenceSubslice { .. } | Kind::ElementViewSubslice { .. },
-        subslice::create(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishElementView { .. },
-        element_establishment::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::EstablishReference { .. } | Kind::EstablishAccessReference { .. },
-        reference::establish(source, row, builder)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ElementViewFixedArray { .. },
-        reference::establish_view_window(source, row, builder)
-    );
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ReleaseReference { .. }
-            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
-            | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
-    ) {
-        if row.result.is_some() {
-            return Err(invalid());
+        | Kind::SplitActivationClaim { .. }
+        | Kind::MergeActivationClaim { .. }
+        | Kind::ReleaseActivationClaim { .. } => activation_storage::emit(source, builder, row)?,
+        Kind::EstablishNativeCodeLayout { .. } => {
+            native_code_layout::establish(source, builder, row)?
         }
-        return Ok(true);
-    }
-    if let LegalizedScalarInstructionKind::BoundarySettlement(settlement) = &row.kind {
-        if row.result.is_some()
-            || row.operation != settlement.operation
-            || row.effect != settlement.effect
-            || row.ownership != settlement.ownership
-            || row.work != settlement.work
-        {
-            return Err(invalid());
+        Kind::EstablishByteSequenceLiteral { .. } => literals::establish(builder, row)?,
+        Kind::ByteSequenceSubslice { .. } | Kind::ElementViewSubslice { .. } => {
+            subslice::create(source, builder, row)?
         }
-        let instruction_index = builder
-            .instructions
-            .len()
-            .checked_sub(block_start)
-            .ok_or_else(|| invalid())?;
-        builder
-            .transport
-            .settlements
-            .push(SelectedBoundarySettlement {
-                block,
-                instruction_index: instruction_index.try_into().map_err(|_| invalid())?,
-                settlement:
-                    selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
-                        settlement.clone(),
-                    ),
-            });
-        return Ok(true);
-    }
-    dispatch_kind!(
-        row,
-        Kind::NormalizedForeignCall(_),
-        crate::instruction_selection::selection::construction::scalar_graph::normalized_foreign::emit(
-            function,
-            source,
-            row,
-            environment,
+        Kind::EstablishElementView { .. } => {
+            element_establishment::establish(source, builder, row)?
+        }
+        Kind::EstablishReference { .. } | Kind::EstablishAccessReference { .. } => {
+            reference::establish(source, row, builder)?
+        }
+        Kind::ElementViewFixedArray { .. } => {
+            reference::establish_view_window(source, row, builder)?
+        }
+        Kind::NormalizedForeignCall(_) => {
+            normalized_foreign::emit(function, source, row, environment, builder)?
+        }
+        Kind::ReleaseReference { .. }
+        | Kind::DecomposeStructuralValue { .. }
+        | Kind::EstablishTrivialAffineLocal { .. } => {
+            if row.result.is_some() {
+                return Err(invalid());
+            }
+        }
+        Kind::BoundarySettlement(settlement) => {
+            if row.result.is_some()
+                || row.operation != settlement.operation
+                || row.effect != settlement.effect
+                || row.ownership != settlement.ownership
+                || row.work != settlement.work
+            {
+                return Err(invalid());
+            }
+            let instruction_index = builder
+                .instructions
+                .len()
+                .checked_sub(block_start)
+                .ok_or_else(|| invalid())?;
             builder
-        )
-    );
-    if row.result.is_some() {
-        return Ok(false);
+                .transport
+                .settlements
+                .push(SelectedBoundarySettlement {
+                    block,
+                    instruction_index: instruction_index.try_into().map_err(|_| invalid())?,
+                    settlement:
+                        selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(
+                            settlement.clone(),
+                        ),
+                });
+        }
+        _ if row.result.is_some() => return Ok(false),
+        Kind::Call(_) => unit_call::emit(function, source, row, environment, builder)?,
+        _ => return Err(invalid()),
     }
-    if !matches!(row.kind, LegalizedScalarInstructionKind::Call(_)) {
-        return Err(invalid());
-    }
-    crate::instruction_selection::selection::construction::scalar_graph::unit_call::emit(
-        function,
-        source,
-        row,
-        environment,
-        builder,
-    )?;
     Ok(true)
 }
 
