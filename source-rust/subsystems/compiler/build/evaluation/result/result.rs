@@ -86,5 +86,5 @@ pub struct BuildConstants {
     /// The constants the accepted Build module names
     /// (`AcceptedTerminalSource::constants_read`), each with its declaration
     /// and the value the judged source recorded for it.
-    pub read: Vec<checked_program_to_psi::ConstantRead>,
+    pub read: Vec<prepared_source::ConstantRead>,
 }

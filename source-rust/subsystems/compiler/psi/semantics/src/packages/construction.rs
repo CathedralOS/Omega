@@ -6,7 +6,7 @@ pub(super) fn construction(
     machine: &TerminalMachine,
     operation: &Operation,
     witnesses: &[StructuralTypeId],
-    abstract_types: &BTreeSet<StructuralTypeId>,
+    abstract_types: &[StructuralTypeId],
     origins: &ProjectedOrigins,
     result: &mut CheckedPackageSites,
 ) -> Result<(), &'static str> {
@@ -29,9 +29,9 @@ pub(super) fn construction(
     // A closed construction supplies nominal witness types. Repacking may
     // instead use a live opening's abstract witnesses, whose actual value is
     // known only to the presented package.
-    let mut repacked = BTreeMap::new();
+    let mut repacked = Vec::new();
     for (&public, &actual) in schema.witnesses.iter().zip(witnesses) {
-        if abstract_types.contains(&actual) {
+        if abstract_types.binary_search(&actual).is_ok() {
             let (index, row) = module
                 .execution
                 .packages
@@ -41,7 +41,7 @@ pub(super) fn construction(
                 .find(|(_, row)| row.machine == machine.id && row.witnesses.contains(&actual))
                 .ok_or("construction uses an abstract witness outside its opening")?;
             let index = u32::try_from(index).map_err(|_| "package opening index overflow")?;
-            repacked.insert(public, (index, row));
+            repacked.push((public, index, row));
         }
     }
     let substitutions = Substitution {
@@ -77,7 +77,7 @@ pub(super) fn construction(
         if !substitutions.admits(module, &declaration.field_type, &actual) {
             return Err("package field differs from the shared witness substitution");
         }
-        for (&public, &(index, row)) in &repacked {
+        for &(public, index, row) in &repacked {
             if !fields::uses_witness(module, &declaration.field_type, public) {
                 continue;
             }

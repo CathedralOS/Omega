@@ -237,8 +237,8 @@ impl Program<'_> {
             .ok_or("public requirement is missing lowered source parameters")?;
         let rigid_count = match machine {
             Some(id) => *self
-                .value_parameters
-                .get(id)
+                .machine_context(id)
+                .map(|row| &row.value_parameters)
                 .ok_or("public requirement lost its checked value parameter count")?,
             None => self
                 .typed
