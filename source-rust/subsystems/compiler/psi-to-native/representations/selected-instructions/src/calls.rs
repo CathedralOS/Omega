@@ -99,7 +99,8 @@ pub mod constraints {
     ) -> Option<RegisterInstructionConstraint> {
         let target = call.binding.native_target()?;
         let expected_family = match call.binding.mechanism {
-            NormalizedForeignCallMechanism::Import { .. }
+            NormalizedForeignCallMechanism::FixedActivation(_)
+            | NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::CompilerImport { .. }
             | NormalizedForeignCallMechanism::BuildImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }

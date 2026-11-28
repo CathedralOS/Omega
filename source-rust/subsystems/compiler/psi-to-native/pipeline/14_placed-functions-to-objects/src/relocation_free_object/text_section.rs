@@ -87,11 +87,21 @@ fn assemble_object(
     text_name: String,
     selections: OptimizationSelectionIdentity,
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectFromTextError> {
-    let mut normalized_imports = Vec::new();
-    let mut import_symbols = BTreeMap::new();
-    for (boundary, ordinal) in text
+    use machine_code::NormalizedForeignCallResolutionState as State;
+    let import_fields = text
         .unresolved_normalized_foreign_calls
         .iter()
+        .filter(|field| field.state == State::UnresolvedImportFieldV1);
+    let unresolved_fixed_activation_calls: Vec<_> = text
+        .unresolved_normalized_foreign_calls
+        .iter()
+        .filter(|field| field.state == State::UnresolvedFixedActivationFieldV1)
+        .cloned()
+        .collect();
+    let mut normalized_imports = Vec::new();
+    let mut import_symbols = BTreeMap::new();
+    for (boundary, ordinal) in import_fields
+        .clone()
         .map(|call| (call.boundary, call.ordinal))
         .collect::<std::collections::BTreeSet<_>>()
     {
@@ -105,9 +115,7 @@ fn assemble_object(
             name: canonical_normalized_foreign_import_symbol_name(boundary, ordinal),
         });
     }
-    let unresolved_normalized_foreign_calls = text
-        .unresolved_normalized_foreign_calls
-        .iter()
+    let unresolved_normalized_foreign_calls = import_fields
         .map(|resolution| RelocationFreeObjectUnresolvedForeignCall {
             symbol: import_symbols[&(resolution.boundary, resolution.ordinal)],
             resolution: resolution.clone(),
@@ -142,10 +150,13 @@ fn assemble_object(
         semantic_entry_symbol,
         normalized_imports,
         relocation_record_count: u64::try_from(
-            unresolved_normalized_foreign_calls.len() + text.unresolved_image_addresses.len(),
+            unresolved_normalized_foreign_calls.len()
+                + unresolved_fixed_activation_calls.len()
+                + text.unresolved_image_addresses.len(),
         )
         .map_err(|_| RelocationFreeObjectFromTextError::LengthOverflow)?,
         unresolved_normalized_foreign_calls,
+        unresolved_fixed_activation_calls,
         unresolved_image_addresses: text.unresolved_image_addresses.clone(),
         relocation_requirements,
     };

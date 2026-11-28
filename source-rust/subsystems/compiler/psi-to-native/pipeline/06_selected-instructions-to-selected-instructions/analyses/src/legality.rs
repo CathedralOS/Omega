@@ -74,6 +74,23 @@ mod policies {
         ranges: &StagedOptimizedLiveRanges,
     ) -> Result<ValidatedAllocatorAvailability, OptimizedAllocationLegalityCustodyError> {
         let environment = ranges.register_environment();
+        let needs_owner = ranges.selected().plan().functions.iter().any(|function| {
+            function.normalized_foreign_calls.iter().any(|row| row.call.binding.fixed_activation().is_some())
+        });
+        let policy = if needs_owner {
+            let model = environment.physical().model();
+            let owner = model.view_named("r12").ok_or(
+                OptimizedAllocationLegalityCustodyError::MissingFixedActivationOwnerRegister
+            )?;
+            let reserved = environment.reservations().reserved_units();
+            let views = model.views.iter().filter(|view| {
+                view.allocatable && view.units.iter().chain(&view.write_units)
+                    .all(|unit| !reserved.contains(unit) && !owner.units.contains(unit))
+            }).map(|view| view.id).collect();
+            AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views }
+        } else {
+            AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1
+        };
         materialize_allocator_availability(
             environment.identity(),
             environment.target(),
@@ -81,7 +98,7 @@ mod policies {
             environment.constraints(),
             environment.reservations(),
             &environment.allocation_constraint_keys(),
-            AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
+            policy,
         )
         .map_err(OptimizedAllocationLegalityCustodyError::Availability)
     }
@@ -342,6 +359,7 @@ pub enum OptimizedAllocationLegalityCustodyError {
     Availability(AllocatorAvailabilityError),
     Analysis(AllocationLegalityError),
     UnsupportedFramelessLeafConvention,
+    MissingFixedActivationOwnerRegister,
     MissingRequiredActiveResidentRematerializationView(&'static str),
     /// An admitted analysis names another program, registers or availability.
     AnalysisMismatch,

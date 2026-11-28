@@ -98,7 +98,7 @@ impl AdmittedBorrowedStorage {
             return Ok(NativeBorrowedStorageLayouts::default());
         }
         let geometry =
-            NativeGeometry::with_owned_sequence_bounds(catalog, catalog.owned_sequence_bounds())
+            NativeGeometry::with_value_storage(catalog, catalog.value_storage())
                 .map_err(
                     |_| "borrowed storage declarations have non-dense structural identities",
                 )?;

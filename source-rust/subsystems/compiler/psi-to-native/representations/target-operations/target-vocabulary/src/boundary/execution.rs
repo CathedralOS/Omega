@@ -61,6 +61,7 @@ impl NativeBindingExecution {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExternalExecutionBinding {
+    FixedActivation(crate::FixedActivationBinding),
     CompilerImport(super::CompilerImport),
     Provider(ProviderExecutionBinding),
     NativeBinding(NativeBindingExecution),
@@ -479,6 +480,7 @@ mod tests {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
+    FixedActivation(crate::FixedActivationBinding),
     EmptyRunRelease,
     StaticInterrupt {
         boundary: semantic_vocabulary::BoundaryMachineId,
@@ -569,6 +571,7 @@ impl BoundaryExecutionBinding {
         match self {
             Self::AdmittedProvider(provider) => Some(ExternalExecutionBinding::Provider(provider)),
             Self::NativeBinding(binding) => Some(ExternalExecutionBinding::NativeBinding(binding)),
+            Self::CompilerBuiltin(CompilerBuiltinExecution::FixedActivation(binding)) => Some(ExternalExecutionBinding::FixedActivation(binding)),
             Self::CompilerBuiltin(_) => None,
         }
     }

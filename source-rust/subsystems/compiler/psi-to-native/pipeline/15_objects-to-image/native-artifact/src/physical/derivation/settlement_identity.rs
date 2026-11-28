@@ -96,6 +96,12 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     digest.raw(&occurrence.identity().bytes());
     digest.bytes(requirement_identity.as_bytes());
     match selected_supply {
+        crate::physical::NativeSelectedSupply::FixedActivation(binding) => {
+            digest.byte(2);
+            let mut bytes = Vec::new();
+            binding.encode(&mut bytes);
+            digest.bytes(&bytes);
+        }
         crate::physical::NativeSelectedSupply::ProviderPlan(plan) => {
             digest.byte(0);
             digest.raw(plan.as_bytes());

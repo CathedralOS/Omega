@@ -5,6 +5,7 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompilerIntrinsicExecutionIdentity {
+    FixedActivation(language_core::sealed_intrinsics::ActivationOperation),
     StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),
     HostedExitProcessI32,
     TaskRegisterActivate,
@@ -200,6 +201,7 @@ enum IntrinsicTag {
     // Tag 16 formerly meant either interrupt installation or empty-run release.
     StaticInterrupt = 17,
     EmptyRunRelease = 18,
+    FixedActivation = 19,
 }
 
 pub fn compiler_intrinsic_execution_identity_bytes(
@@ -229,6 +231,11 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         Execution::ProgramImageRetainedSuffixStart => IntrinsicTag::ProgramImageRetainedSuffixStart,
         Execution::ProgramStorageEntry => IntrinsicTag::ProgramStorageEntry,
         Execution::EmptyRunRelease => IntrinsicTag::EmptyRunRelease,
+        Execution::FixedActivation(operation) => {
+            use language_core::sealed_intrinsics::ActivationOperation as Op;
+            bytes[1] = match operation { Op::Prepare => 0, Op::StepFixed => 1, Op::Park => 2, Op::Resume => 3 };
+            IntrinsicTag::FixedActivation
+        }
         Execution::AccessLifecycle(operation) => {
             bytes[1] = match operation {
                 terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,

@@ -34,7 +34,7 @@ struct Argument {
     snapshot: u32,           // Adapter-frame byte offset holding the captured argument snapshot.
 }
 
-fn extent(shape: ValueShape) -> u32 {
+pub(crate) fn extent(shape: ValueShape) -> u32 {
     if is_borrowed(shape.class) {
         8
     } else {
@@ -88,11 +88,17 @@ pub(crate) struct CallBody {
     pub frame_bytes: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct InlineJob {
+    pub argument: u32,
+    pub result: u32,
+}
+
 /// Both adapters make an ordinary call. A foreign frame holds addresses; a
 /// returning worker receives an exclusive retained frame with inline homes.
 pub(crate) fn plan_call(
     request: &NativeForeignBridgeRequest,
-    retained: Option<crate::retained_call::ReturningJobHomes>,
+    retained: Option<InlineJob>,
 ) -> Result<CallBody, Error> {
     let policy = CallingPolicy::native_for_target(request.target);
     let foreign = &request.foreign.plan().call;
@@ -230,10 +236,9 @@ pub(crate) fn plan_call(
         .map(|_| allocate_word(&mut cursor))
         .transpose()?;
     let result_snapshot = match (&result, &foreign.result) {
-        (Some(ValueStorage::Direct(pieces)), Some(value)) => {
-            if pieces
-                .iter()
-                .any(|piece| matches!(piece.location, WordLocation::Stack(_)))
+        (Some(storage), Some(value)) if !storage.is_indirect() || retained.is_some() => {
+            if !storage.is_indirect()
+                && storage.pieces().iter().any(|piece| matches!(piece.location, WordLocation::Stack(_)))
             {
                 return Err(Error::UnsupportedValueTransport);
             }
@@ -304,7 +309,7 @@ pub(crate) fn plan_call(
                 &mut bytes,
                 argument.snapshot,
                 frame_pointer,
-                homes.argument_offset(),
+                homes.argument,
                 argument.extent,
                 true,
             )?;
@@ -353,13 +358,16 @@ pub(crate) fn plan_call(
             WordLocation::Stack(offset) => encoding.copy_word(&mut bytes, output, offset, 8)?,
         }
     }
+    if let (Some(ValueStorage::Indirect { pointer, .. }), Some(snapshot)) = (&result, result_snapshot) {
+        encoding.place_address(&mut bytes, pointer.location, snapshot)?;
+    }
     bytes.push(AdapterOperation::Call);
-    if let (Some(ValueStorage::Direct(pieces)), Some(snapshot), Some(value)) =
-        (&result, result_snapshot, &foreign.result)
-    {
-        encoding.capture_registers(&mut bytes, pieces, snapshot)?;
+    if let (Some(storage), Some(snapshot), Some(value)) = (&result, result_snapshot, &foreign.result) {
+        if let ValueStorage::Direct(pieces) = storage {
+            encoding.capture_registers(&mut bytes, pieces, snapshot)?;
+        }
         let (pointer, member) = match retained {
-            Some(homes) => (frame_pointer, homes.result_offset()),
+            Some(homes) => (frame_pointer, homes.result),
             None => (output_pointer.ok_or(Error::IncompatiblePlan)?, 0),
         };
         encoding.copy_indirect_at(

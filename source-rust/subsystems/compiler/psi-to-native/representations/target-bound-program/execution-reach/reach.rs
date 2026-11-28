@@ -45,6 +45,10 @@ impl ExecutionReach {
         self.boundaries.binary_search(&boundary).is_ok()
     }
 
+    pub fn boundaries(&self) -> &[BoundaryMachineId] {
+        &self.boundaries
+    }
+
     pub fn callbacks(&self) -> &[ReachedCallback] {
         &self.callbacks
     }

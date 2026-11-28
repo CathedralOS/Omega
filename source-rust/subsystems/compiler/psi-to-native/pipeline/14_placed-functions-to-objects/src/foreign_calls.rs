@@ -157,12 +157,19 @@ pub fn place_foreign_call(
         .filter(|field| {
             field.caller == plan.machine && field.invocation_site == record.invocation_site
         });
-    let field = match (
-        record.call.binding.import_locator(),
-        fields.next(),
-        fields.next(),
-    ) {
-        (Some(_), Some(field), None) => {
+    use machine_code::NormalizedForeignCallResolutionState as State;
+    use target_vocabulary::NormalizedForeignCallMechanism as Mechanism;
+    let expected_state = if matches!(record.call.binding.mechanism, Mechanism::FixedActivation(_)) {
+        Some(State::UnresolvedFixedActivationFieldV1)
+    } else {
+        record
+            .call
+            .binding
+            .import_locator()
+            .map(|_| State::UnresolvedImportFieldV1)
+    };
+    let field = match (expected_state, fields.next(), fields.next()) {
+        (Some(state), Some(field), None) => {
             if field.instruction != record.instruction
                 || field.boundary != record.call.boundary
                 || usize::try_from(field.ordinal) != Ok(plan.ordinal)
@@ -170,8 +177,7 @@ pub fn place_foreign_call(
                 || field.call_section_offset != call_span.section_offset
                 || field.call_function_offset != call_span.function_offset
                 || field.call_byte_count != call_span.byte_count
-                || field.state
-                    != machine_code::NormalizedForeignCallResolutionState::UnresolvedImportFieldV1
+                || field.state != state
             {
                 return Err(invalid(
                     "placed import field does not match the physical call",

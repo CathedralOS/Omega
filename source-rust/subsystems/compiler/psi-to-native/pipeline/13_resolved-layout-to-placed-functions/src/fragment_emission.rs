@@ -3,6 +3,13 @@ use machine_code::fragment_origins::{
     FragmentFunctionOrigin, FragmentInstructionOrigin, FragmentOrigins,
 };
 
+fn fragment_call_state(state: SelectedFormNormalizedForeignCallFixupState) -> FunctionFragmentNormalizedForeignCallFixupState {
+    match state {
+        SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1,
+        SelectedFormNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 => FunctionFragmentNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1,
+    }
+}
+
 #[cfg(test)]
 use machine_code::FunctionFragmentSuccessorProvenance;
 use machine_code::{
@@ -319,8 +326,7 @@ fn translate_foreign_fixup(
     let Some((boundary, ordinal)) = instruction.foreign else {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     };
-    if fixup.state != SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
-        || fixup.boundary != boundary
+    if fixup.boundary != boundary
         || fixup.ordinal != ordinal
         || row.branch.is_some()
         || row.internal_machine_fixup.is_some()
@@ -334,7 +340,7 @@ fn translate_foreign_fixup(
     };
     Ok(Some(FunctionFragmentNormalizedForeignCallFixup {
         kind: fixup.kind,
-        state: FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1,
+        state: fragment_call_state(fixup.state),
         boundary,
         ordinal,
         opcode_function_offset: translate(fixup.opcode_row_offset)?,
@@ -500,9 +506,7 @@ fn check_foreign_call_fixup(
             && placed.boundary == source.boundary
             && placed.ordinal == source.ordinal
             && placed.kind == source.kind
-            && source.state == SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
-            && placed.state
-                == FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+            && placed.state == fragment_call_state(source.state)
             && matches_offset(source.opcode_row_offset, placed.opcode_function_offset)
             && matches_offset(source.patch_row_offset, placed.patch_function_offset)
             && matches_offset(

@@ -32,8 +32,16 @@ impl<'a> NativeGeometry<'a> {
         bounds: &'a [(StructuralTypeId, u64)],
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
+        Self::with_value_storage(declarations, runtime_abi::NativeValueStorage { sequences: bounds, ..Default::default() }, target)
+    }
+
+    pub fn with_value_storage(
+        declarations: &'a [StructuralTypeDeclaration],
+        storage: runtime_abi::NativeValueStorage<'a>,
+        target: NativeTarget,
+    ) -> Result<Self, NonDenseIdentities> {
         Ok(Self {
-            physical: PhysicalGeometry::with_owned_sequence_bounds(declarations, bounds)?,
+            physical: PhysicalGeometry::with_value_storage(declarations, storage)?,
             carriers: runtime_abi::target_carrier_layout(target),
         })
     }
@@ -153,14 +161,21 @@ impl<'a> NativeGeometries<'a> {
         >,
         target: NativeTarget,
     ) -> Result<Self, NonDenseIdentities> {
+        Self::with_value_storage(declarations.map(|(rows, sequences)| (rows, runtime_abi::NativeValueStorage { sequences, ..Default::default() })), target)
+    }
+
+    pub fn with_value_storage(
+        declarations: impl Iterator<Item = (&'a [StructuralTypeDeclaration], runtime_abi::NativeValueStorage<'a>)>,
+        target: NativeTarget,
+    ) -> Result<Self, NonDenseIdentities> {
         let mut catalogs = declarations.collect::<Vec<_>>();
-        catalogs.sort_unstable_by_key(|(rows, bounds)| Self::key(rows, bounds));
-        catalogs.dedup_by_key(|(rows, bounds)| Self::key(rows, bounds));
+        catalogs.sort_unstable_by_key(|(rows, bounds)| Self::key(rows, *bounds));
+        catalogs.dedup_by_key(|(rows, bounds)| Self::key(rows, *bounds));
         Ok(Self {
             catalogs: catalogs
                 .into_iter()
                 .map(|(rows, bounds)| {
-                    NativeGeometry::with_owned_sequence_bounds(rows, bounds, target)
+                    NativeGeometry::with_value_storage(rows, bounds, target)
                 })
                 .collect::<Result<_, _>>()?,
         })
@@ -168,13 +183,15 @@ impl<'a> NativeGeometries<'a> {
 
     fn key(
         rows: &[StructuralTypeDeclaration],
-        bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
-    ) -> (usize, usize, usize, usize) {
+        storage: runtime_abi::NativeValueStorage<'_>,
+    ) -> (usize, usize, usize, usize, usize, usize) {
         (
             rows.as_ptr() as usize,
             rows.len(),
-            bounds.as_ptr() as usize,
-            bounds.len(),
+            storage.sequences.as_ptr() as usize,
+            storage.sequences.len(),
+            storage.execution_owners.as_ptr() as usize,
+            storage.execution_owners.len(),
         )
     }
 
@@ -183,11 +200,19 @@ impl<'a> NativeGeometries<'a> {
         declarations: &[StructuralTypeDeclaration],
         bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
     ) -> Option<&NativeGeometry<'a>> {
-        let key = Self::key(declarations, bounds);
+        self.get_with_storage(declarations, runtime_abi::NativeValueStorage { sequences: bounds, ..Default::default() })
+    }
+
+    pub fn get_with_storage(
+        &self,
+        declarations: &[StructuralTypeDeclaration],
+        storage: runtime_abi::NativeValueStorage<'_>,
+    ) -> Option<&NativeGeometry<'a>> {
+        let key = Self::key(declarations, storage);
         let position = self
             .catalogs
             .binary_search_by_key(&key, |geometry| {
-                Self::key(geometry, geometry.owned_sequence_bounds())
+                Self::key(geometry, geometry.value_storage())
             })
             .ok()?;
         self.catalogs.get(position)

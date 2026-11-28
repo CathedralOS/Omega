@@ -236,6 +236,7 @@ pub use frame_protocol::FunctionBodyEncodingError;
 
 pub mod adapters;
 pub mod callable_entry;
+pub mod fixed_activation;
 pub mod hosted_entry;
 pub mod hosted_program;
 pub mod imports;

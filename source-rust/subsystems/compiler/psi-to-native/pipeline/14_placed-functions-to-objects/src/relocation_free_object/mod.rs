@@ -129,6 +129,7 @@ pub struct RelocationFreeObjectPlan {
     pub semantic_entry_symbol: ObjectLocalSymbolId,
     pub normalized_imports: Vec<RelocationFreeObjectNormalizedImport>,
     pub unresolved_normalized_foreign_calls: Vec<RelocationFreeObjectUnresolvedForeignCall>,
+    pub unresolved_fixed_activation_calls: Vec<PlacedNormalizedForeignCallResolution>,
     pub unresolved_image_addresses: Vec<machine_code::PlacedImageAddress>,
     pub relocation_record_count: u64,
     pub relocation_requirements: RelocationFreeObjectRelocationRequirements,
@@ -157,6 +158,7 @@ pub enum RelocationFreeObjectError {
     RelocationsPresent,
     UnresolvedForeignCallsMissing,
     RelocationCountMismatch,
+    InvalidFixedActivationField,
     NonCanonicalForeignImportId,
     NonCanonicalForeignImportOrder,
     NonCanonicalForeignImportName,
@@ -219,6 +221,7 @@ pub(crate) fn validate_relocation_free_object(
             if object.relocation_record_count != 0
                 || !object.normalized_imports.is_empty()
                 || !object.unresolved_normalized_foreign_calls.is_empty()
+                || !object.unresolved_fixed_activation_calls.is_empty()
                 || !object.unresolved_image_addresses.is_empty()
             {
                 return Err(RelocationFreeObjectError::RelocationsPresent);
@@ -230,7 +233,9 @@ pub(crate) fn validate_relocation_free_object(
             {
                 return Err(RelocationFreeObjectError::UnresolvedForeignCallsMissing);
             }
-            if !object.unresolved_image_addresses.is_empty() {
+            if !object.unresolved_image_addresses.is_empty()
+                || !object.unresolved_fixed_activation_calls.is_empty()
+            {
                 return Err(RelocationFreeObjectError::RelocationsPresent);
             }
             if object.relocation_record_count
@@ -241,7 +246,9 @@ pub(crate) fn validate_relocation_free_object(
             }
         }
         RelocationFreeObjectRelocationRequirements::UnresolvedObjectSymbolFieldsV1 => {
-            if object.unresolved_image_addresses.is_empty() {
+            if object.unresolved_image_addresses.is_empty()
+                && object.unresolved_fixed_activation_calls.is_empty()
+            {
                 return Err(RelocationFreeObjectError::ImageAddressesMissing);
             }
             if object.unresolved_normalized_foreign_calls.is_empty()
@@ -252,7 +259,8 @@ pub(crate) fn validate_relocation_free_object(
             if object.relocation_record_count
                 != u64::try_from(
                     object.unresolved_normalized_foreign_calls.len()
-                        + object.unresolved_image_addresses.len(),
+                        + object.unresolved_image_addresses.len()
+                        + object.unresolved_fixed_activation_calls.len(),
                 )
                 .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
             {
@@ -369,6 +377,16 @@ pub(crate) fn validate_relocation_free_object(
         }
         import_symbols.insert(import.symbol, coordinate);
     }
+    for field in &object.unresolved_fixed_activation_calls {
+        if object.target != NativeTarget::linux_x64()
+            || field.state != machine_code::NormalizedForeignCallResolutionState::UnresolvedFixedActivationFieldV1
+            || field.kind != NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1
+            || field.field_byte_width != 4 || field.addend != 0
+            || !field.callback_materializations.is_empty()
+            || field.field_section_offset.checked_add(4).is_none_or(|end| end > object.text_section.byte_count) {
+            return Err(RelocationFreeObjectError::InvalidFixedActivationField);
+        }
+    }
     let mut used_imports = BTreeSet::new();
     for field in &object.unresolved_normalized_foreign_calls {
         let Some(coordinate) = import_symbols.get(&field.symbol) else {
@@ -484,6 +502,7 @@ mod tests {
             semantic_entry_symbol: ObjectLocalSymbolId::new(1).unwrap(),
             normalized_imports: vec![],
             unresolved_normalized_foreign_calls: vec![],
+            unresolved_fixed_activation_calls: vec![],
             unresolved_image_addresses: Vec::new(),
             relocation_record_count: 0,
             relocation_requirements:

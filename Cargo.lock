@@ -2245,6 +2245,7 @@ dependencies = [
  "function-identity",
  "installation-conditions",
  "language-core",
+ "legalized-operations",
  "layout-plans",
  "native-binding-admission",
  "native-intrinsics",
@@ -3193,6 +3194,7 @@ name = "structural-storage"
 version = "0.1.0"
 dependencies = [
  "psi-declaration-encoding",
+ "runtime-abi",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -3368,6 +3370,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "direct-boundary-bindings",
+ "language-core",
  "native-execution-reach",
  "native-intrinsics",
  "operation-operands",
@@ -3378,6 +3381,7 @@ dependencies = [
  "psi-provider-selections",
  "psi-publication-records",
  "psi-target-layouts",
+ "runtime-abi",
  "semantic-vocabulary",
  "target",
  "target-provider-admission",

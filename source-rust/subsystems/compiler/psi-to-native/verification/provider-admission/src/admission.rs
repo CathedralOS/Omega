@@ -185,6 +185,9 @@ pub fn admit_native_providers<'request>(
     let compiler_builtins = compiler_builtins::reached_builtins(input, artifact, request)?;
     let (native_settlements, native_mechanisms) =
         crate::native_binding_settlements::settle(input, request, &compiler_builtins)?;
+    let (fixed_settlements, fixed_mechanisms) = crate::fixed_activations::settle(
+        input, request.profile, request.terminal_authority_policy,
+    )?;
     let graph = AuthorityGraph::new(
         input,
         analyses.as_ref(),
@@ -261,6 +264,8 @@ pub fn admit_native_providers<'request>(
             ))]);
         }
     }
+    settlements.extend(fixed_settlements);
+    mechanisms.extend(fixed_mechanisms);
     settlements.extend(lifecycle_settlements);
     mechanisms.extend(lifecycle_mechanisms);
     let (run_settlements, run_mechanisms) =
@@ -433,7 +438,7 @@ fn require_reached_providers(
         .filter_map(|boundary| {
             let declaration = plan.boundary_machine(*boundary)?;
             if declaration.declaration.as_ref().is_some_and(|row| {
-                row.execution == terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
+                matches!(row.execution, terminal_psi::CheckedBoundaryExecution::EmptyRunRelease | terminal_psi::CheckedBoundaryExecution::OwnedActivation(_))
             }) {
                 return None;
             }

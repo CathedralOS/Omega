@@ -318,6 +318,7 @@ fn derive_object_physical_evidence(
             matches!(
                 foreign.provider_execution,
                 machine_code::ExternalExecutionRecord::NativeBinding(_)
+                    | machine_code::ExternalExecutionRecord::FixedActivation(_)
             )
         });
         let selected_plan = if native {

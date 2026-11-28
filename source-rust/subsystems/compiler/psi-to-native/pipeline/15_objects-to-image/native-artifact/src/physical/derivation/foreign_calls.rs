@@ -194,29 +194,6 @@ pub(super) fn derive_normalized_foreign_child(
         u16::try_from(target.pointer_alignment)
             .map_err(|_| "normalized foreign D41 pointer alignment does not fit its ABI")?,
     );
-    let structural_parameter_shapes =
-        if !structural_arguments.is_empty() || !declaration.structural_parameters.is_empty() {
-            let caller = module
-                .machine(occurrence.machine())
-                .ok_or("normalized foreign D41 child names an absent caller machine")?;
-            let Some(shapes) = normalized_foreign_structural_parameter_shapes(
-                structural_arguments,
-                &declaration.structural_parameters,
-                &caller.structural_parameters,
-                &declaration.parameter_order,
-                foreign.callback_addresses.iter().any(|callback| {
-                    matches!(callback.target.destination, NativePlace::Parameter(_))
-                }),
-                &foreign.binding.operand_placements(),
-                pointer_shape,
-            )?
-            else {
-                return Ok(None);
-            };
-            Some(shapes)
-        } else {
-            None
-        };
     let fragment_rejoin = publication
         .map(|publication| {
             fragment_normalized_foreign_rejoin(
@@ -227,6 +204,57 @@ pub(super) fn derive_normalized_foreign_child(
             )
         })
         .transpose()?;
+    let structural_parameter_shapes = if foreign.binding.fixed_activation().is_some() {
+        let selected = fragment_rejoin.ok_or("fixed activation needs its selected instruction")?;
+        let operands = foreign.binding.operand_placements();
+        let physical = &selected.record.call.structural_arguments;
+        if structural_arguments.len() != declaration.structural_parameters.len()
+            || physical.len() != structural_arguments.len()
+        {
+            return Err("fixed activation has a different structural argument roster");
+        }
+        let mut shapes = Vec::with_capacity(physical.len());
+        for (((source, parameter), placed), position) in structural_arguments
+            .iter()
+            .zip(&declaration.structural_parameters)
+            .zip(physical)
+            .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
+        {
+            if source.place != placed.place
+                || source.path != placed.path
+                || source.access != placed.access
+                || placed.access != parameter.access
+                || placed.structural_type != parameter.structural_type
+                || operands.get(position) != Some(&placed.destination)
+            {
+                return Err("fixed activation changed a checked argument or its ABI assignment");
+            }
+            shapes.push(placed.destination.shape);
+        }
+        Some(shapes)
+    } else if !structural_arguments.is_empty() || !declaration.structural_parameters.is_empty() {
+        let caller = module
+            .machine(occurrence.machine())
+            .ok_or("normalized foreign D41 child names an absent caller machine")?;
+        let Some(shapes) = normalized_foreign_structural_parameter_shapes(
+            structural_arguments,
+            &declaration.structural_parameters,
+            &caller.structural_parameters,
+            &declaration.parameter_order,
+            foreign
+                .callback_addresses
+                .iter()
+                .any(|callback| matches!(callback.target.destination, NativePlace::Parameter(_))),
+            &foreign.binding.operand_placements(),
+            pointer_shape,
+        )?
+        else {
+            return Ok(None);
+        };
+        Some(shapes)
+    } else {
+        None
+    };
     let result_shape = match (source_result, &declaration.result, &foreign.scalar_result) {
         (Some(OperationResult::Unit), BoundaryMachineResult::Unit, None) => None,
         (None, declared, None) => {
@@ -549,6 +577,21 @@ pub(super) fn derive_normalized_foreign_child(
         .boundary_entry_plan
         .contract_commitment_digest();
     let (selected_supply, execution) = match foreign.provider_execution {
+        machine_code::ExternalExecutionRecord::FixedActivation(binding) => {
+            if selected_plan.is_some() {
+                return Err("fixed activation also names a foreign provider plan");
+            }
+            let execution = crate::native_artifact::provider_execution::rejoin_fixed_activation(
+                module,
+                declaration,
+                foreign,
+                binding,
+            )?;
+            (
+                crate::physical::NativeSelectedSupply::FixedActivation(binding),
+                execution,
+            )
+        }
         machine_code::ExternalExecutionRecord::CompilerImport(import) => {
             let selected =
                 selected_plan.ok_or("compiler import lost its selected primitive plan")?;
@@ -655,7 +698,11 @@ pub(super) fn derive_normalized_foreign_child(
         }
         (
             Vec::new(),
-            PhysicalRelocationDisposition::DirectInstructionBytes,
+            if foreign.binding.fixed_activation().is_some() {
+                PhysicalRelocationDisposition::ResolvedInternalCall
+            } else {
+                PhysicalRelocationDisposition::DirectInstructionBytes
+            },
         )
     } else {
         let locator = foreign

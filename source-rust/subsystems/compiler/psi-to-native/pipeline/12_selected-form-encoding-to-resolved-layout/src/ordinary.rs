@@ -365,7 +365,7 @@ fn validate_foreign_fixup(
         ) => 0x9400_0000_u32.to_le_bytes(),
         _ => return unexpected(instruction.id),
     };
-    if fixup.state != SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+    if (fixup.state == SelectedFormNormalizedForeignCallFixupState::UnresolvedFixedActivationFieldV1 && (architecture != Architecture::X86_64 || !fixup.callbacks.is_empty()))
         || fixup.boundary != boundary
         || fixup.ordinal != ordinal
         || fixup.addend != 0

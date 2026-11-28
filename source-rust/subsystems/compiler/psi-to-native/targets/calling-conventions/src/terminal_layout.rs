@@ -50,9 +50,16 @@ impl<'a> NativeGeometry<'a> {
         declarations: &'a [StructuralTypeDeclaration],
         bounds: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
+        Self::with_value_storage(declarations, runtime_abi::NativeValueStorage { sequences: bounds, ..Default::default() })
+    }
+
+    pub fn with_value_storage(
+        declarations: &'a [StructuralTypeDeclaration],
+        storage: runtime_abi::NativeValueStorage<'a>,
+    ) -> Result<Self, NonDenseIdentities> {
         Ok(Self {
             declarations,
-            resolver: StructuralLayoutResolver::with_owned_sequence_bounds(declarations, bounds)?,
+            resolver: StructuralLayoutResolver::with_value_storage(declarations, storage)?,
         })
     }
 
@@ -70,7 +77,7 @@ impl<'a> NativeGeometry<'a> {
         owned_sequence_layout(
             root,
             self.shape(element)?,
-            sequence_capacity(self.resolver.owned_sequences, root)?,
+            sequence_capacity(self.resolver.storage.sequences, root)?,
         )
     }
 
@@ -89,7 +96,11 @@ impl<'a> NativeGeometry<'a> {
     }
 
     pub fn owned_sequence_bounds(&self) -> &'a [(StructuralTypeId, u64)] {
-        self.resolver.owned_sequences
+        self.resolver.storage.sequences
+    }
+
+    pub fn value_storage(&self) -> runtime_abi::NativeValueStorage<'a> {
+        self.resolver.storage
     }
 
     pub fn declaration(
@@ -149,7 +160,7 @@ type KnownShapes = IdTable<StructuralTypeId, Option<ValueShape>>;
 /// claimed layout result as evidence.
 pub struct StructuralLayoutResolver<'a> {
     declarations: Declarations<'a>,
-    owned_sequences: &'a [(StructuralTypeId, u64)],
+    storage: runtime_abi::NativeValueStorage<'a>,
     scratch: RefCell<LayoutScratch>,
 }
 
@@ -169,12 +180,29 @@ impl<'a> StructuralLayoutResolver<'a> {
         rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
         owned_sequences: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
+        Self::with_value_storage(rows, runtime_abi::NativeValueStorage { sequences: owned_sequences, ..Default::default() })
+    }
+
+    pub fn with_value_storage(
+        rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
+        storage: runtime_abi::NativeValueStorage<'a>,
+    ) -> Result<Self, NonDenseIdentities> {
         let declarations = IdTable::from_rows(rows.into_iter().map(|row| (row.id, row)))?;
-        let known = declarations.map(|_, _| None);
+        let mut known = declarations.map(|_, _| None);
+        for home in storage.execution_owners {
+            if let Some(declaration) = declarations.get(home.ty())
+                && matches!(declaration.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1)
+                && declaration.owns_linear_claim
+                && declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                && let Some(slot) = known.get_mut(home.ty())
+            {
+                *slot = Some(ValueShape::integer(home.bytes(), home.alignment()));
+            }
+        }
         let active = declarations.map(|_, _| false);
         Ok(Self {
             declarations,
-            owned_sequences,
+            storage,
             scratch: RefCell::new(LayoutScratch { known, active }),
         })
     }
@@ -201,7 +229,7 @@ impl<'a> StructuralLayoutResolver<'a> {
         resolve_structural_shape(
             structural_type,
             &self.declarations,
-            self.owned_sequences,
+            self.storage.sequences,
             known,
             active,
             &mut reject_unclosed_extent,
@@ -338,9 +366,10 @@ impl<'a> StructuralLayoutResolver<'a> {
     fn materialize(self) -> StructuralLayouts<'a> {
         let Self {
             declarations,
-            owned_sequences,
+            storage,
             scratch,
         } = self;
+        let owned_sequences = storage.sequences;
         let LayoutScratch {
             mut known,
             mut active,
@@ -390,6 +419,13 @@ impl<'a> StructuralLayouts<'a> {
         bounds: &'a [(StructuralTypeId, u64)],
     ) -> Result<Self, NonDenseIdentities> {
         Ok(StructuralLayoutResolver::with_owned_sequence_bounds(rows, bounds)?.materialize())
+    }
+
+    pub fn with_value_storage(
+        rows: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
+        storage: runtime_abi::NativeValueStorage<'a>,
+    ) -> Result<Self, NonDenseIdentities> {
+        Ok(StructuralLayoutResolver::with_value_storage(rows, storage)?.materialize())
     }
 
     pub fn owned_sequence(
@@ -615,7 +651,7 @@ pub fn opaque_borrow_transport(
     access: terminal_psi::StructuralAccess,
 ) -> Option<ValueShape> {
     (access != terminal_psi::StructuralAccess::Owned
-        && matches!(shape, StructuralTypeShape::Opaque))
+        && matches!(shape, StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }))
     .then_some(ValueShape::integer(8, 8))
 }
 
@@ -1167,6 +1203,44 @@ mod owned_sequence_tests {
             nominal_cleanup: None,
             scalar_restriction: None,
         }
+    }
+
+    #[test]
+    fn execution_owner_has_one_word_only_for_its_checked_borrowing_declaration() {
+        let mut owner = declaration(
+            1,
+            StructuralTypeShape::BorrowingOpaque {
+                lifetime_count: std::num::NonZeroU32::MIN,
+            },
+        );
+        owner.owns_linear_claim = true;
+        owner.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        let mut other = owner.clone();
+        other.id = StructuralTypeId::new(2).unwrap();
+        let mut plain = owner.clone();
+        plain.id = StructuralTypeId::new(3).unwrap();
+        plain.shape = StructuralTypeShape::Opaque;
+        let rows = [owner, other, plain];
+        let target = target::NativeTarget::linux_x64();
+        let homes = [0, 2].map(|index| {
+            runtime_abi::ExecutionOwnerHome::for_target(rows[index].id, target).unwrap()
+        });
+        let storage = runtime_abi::NativeValueStorage { sequences: &[], execution_owners: &homes };
+        let geometry = NativeGeometry::with_value_storage(&rows, storage).unwrap();
+        let layouts = StructuralLayouts::with_value_storage(rows.iter(), storage).unwrap();
+        assert!(layouts.required_scalar_extents([rows[0].id]).unwrap().is_empty());
+        assert!(layouts.required_scalar_extents([rows[1].id]).is_err());
+        assert_eq!(geometry.shape(rows[0].id), Ok(ValueShape::integer(8, 8)));
+        for foreign in &rows[1..] {
+            assert_eq!(
+                geometry.shape(foreign.id),
+                Err(TerminalLayoutError::UnclosedOpaqueRepresentation(foreign.id)),
+            );
+        }
+        assert_eq!(
+            NativeGeometry::new(&rows).unwrap().shape(rows[0].id),
+            Err(TerminalLayoutError::UnclosedOpaqueRepresentation(rows[0].id)),
+        );
     }
 
     fn declarations() -> Vec<StructuralTypeDeclaration> {

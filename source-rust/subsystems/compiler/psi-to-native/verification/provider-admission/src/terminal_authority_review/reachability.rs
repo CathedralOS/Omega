@@ -109,7 +109,19 @@ impl<'a> AuthorityGraph<'a> {
         let mut checked_operations = BTreeMap::new();
         while let Some(root) = pending.pop() {
             let reached = self.calls.from_root(root)?;
-            boundaries.extend(reached.boundaries);
+            for boundary in reached.boundaries {
+                if !boundaries.insert(boundary) { continue; }
+                let module = self.input.module();
+                let declaration = module.boundary_machine(boundary).ok_or("authority graph has no reached boundary")?;
+                if declaration.declaration.as_ref().is_some_and(|d| matches!(d.execution,
+                    terminal_psi::CheckedBoundaryExecution::OwnedActivation(language_core::sealed_intrinsics::ActivationOperation::StepFixed))) {
+                    // Preparation takes custody without running the body. Each
+                    // reached step must admit the exact worker it can start or resume.
+                    let preparation = terminal_semantics::calls::owned_activation::preparation_for(module, declaration)?;
+                    let step = terminal_semantics::calls::owned_activation::step_shape(module, declaration, preparation)?;
+                    pending.push(step.selected.entry_machine);
+                }
+            }
             for terminal_machine in reached.machines {
                 let machine = terminal_machine.id;
                 if !visited.insert(machine) {

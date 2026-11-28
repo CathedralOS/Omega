@@ -208,6 +208,7 @@ pub struct NormalizedForeignCallBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NormalizedForeignCallMechanism {
+    FixedActivation(crate::FixedActivationCall),
     CompilerImport {
         import: CompilerImport,
         requirement_identity: String,
@@ -347,7 +348,7 @@ impl NormalizedForeignCallMechanism {
                 ..
             } => Some(same_stack_contribution),
             Self::Table { source: TableBindingSource::BuildBinding { .. }, .. } => None,
-            Self::SystemCall(_) | Self::BuildImport { .. } | Self::CompilerImport { .. } => None,
+            Self::FixedActivation(_) | Self::SystemCall(_) | Self::BuildImport { .. } | Self::CompilerImport { .. } => None,
         }
     }
 }
@@ -414,6 +415,8 @@ impl NormalizedForeignCallBinding {
 
     pub fn matches_execution(&self, execution: super::ExternalExecutionBinding) -> bool {
         match execution {
+            super::ExternalExecutionBinding::FixedActivation(expected) =>
+                matches!(&self.mechanism, NormalizedForeignCallMechanism::FixedActivation(call) if call.binding() == expected) && self.has_valid_entry_mechanism(),
             super::ExternalExecutionBinding::CompilerImport(expected) => matches!(self.mechanism,
                 NormalizedForeignCallMechanism::CompilerImport { import, .. } if import == expected) && self.has_valid_entry_mechanism(),
             super::ExternalExecutionBinding::Provider(provider) => match self.mechanism.same_stack_contribution() {
@@ -498,6 +501,7 @@ impl NormalizedForeignCallBinding {
 
     pub fn native_target(&self) -> Option<target::NativeTarget> {
         match &self.mechanism {
+            NormalizedForeignCallMechanism::FixedActivation(_) => Some(target::NativeTarget::linux_x64()),
             NormalizedForeignCallMechanism::Import { locator, .. }
             | NormalizedForeignCallMechanism::BuildImport { locator, .. } => {
                 Some(locator.target().native_target())
@@ -560,6 +564,7 @@ impl NormalizedForeignCallBinding {
         };
         let call = &self.boundary_entry_plan.call;
         match &self.mechanism {
+            NormalizedForeignCallMechanism::FixedActivation(_) => call.policy == CallingPolicy::SystemVAMD64 && call.entry_control == EntryControl::CallReturn,
             NormalizedForeignCallMechanism::CompilerImport {
                 import,
                 requirement_identity,
@@ -630,8 +635,16 @@ impl NormalizedForeignCallBinding {
         }
     }
 
+    pub fn fixed_activation(&self) -> Option<&crate::FixedActivationCall> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::FixedActivation(call) => Some(call),
+            _ => None,
+        }
+    }
+
     pub fn system_call(&self) -> Option<&NormalizedSystemCallBinding> {
         match &self.mechanism {
+            NormalizedForeignCallMechanism::FixedActivation(_) => None,
             NormalizedForeignCallMechanism::SystemCall(binding) => Some(binding),
             NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::BuildImport { .. }
@@ -652,7 +665,8 @@ impl NormalizedForeignCallBinding {
                 locator,
                 same_stack_contribution,
             } => Some((locator, same_stack_contribution)),
-            NormalizedForeignCallMechanism::SystemCall(_)
+            NormalizedForeignCallMechanism::FixedActivation(_)
+            | NormalizedForeignCallMechanism::SystemCall(_)
             | NormalizedForeignCallMechanism::BuildImport { .. }
             | NormalizedForeignCallMechanism::CompilerImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }
@@ -694,7 +708,8 @@ impl NormalizedForeignCallBinding {
     /// invocation has a return continuation; direct syscalls need no envelope.
     pub fn requires_floating_control_preservation(&self) -> bool {
         match &self.mechanism {
-            NormalizedForeignCallMechanism::Import { .. }
+            NormalizedForeignCallMechanism::FixedActivation(_)
+            | NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::BuildImport { .. }
             | NormalizedForeignCallMechanism::CompilerImport { .. }
             | NormalizedForeignCallMechanism::Component { .. }

@@ -192,6 +192,12 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         digest.len(call.text_offset);
         digest.raw(&call.caller_live_bytes.to_le_bytes());
         match call.provider_execution {
+            machine_code::ExternalExecutionRecord::FixedActivation(binding) => {
+                digest.byte(3);
+                let mut bytes = Vec::new();
+                binding.encode(&mut bytes);
+                digest.bytes(&bytes);
+            }
             machine_code::ExternalExecutionRecord::CompilerImport(import) => {
                 digest.byte(2);
                 digest.byte(import.tag());
