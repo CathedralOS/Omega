@@ -154,14 +154,13 @@ pub fn opened_callable_admits(
         .iter()
         .zip(&supplied.structural_parameters)
     {
-        if opened_witnesses.contains(&from.structural_type) {
-            if terminal_psi::find_structural_type(types, to.structural_type).is_none()
+        if opened_witnesses.contains(&from.structural_type)
+            && (terminal_psi::find_structural_type(types, to.structural_type).is_none()
                 || bindings
                     .insert(from.structural_type, to.structural_type)
-                    .is_some_and(|previous| previous != to.structural_type)
-            {
-                return false;
-            }
+                    .is_some_and(|previous| previous != to.structural_type))
+        {
+            return false;
         }
     }
     let (public, actual_types): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
