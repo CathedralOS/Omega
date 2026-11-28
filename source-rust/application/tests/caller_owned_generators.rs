@@ -1,15 +1,26 @@
-//! Run the same caller-owned activations from source and their saved Psi.
+//! Run the same caller-owned activations from source, saved Psi and the native executable.
 #![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 
-#[path = "support/project.rs"]
-mod project;
+#[path = "support/declared_exit.rs"]
+mod declared_exit;
+
+use declared_exit::project;
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+fn fixture() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/calls/run/caller_owned_generators")
+}
+
+#[test]
+fn the_physical_linux_process_matches_the_interpreted_producers() {
+    declared_exit::assert_declared_exit(&fixture(), "build.omg");
+}
 
 #[test]
 fn interleaved_producers_keep_their_publications_locals_and_cleanup() {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/calls/run/caller_owned_generators");
+    let fixture = fixture();
     let expected: i32 = std::fs::read_to_string(fixture.join("expected_native_exit.txt"))
         .unwrap()
         .trim()
