@@ -2373,7 +2373,27 @@ impl<'a> DescriptorAnalysis<'a> {
                             // not recover geometry or authorize a
                             // different field. A reference to parameter
                             // storage still needs its retained call loan.
-                            self.replay.slot_kind != DescriptorSlotKind::References
+                            let transfers_authority = match self.replay.slot_kind {
+                                DescriptorSlotKind::References => false,
+                                DescriptorSlotKind::BorrowedStorage => {
+                                    let root = *machine
+                                        .place_types
+                                        .get(&destination.root)
+                                        .ok_or_else(incomplete_step)?;
+                                    let leaf = self
+                                        .replay
+                                        .type_index
+                                        .descriptor_location_type(root, &destination.path);
+                                    !leaf.is_some_and(|ty| {
+                                        DescriptorSlotKind::References
+                                            .is_slot(self.replay.types, ty)
+                                    })
+                                }
+                                DescriptorSlotKind::Views | DescriptorSlotKind::AccessOrigins => {
+                                    true
+                                }
+                            };
+                            transfers_authority
                                 && !projection.upgraded_mutability
                                 && projection.original_descriptor_path().is_some()
                                 && !projection.indirect
