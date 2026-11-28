@@ -170,6 +170,45 @@ fn summaries_compose_callees_first() {
     }
 }
 
+/// The forwarder can learn its bound only after its callee publishes. Compare
+/// a single pass so the second result pass cannot hide a stale first result.
+#[test]
+fn parallel_result_searches_see_the_same_published_clauses_as_serial_searches() {
+    let infer = |workers| {
+        let forward = Machine {
+            requires: vec![at_most(1, 10)],
+            ..machine(
+                vec![u32_type()],
+                vec![returns(call(4, vec![slot(0, u32_type())]))],
+            )
+        };
+        let mut machines = through(forward, 11, vec![at_most(1, 10)]);
+        machines.push(Machine {
+            requires: vec![at_most(1, 10)],
+            ..machine(
+                vec![u32_type()],
+                vec![returns(strict(
+                    Strict::Add,
+                    slot(0, u32_type()),
+                    unsigned(1),
+                ))],
+            )
+        });
+        let mut program = with_local_results(machines, &[3, 2, 4]);
+        let mut activity = crate::ProofSearchActivity::default();
+        let mut unreached = crate::Unreached::new(&program);
+        let inhabitation = crate::prepare_inhabitation(&program.module, id(1)).unwrap();
+        let mut scope = crate::prepare_replay(&mut program, &mut activity).unwrap();
+        worker_budget::ExecutionBudget::with_workers(workers)
+            .unwrap()
+            .run(|| scope.infer_results(&mut unreached, &inhabitation, &mut activity))
+            .unwrap();
+        assert!(!program.module.machines[1].contract.ensures.is_empty());
+        program.module
+    };
+    assert_eq!(infer(4), infer(1));
+}
+
 /// A private generic helper's checked result reaches its package's callers
 /// whether or not that package is the compilation's subject: importing a
 /// package does not change which calls are inside its verification unit

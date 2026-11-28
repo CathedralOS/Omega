@@ -6929,6 +6929,44 @@ pub(crate) mod storage_addresses {
         }
 
         #[test]
+        fn upgrading_a_shared_window_keeps_its_original_cell_and_bounds() {
+            let mut execution = execution();
+            let original = array(&mut execution, 19);
+            let bytes = shared(&execution, &original)
+                .subslice(1, 4)
+                .unwrap()
+                .subslice(1, 2)
+                .unwrap();
+            let mut referent =
+                TerminalStructuralValue::minted(19, StructuralTypeId::new(3).unwrap(), Vec::new());
+            referent
+                .path
+                .push(StructuralPathSegment::FixedRange { start: 2, end: 3 });
+            let snapshot = ByteSequenceBinding::Immutable(bytes.owned_snapshot());
+            assert!(snapshot.exclusive_reborrow(&execution, &referent).is_err());
+            let shared = ByteSequenceBinding::Immutable(bytes);
+            let ByteSequenceBinding::MutableArray {
+                array,
+                offset,
+                length,
+                ..
+            } = shared.exclusive_reborrow(&execution, &referent).unwrap()
+            else {
+                panic!("an upgraded array window needs its live backing");
+            };
+            assert_eq!((offset, length), (2, 1));
+            execution
+                .stored_byte_array_write(&array, usize::try_from(offset).unwrap(), 91)
+                .unwrap();
+            let actual = (0..4)
+                .map(|i| execution.stored_byte_array_read(&original, i).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(actual, [1, 2, 91, 4]);
+            referent.path = vec![StructuralPathSegment::FixedRange { start: 1, end: 3 }];
+            assert!(shared.exclusive_reborrow(&execution, &referent).is_err());
+        }
+
+        #[test]
         fn shared_reborrow_of_a_mutable_array_window_preserves_its_element_address() {
             let mut execution = execution();
             let original = array(&mut execution, 19);

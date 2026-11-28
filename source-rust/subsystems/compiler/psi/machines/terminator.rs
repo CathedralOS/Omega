@@ -420,6 +420,13 @@ impl Terminator {
         jump.into_iter().chain(branches).chain(cases)
     }
 
+    /// Scalar actuals supplied by each edge to this successor, in parameter order.
+    pub fn scalar_arguments_to(&self, block: BlockId) -> impl Iterator<Item = &[ValueId]> {
+        self.successors()
+            .filter(move |edge| edge.target == block)
+            .map(|edge| edge.arguments)
+    }
+
     pub fn successor_block_arguments(&self) -> Vec<&[StructuralArgument]> {
         self.successors()
             .map(|successor| successor.structural_arguments)

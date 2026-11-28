@@ -637,6 +637,7 @@ pub(crate) mod aggregate_result_input {
                         }
                     }
                     LegalizedScalarInstructionKind::EstablishReference { source, .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { source, .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. }
                     | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => {
                         mark(source.place)
@@ -2554,6 +2555,7 @@ pub(crate) mod established_view_input {
                     LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                         .structural_arguments.iter().any(|argument| argument.place == place),
                     LegalizedScalarInstructionKind::EstablishReference { source: argument, .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { source: argument, .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { source: argument, .. } =>
                         argument.place == place
                             && crate::instruction_selection::selection::reference_input::establishment(source, row).is_some_and(|address|
@@ -4204,6 +4206,53 @@ pub(crate) mod reference_input {
         }
     }
 
+    /// The caller asserts ordinary target-layout storage. Scalar references
+    /// additionally carry its canonical codec into reads, writes and foreign calls.
+    pub(crate) fn native_address<'row>(
+        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        row: &'row LegalizedScalarInstruction,
+    ) -> Option<(
+        &'row terminal_psi::StructuralOperationResult,
+        semantic_vocabulary::ValueId,
+        Option<runtime_abi::ScalarStorageCodec>,
+    )> {
+        let LegalizedScalarInstructionKind::BorrowAt {
+            result,
+            address,
+            shape,
+        } = &row.kind
+        else {
+            return None;
+        };
+        let geometry = function.geometry();
+        let StructuralTypeShape::Reference { referent, access } =
+            geometry.declaration(result.structural_type).ok()?.shape
+        else {
+            return None;
+        };
+        if !matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) || result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+            || row.result.is_some()
+            || crate::instruction_selection::structural_inputs::shape(
+                result.structural_type,
+                geometry,
+            ) != Some(*shape)
+            || super::aggregate_result_input::home(function, result.place)
+                != Some((row.operation, result))
+        {
+            return None;
+        }
+        let codec = match scalar_storage_type(referent, geometry) {
+            Some(scalar) => Some(runtime_abi::ScalarStorageCodec::from_scalar(scalar)?),
+            None => None,
+        };
+        Some((result, *address, codec))
+    }
+
     pub(crate) fn establishment(
         function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
@@ -4216,6 +4265,12 @@ pub(crate) mod reference_input {
                 indices,
                 shape,
             } => (result, source, *storage, indices, shape, None),
+            LegalizedScalarInstructionKind::UpgradeMutability {
+                result,
+                source,
+                indices,
+                shape,
+            } => (result, source, None, indices, shape, None),
             LegalizedScalarInstructionKind::EstablishAccessReference {
                 result,
                 source,
@@ -4250,6 +4305,11 @@ pub(crate) mod reference_input {
         };
         if source.access == StructuralAccess::Owned
             || !(access == source.access
+                || matches!(
+                    row.kind,
+                    LegalizedScalarInstructionKind::UpgradeMutability { .. }
+                ) && access == StructuralAccess::MutableBorrow
+                    && source.access == StructuralAccess::SharedBorrow
                 || source.access == StructuralAccess::MutableBorrow
                     && matches!(
                         access,
@@ -6016,7 +6076,35 @@ pub(crate) mod storage_origin_input {
                     I::EstablishElementView { source: parent, .. } => {
                         collect_calls(geometry, parent, visited, calls)?;
                     }
+                    I::BorrowAt { .. } => {
+                        let (result, _, codec) =
+                            super::reference_input::native_address(function, row)
+                                .ok_or_else(SelectedInstructionError::custody)?;
+                        if result.place != place || result.structural_type != structural_type {
+                            return Err(SelectedInstructionError::custody());
+                        }
+                        let width = codec.filter(|_| {
+                            coordinate.path.is_empty()
+                                || coordinate.path
+                                    == [terminal_psi::StructuralPathSegment::Referent]
+                        });
+                        visited.returned_origin(width.is_some());
+                        if let Some(codec) = width {
+                            let owner = *visited
+                                .active
+                                .last()
+                                .ok_or_else(SelectedInstructionError::custody)?;
+                            visited
+                                .scalar_widths
+                                .push((owner, u32::from(codec.byte_size())));
+                        }
+                    }
                     I::EstablishReference {
+                        source: parent,
+                        result,
+                        ..
+                    }
+                    | I::UpgradeMutability {
                         source: parent,
                         result,
                         ..
@@ -6517,6 +6605,7 @@ pub(crate) mod storage_origin_input {
             .unwrap();
             let operation = OperationId::new(1).unwrap();
             let call = LegalizedNormalizedForeignCall {
+                suspension_crossing: None,
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 provider_execution: target_vocabulary::ExternalExecutionBinding::NativeBinding(
                     execution,

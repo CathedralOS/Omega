@@ -29,6 +29,13 @@ pub(crate) type DescriptorFlowInput = (
 
 #[derive(Clone, Default)]
 pub struct DescriptorFlowStep {
+    /// Raw borrow formation consumes addresses already evaluated at earlier cuts.
+    pub native_borrow: Option<
+        Box<(
+            DescriptorLocation,
+            Vec<super::descriptor_results::NativeAddressObservation>,
+        )>,
+    >,
     pub definitions: Vec<DescriptorLocation>,
     /// The subset of `definitions` that an owned move consumes rather
     /// than overwrites. Loan liveness treats both alike. Descriptor

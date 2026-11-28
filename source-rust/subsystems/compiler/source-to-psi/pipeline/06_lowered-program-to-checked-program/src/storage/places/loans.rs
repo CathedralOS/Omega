@@ -56,6 +56,8 @@ certificate, as the initialization judgment has none. Two refusals, each
   mutable child.
 */
 
+mod formation;
+
 use super::overlap;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
@@ -101,6 +103,9 @@ struct Formed {
     lender: Lender,
     selected_parents: Box<[ObligationId]>,
     from: Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation>,
+    /// Only a checked mutability-upgrade occurrence may strengthen a shared
+    /// parent. Its identity and lifetime still govern every overlapping use.
+    upgrades_shared: bool,
     /// Derived at this formation from the canonical source path, never a
     /// supplied acceptance marker or a property of a descriptor's shape alone.
     permitted: bool,
@@ -162,6 +167,11 @@ struct BorrowedHeaderEnd {
 pub(super) enum BorrowedResource {
     Storage,
     ViewPayload,
+}
+
+pub(super) enum ExternalReferent {
+    Provider,
+    Native,
 }
 
 #[derive(Debug, Clone)]
@@ -250,7 +260,12 @@ fn competing_borrows(
     else {
         return None;
     };
-    if !overlap(left_place, right_place) || !left.is_exclusive() && !right.is_exclusive() {
+    let same_address = left_place
+        .native_operand
+        .is_some_and(|address| right_place.native_operand == Some(address));
+    if (!same_address && !overlap(left_place, right_place))
+        || (!left.is_exclusive() && !right.is_exclusive())
+    {
         None
     } else if left.is_exclusive() && right.is_exclusive() {
         Some(LoanConflict::TwiceExclusive)
@@ -316,6 +331,8 @@ pub(crate) fn reference_graph_with_generic_calls<'r>(
                 matches!(
                     operation.kind,
                     terminal_psi::OperationKind::EstablishReference { .. }
+                        | terminal_psi::OperationKind::BorrowAt { .. }
+                        | terminal_psi::OperationKind::UpgradeMutability { .. }
                         | terminal_psi::OperationKind::EstablishElementView { .. }
                         | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                         | terminal_psi::OperationKind::ReleaseReference { .. }
@@ -576,6 +593,31 @@ impl<'a> Storage<'a> {
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
     ) -> Checked<Option<(semantic_vocabulary::StructuralTypeId, StructuralAccess)>> {
+        Ok(self
+            .external_referent(references, raw, at, concerns)?
+            .and_then(|(referent, access, source)| {
+                matches!(source, ExternalReferent::Provider).then_some((referent, access))
+            }))
+    }
+
+    /// A provider permission or a typed native formation can establish an initialized
+    /// referent. An ordinary alternative in the same join still needs its own proof.
+    pub(super) fn external_referent(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        raw: &super::Lineage,
+        at: DescriptorPosition,
+        concerns: Construct,
+    ) -> Checked<
+        Option<(
+            semantic_vocabulary::StructuralTypeId,
+            StructuralAccess,
+            ExternalReferent,
+        )>,
+    > {
+        use terminal_semantics::descriptor_results::{
+            DescriptorCallOrigin, DescriptorSourceOrigin,
+        };
         let Ok(Some((
             access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             referent,
@@ -584,22 +626,36 @@ impl<'a> Storage<'a> {
         else {
             return Ok(None);
         };
-        if !references
-            .symbolic_source_origins(self.machine, at, &descriptor)
-            .is_some_and(|origins| {
-                !origins.is_empty()
-                    && origins.iter().all(|origin| {
-                        matches!(
-                        origin,
-                        terminal_semantics::descriptor_results::DescriptorSourceOrigin::Provider(_)
-                    )
-                    })
-            })
-        {
+        let Some(origins) = references.symbolic_source_origins(self.machine, at, &descriptor)
+        else {
+            return Ok(None);
+        };
+        if origins.is_empty() {
             return Ok(None);
         }
-        self.provider_permission(references, at, &descriptor, access, concerns)?;
-        Ok(Some((referent, access)))
+        if origins
+            .iter()
+            .all(|source| matches!(source, DescriptorSourceOrigin::Provider(_)))
+        {
+            self.provider_permission(references, at, &descriptor, access, concerns)?;
+            return Ok(Some((referent, access, ExternalReferent::Provider)));
+        }
+        let native = |source: &DescriptorSourceOrigin| {
+            matches!(
+                source,
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. })
+            )
+        };
+        let bounds = |source: &DescriptorSourceOrigin| {
+            matches!(source,
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { projection, .. })
+                if projection.is_native_enclosing_storage())
+        };
+        Ok((origins.iter().any(native)
+            && origins
+                .iter()
+                .all(|source| native(source) || bounds(source)))
+        .then_some((referent, access, ExternalReferent::Native)))
     }
 
     fn provider_permission(
@@ -627,7 +683,7 @@ impl<'a> Storage<'a> {
         Ok(LoanRegion::Provider(access))
     }
 
-    fn reference_parent(
+    pub(super) fn reference_parent(
         &self,
         raw: &super::Lineage,
         concerns: Construct,
@@ -966,7 +1022,11 @@ impl<'a> Storage<'a> {
             // The argument's own loan is retained only when the result keeps
             // its whole place; a narrower retained region gets its own row.
             let lifetime = retained
-                .next_if(|loan| loan.position == structural_position && loan.path == argument.path)
+                .next_if(|loan| {
+                    !loan.upgraded_mutability
+                        && loan.position == structural_position
+                        && loan.path == argument.path
+                })
                 .map(|loan| loan.lifetime);
             let cut = {
                 let (block, before) = self.graph.locate(before)?;
@@ -978,6 +1038,7 @@ impl<'a> Storage<'a> {
                 )
             };
             formed.push(Formed {
+                upgrades_shared: false,
                 obligation,
                 invocation: Some(invocation),
                 position,
@@ -1007,6 +1068,12 @@ impl<'a> Storage<'a> {
                         self.foreign(concerns, "a retained call region lies outside its argument")
                     );
                 }
+                let source_access = access;
+                let access = if narrower.upgraded_mutability {
+                    ReferenceAccess::Mutable
+                } else {
+                    access
+                };
                 let region = terminal_psi::StructuralArgument {
                     place: argument.place,
                     path: narrower.path,
@@ -1017,7 +1084,7 @@ impl<'a> Storage<'a> {
                     self.foreign(concerns, "a retained call region has no captured place row")
                 })?;
                 let (expected_lender, parent, from, permitted) =
-                    self.source_lender(&raw, &region.path, access, resource, concerns)?;
+                    self.source_lender(&raw, &region.path, source_access, resource, concerns)?;
                 let (obligation, row) = tables
                     .obligations
                     .iter()
@@ -1044,6 +1111,7 @@ impl<'a> Storage<'a> {
                 }
                 claimed[index(obligation.get())] = true;
                 formed.push(Formed {
+                    upgrades_shared: narrower.upgraded_mutability,
                     obligation,
                     invocation: None,
                     position,
@@ -1114,152 +1182,35 @@ impl<'a> Storage<'a> {
         claimed: &mut [bool],
         formed: &mut Vec<Formed>,
     ) -> Checked<()> {
-        use terminal_psi::{OperationKind, StructuralTypeShape};
+        use terminal_psi::OperationKind;
         use terminal_semantics::descriptor_lifetimes::{
             DescriptorLocation, descriptor_location_lifetime, descriptor_location_lifetime_indexed,
         };
         let concerns = Construct::Operation(operation.id);
         let result = operation.result.as_structural();
-        let (source, declared, reference_referent) = match &operation.kind {
-            OperationKind::EstablishReference { source, storage } => {
-                let result = result.ok_or_else(|| {
-                    self.foreign(concerns, "reference formation has no descriptor result")
-                })?;
-                let StructuralTypeShape::Reference { referent, access } =
-                    self.declaration(result.structural_type, concerns)?.shape
-                else {
-                    return Err(
-                        self.foreign(concerns, "reference formation produces another constructor")
-                    );
-                };
-                (source, access, Some((referent, storage.as_ref())))
-            }
-            OperationKind::EstablishElementView { source, .. }
-            | OperationKind::EstablishMutableElementView { source, .. } => {
-                self.array_view_formation(operation)?;
-                (source, source.access, None)
-            }
-            _ => return Ok(()),
-        };
+        if !matches!(
+            &operation.kind,
+            OperationKind::EstablishReference { .. }
+                | OperationKind::EstablishElementView { .. }
+                | OperationKind::EstablishMutableElementView { .. }
+                | OperationKind::BorrowAt { .. }
+                | OperationKind::UpgradeMutability { .. }
+        ) {
+            return Ok(());
+        }
         let result = result
             .ok_or_else(|| self.foreign(concerns, "loan formation has no descriptor result"))?;
-        if source.access != declared {
-            return Err(self.foreign(concerns, "reference formation changes its source access"));
-        }
-        let access = reference_access(source.access)
-            .ok_or_else(|| self.foreign(concerns, "reference formation has no borrowed access"))?;
-        if access == ReferenceAccess::WriteOnly {
-            return Err(self.unsupported(concerns, "a write-only persistent loan"));
-        }
-        let raw = self.argument(source, concerns)?;
-        let resource = if reference_referent.is_none()
-            && match self.shape(&raw, concerns)? {
-                super::Shape::View => true,
-                super::Shape::Typed(ty) => {
-                    terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty)
-                }
-                _ => false,
-            } {
-            BorrowedResource::ViewPayload
-        } else {
-            BorrowedResource::Storage
-        };
-        if let Some((referent, storage)) = reference_referent {
-            let expected = self.declaration(referent, concerns)?;
-            let compatible = if let Some(storage) = storage {
-                if access != ReferenceAccess::Shared {
-                    return Err(self.unsupported(
-                        concerns,
-                        "exclusive representation view without establishment and handback evidence",
-                    ));
-                }
-                terminal_semantics::validate_reference_view_source(
-                    self.module,
-                    self.lowered,
-                    source.place,
-                )
-                .map_err(|reason| self.unsupported(concerns, reason))?;
-                let offset = tables.values.get(storage.byte_offset).ok_or_else(|| {
-                    self.foreign(concerns, "reference view lost its offset value")
-                })?;
-                let terminal_check_tables::values::ValueOrigin::Operation(producer) = offset.origin
-                else {
-                    return Err(self.unsupported(
-                        concerns,
-                        "reference view offset without captured geometry evidence",
-                    ));
-                };
-                let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
-                let producer = after
-                    .checked_sub(1)
-                    .and_then(|position| {
-                        self.lowered
-                            .blocks
-                            .get(index(block.get()))?
-                            .operations
-                            .get(position)
-                    })
-                    .ok_or_else(|| {
-                        self.foreign(concerns, "reference view offset has no producer")
-                    })?;
-                if offset.scalar_type
-                    != producer
-                        .result
-                        .as_scalar()
-                        .map(|row| row.scalar_type)
-                        .ok_or_else(|| {
-                            self.foreign(concerns, "reference view offset has no scalar producer")
-                        })?
-                    || !terminal_semantics::reference_view_offset_is_zero(
-                        producer,
-                        storage.byte_offset,
-                    )
-                {
-                    return Err(self.unsupported(
-                        concerns,
-                        "reference view offset without captured geometry evidence",
-                    ));
-                }
-                terminal_semantics::reference_view_compatible(
-                    self.module,
-                    self.root_type(source.place, concerns)?,
-                    &source.path,
-                    result.structural_type,
-                    storage.stored_scalar,
-                )
-                .map_err(|reason| self.unsupported(concerns, reason))?
-            } else {
-                match self.shape(&raw, concerns)? {
-                    super::Shape::Scalar(scalar) => {
-                        expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
-                    }
-                    super::Shape::Atomic(cell) => {
-                        expected.shape == StructuralTypeShape::AtomicCell(cell)
-                    }
-                    super::Shape::Typed(actual) => {
-                        actual == referent
-                            || terminal_semantics::shared_direct_byte_descriptor_source(
-                                self.module,
-                                self.lowered,
-                                source,
-                                result.structural_type,
-                            ) == Some(true)
-                    }
-                    super::Shape::View | super::Shape::Payload(_) => false,
-                }
-            };
-            if !compatible {
-                return Err(self.foreign(
-                    concerns,
-                    "reference formation changes its captured referent type",
-                ));
-            }
-        }
-        let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
-            self.foreign(concerns, "reference formation has no captured place row")
-        })?;
-        let (expected_lender, parent, from, permitted) =
-            self.source_lender(&raw, &source.path, access, resource, concerns)?;
+        let at = self.loan_position(before, concerns)?;
+        let upgrades_shared = matches!(operation.kind, OperationKind::UpgradeMutability { .. });
+        let formation::Formation {
+            captured,
+            access,
+            lineage,
+            expected_lender,
+            parent,
+            from,
+            permitted,
+        } = self.loan_formation(references, tables, operation, result, at, concerns)?;
         let (obligation, row) = tables
             .obligations
             .iter()
@@ -1290,7 +1241,6 @@ impl<'a> Storage<'a> {
                 "reference loan is not created at its actual formation",
             ));
         }
-        let at = self.loan_position(before, concerns)?;
         let flow = flow.ok_or_else(|| {
             self.unsupported(concerns, "persistent loan has no complete descriptor flow")
         })?;
@@ -1313,11 +1263,12 @@ impl<'a> Storage<'a> {
         }
         claimed[index(obligation.get())] = true;
         formed.push(Formed {
+            upgrades_shared,
             obligation,
             invocation: None,
             position: 0,
             access,
-            lineage: self.borrow_backing(references, &raw, &source.path, resource, at, concerns)?,
+            lineage,
             parent,
             lender,
             selected_parents: Box::default(),
@@ -1573,23 +1524,31 @@ impl<'a> Storage<'a> {
     ) -> Checked<Option<LoanConflict>> {
         let access = match touch {
             Touch::Read | Touch::AtomicChange => ReferenceAccess::Shared,
-            Touch::Change => ReferenceAccess::Mutable,
+            Touch::Change | Touch::NativeWrite => ReferenceAccess::Mutable,
         };
         if competing_borrows(loan.access, &loan.lineage, access, backing).is_none() {
             return Ok(None);
         }
         let conflict = match touch {
+            // A scalar address argument carries no reference loan. Any proven
+            // overlapping live loan conflicts with this write through it.
+            Touch::NativeWrite => return Ok(Some(LoanConflict::ChangeWhileBorrowed)),
             Touch::Read => LoanConflict::ObserveWhileExclusive,
             Touch::Change | Touch::AtomicChange => LoanConflict::ChangeWhileBorrowed,
         };
-        // A shared loan permits no ordinary write through any alias.
-        if touch == Touch::Change && !loan.access.is_exclusive() {
-            return Ok(Some(conflict));
-        }
-        Ok(
-            (!self.authorized_reference(references, loan, place, at, formed, post_loans)?)
-                .then_some(conflict),
-        )
+        // A shared parent may be suspended by an explicitly upgraded child.
+        // Only the child's live exclusive descriptor can perform that write.
+        let exclusive_descendant = touch == Touch::Change && !loan.access.is_exclusive();
+        Ok((!self.authorized_reference(
+            references,
+            loan,
+            place,
+            at,
+            formed,
+            post_loans,
+            exclusive_descendant,
+        )?)
+        .then_some(conflict))
     }
 
     fn cleanup_cohorts(
@@ -1826,6 +1785,7 @@ impl<'a> Storage<'a> {
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         formed: &[Formed],
         post_loans: &PostRetentionLoanIndex<'_>,
+        exclusive_descendant: bool,
     ) -> Checked<bool> {
         let crossing = place
             .segments
@@ -1875,6 +1835,9 @@ impl<'a> Storage<'a> {
         let holding = post_loans.holding_at(at);
         for &candidate_idx in holding {
             let candidate = &formed[candidate_idx];
+            if exclusive_descendant && !candidate.access.is_exclusive() {
+                continue;
+            }
             if candidate.lifetime.as_ref().is_some_and(|life| {
                 life.surviving
                     .get(&at)
@@ -1927,6 +1890,9 @@ impl<'a> Storage<'a> {
                 && !overlap(candidate, lender)
             {
                 continue;
+            }
+            if exclusive_descendant && !candidate.access.is_exclusive() {
+                return Ok(false);
             }
             relevant = true;
             if candidate.obligation != loan.obligation
@@ -2037,9 +2003,9 @@ impl<'a> Storage<'a> {
                             let index = pre_loans.get_or_insert_with(|| {
                                 PostRetentionLoanIndex::build(formed, active_loans.by_obligation())
                             });
-                            if !self
-                                .authorized_reference(references, loan, &raw, at, formed, index)?
-                            {
+                            if !self.authorized_reference(
+                                references, loan, &raw, at, formed, index, false,
+                            )? {
                                 return Err(self.successor_conflict(concerns, conflict));
                             }
                         }
@@ -2229,7 +2195,9 @@ impl<'a> Storage<'a> {
                 return Err(self.unsupported(concerns, "a returning view has a distinct initial lender"));
             }
             let compatible = match parent.access {
-                ReferenceAccess::Shared => child.access == ReferenceAccess::Shared,
+                ReferenceAccess::Shared => {
+                    child.access == ReferenceAccess::Shared || child.upgrades_shared
+                }
                 ReferenceAccess::Mutable => true,
                 ReferenceAccess::WriteOnly => child.access == ReferenceAccess::WriteOnly,
             };
@@ -2584,6 +2552,8 @@ impl<'a> Storage<'a> {
                     matches!(
                         operation.kind,
                         terminal_psi::OperationKind::EstablishReference { .. }
+                            | terminal_psi::OperationKind::BorrowAt { .. }
+                            | terminal_psi::OperationKind::UpgradeMutability { .. }
                             | terminal_psi::OperationKind::EstablishElementView { .. }
                             | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                     )
@@ -2791,6 +2761,7 @@ impl<'a> Storage<'a> {
                     }
                     claimed[index(obligation.get())] = true;
                     formed.push(Formed {
+                        upgrades_shared: false,
                         obligation,
                         invocation: None,
                         position,
@@ -3268,7 +3239,11 @@ impl<'a> Storage<'a> {
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));
-            if found.is_none() && exclusive && loan.parent == Some(ReferenceAccess::Shared) {
+            if found.is_none()
+                && exclusive
+                && !loan.upgrades_shared
+                && loan.parent == Some(ReferenceAccess::Shared)
+            {
                 found = Some((None, LoanConflict::ExclusiveOfShared));
             }
             if found.is_none() && !loan.permitted {
@@ -3368,6 +3343,7 @@ impl<'a> Storage<'a> {
 /// How one effect touches storage a retained loan may cover.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Touch {
+    NativeWrite,
     Read,
     Change,
     /// An atomic access changes storage that a shared loan may also observe.
@@ -3828,6 +3804,9 @@ fn resolve_effect<'a>(
     concerns: Construct,
 ) -> Checked<(super::Lineage, LoanRegion, Touch)> {
     let (place, backing) = match effect {
+        super::StorageEffect::NativeWrite(place, backing) => {
+            return Ok((place, LoanRegion::Storage(backing), Touch::NativeWrite));
+        }
         super::StorageEffect::Payload(place) => {
             let backing = storage.borrow_backing(
                 references,

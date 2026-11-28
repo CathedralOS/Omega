@@ -1162,6 +1162,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
         | ExpressionKind::Establish { operand, .. }
+        | ExpressionKind::NativeBorrow { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }
@@ -3292,6 +3293,78 @@ impl<'a> Lowering<'a> {
                     reference_type,
                     OperationKind::EstablishReference { source, storage },
                 )?;
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
+            ExpressionKind::NativeBorrow {
+                operation: form,
+                operand,
+                ..
+            } => {
+                use language_core::sealed_intrinsics::NativeBorrow;
+                let (operation, kind, backing) = match form {
+                    NativeBorrow::SharedAt | NativeBorrow::MutableAt => {
+                        let address = continuing!(self.scalar(operand));
+                        (
+                            self.operation_identity(expression.source),
+                            OperationKind::BorrowAt { address },
+                            None,
+                        )
+                    }
+                    NativeBorrow::Upgrade => {
+                        let at = continuing!(self.located(operand));
+                        let operation = self.operation_identity(expression.source);
+                        let path = self.storage_path(
+                            &at.path,
+                            ExecutionSite::Operation(operation),
+                            expression.source,
+                        )?;
+                        let captured = self.step(at.place, Step::Referent { owner: at.record })?;
+                        let lender = if self.borrowed_roots.contains(&at.root) {
+                            Lender::Incoming
+                        } else {
+                            Lender::Owner
+                        };
+                        (
+                            operation,
+                            OperationKind::UpgradeMutability {
+                                source: StructuralArgument {
+                                    place: at.root,
+                                    path,
+                                    access: StructuralAccess::SharedBorrow,
+                                },
+                            },
+                            Some((captured, lender)),
+                        )
+                    }
+                };
+                let before = self.here()?;
+                let (root, place) = self.produce(operation, value_type, kind)?;
+                let (captured, lender) = backing.unwrap_or((place, Lender::NativeAddress));
+                let access = if *form == NativeBorrow::SharedAt {
+                    language_core::ReferenceAccess::Shared
+                } else {
+                    language_core::ReferenceAccess::Mutable
+                };
+                self.obligation(
+                    ObligationKind::Loan {
+                        captured,
+                        access,
+                        lender,
+                    },
+                    before,
+                    expression.source,
+                );
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),

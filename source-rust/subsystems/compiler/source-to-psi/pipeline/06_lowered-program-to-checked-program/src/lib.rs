@@ -945,10 +945,10 @@ impl Unreached {
         }
     }
 
-    pub(crate) fn mark_result(&mut self, machine: MachineId) {
-        if let Some(result) = self.results.get_mut(machine) {
-            *result = true;
-        }
+    pub(crate) fn mark_result(&mut self, machine: MachineId) -> bool {
+        self.results
+            .get_mut(machine)
+            .is_some_and(|result| !std::mem::replace(result, true))
     }
 }
 
@@ -1847,13 +1847,14 @@ fn fill_knowledge<'a>(
             )?;
             // Cleanup is Unit and its actual is Owned. As for an ordinary
             // owned input, guarantees denote the captured invocation inputs.
-            let propositions = ensures
-                .map(|(position, clause)| {
-                    substitute(clause, &mut inputs)
-                        .map(|proposition| (position, proposition))
-                        .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
-                })
-                .collect::<Checked<Vec<_>>>()?;
+            let mut propositions = Vec::new();
+            for (position, clause) in ensures {
+                if let Some(bound) = returned_guarantee(clause, &mut inputs)
+                    .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?
+                {
+                    propositions.push((position, bound));
+                }
+            }
             for (clause, proposition) in propositions {
                 push_knowledge(
                     tables,
@@ -1920,19 +1921,20 @@ fn fill_knowledge<'a>(
         )?;
         // Resolve each guarantee against this invocation's retained inputs and
         // returned storage before mutating the caller's knowledge table.
-        let propositions = ensures
-            .map(|(position, ensures)| {
-                substitute(
-                    ensures,
-                    &mut ErasedTerms {
-                        terms: &erased,
-                        runtime: &mut returned,
-                    },
-                )
-                .map(|proposition| (position, proposition))
-                .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
-            })
-            .collect::<Checked<Vec<_>>>()?;
+        let mut propositions = Vec::new();
+        for (position, clause) in ensures {
+            if let Some(bound) = returned_guarantee(
+                clause,
+                &mut ErasedTerms {
+                    terms: &erased,
+                    runtime: &mut returned,
+                },
+            )
+            .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?
+            {
+                propositions.push((position, bound));
+            }
+        }
         // An argument the statement cannot name leaves the call opaque.
         let applied = applied
             .iter()
@@ -2559,6 +2561,19 @@ pub(crate) use terminal_semantics::substitution::clauses::{
     CaseAnswer, ClauseBindings as Bindings, substitute_clause as substitute,
     substitute_clause_term as bound,
 };
+
+/// A callee must prove every guarantee. A caller can use a guarantee as
+/// knowledge only when its post-call storage gives every term an identity.
+fn returned_guarantee(
+    clause: &Proposition,
+    bindings: &mut dyn Bindings<Error = Unbound>,
+) -> Result<Option<Proposition>, Unbound> {
+    match substitute(clause, bindings) {
+        Ok(proposition) => Ok(Some(proposition)),
+        Err(Unbound::Unproved(_)) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
 
 /// Express a machine input contract in the same vocabulary when assuming it
 /// at entry and when proving it is forwarded intact. An observable field has

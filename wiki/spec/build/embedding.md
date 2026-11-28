@@ -142,7 +142,11 @@ mount. [Standalone directory rules](command_line.md#runtime-directory-mappings)
 
 `--target` selects the environment whose contracts, provider closure and
 host adapters the interpreter must honor. An explicit target still requests
-interpretation. Missing provider or target support fails before guest effects.
+interpretation. Producer trust, target selection and native providers grant no
+additional filesystem access. If a provider the Product requires cannot honor
+the directory grants, admission refuses the run before guest effects and names
+the missing support. Other missing provider or target support likewise fails
+before guest effects.
 Source preparation follows the normal package and Build admission rules. Use `omega build` to
 produce a native executable and launch the resulting image through its target
 host. Build owns [comparison of registered tests](testing.md#comparing-native-and-psi-tests).

@@ -115,6 +115,7 @@ pub(crate) mod function_structure {
                         .chain(parents.iter().map(|parent| parent.place))
                         .collect(),
                     O::EstablishReference { source, .. }
+                    | O::UpgradeMutability { source, .. }
                     | O::EstablishAccessReference { source, .. }
                     | O::ByteSequenceSubslice { source, .. }
                     | O::ByteSequenceLength { source, .. }
@@ -174,6 +175,7 @@ pub(crate) mod function_structure {
                     | O::IntegerEqual { .. }
                     | O::IntegerLessThan { .. }
                     | O::IntegerLessOrEqual { .. }
+                    | O::BorrowAt { .. }
                     | O::IntegerBitwiseNot { .. }
                     | O::IntegerWiden { .. }
                     | O::IntegerExactCast { .. }

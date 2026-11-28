@@ -5934,6 +5934,7 @@ pub(crate) mod process_exit {
                 .external_execution(binding.execution)
                 .ok_or_else(SelectedInstructionError::custody)?;
             let call = legalized_operations::LegalizedNormalizedForeignCall {
+                suspension_crossing: None,
                 boundary: *boundary,
                 provider_execution,
                 binding: foreign.clone(),
@@ -7646,6 +7647,8 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
                     | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
+                    | LegalizedScalarInstructionKind::BorrowAt { .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { .. }
                     | LegalizedScalarInstructionKind::ElementViewFixedArray { .. }
