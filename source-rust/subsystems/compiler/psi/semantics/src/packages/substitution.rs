@@ -79,6 +79,26 @@ impl Substitution<'_> {
         true
     }
 
+    pub(super) fn memberships(
+        &self,
+        module: &TerminalModule,
+        public: &crate::structural_qualifications::Memberships,
+        actual: &crate::structural_qualifications::Memberships,
+    ) -> bool {
+        let mut remaining = actual.whole.clone();
+        for &domain in &public.whole {
+            let Some(index) = remaining
+                .iter()
+                .position(|&other| self.domain(module, domain, other))
+            else {
+                return false;
+            };
+            remaining.swap_remove(index);
+        }
+        remaining.is_empty()
+            && self.projected_qualifications(module, &public.projected, &actual.projected)
+    }
+
     fn projected_qualifications(
         &self,
         module: &TerminalModule,
@@ -163,6 +183,52 @@ impl Substitution<'_> {
         expected == *actual
     }
 
+    fn result(
+        &self,
+        module: &TerminalModule,
+        expected: &mut terminal_psi::TerminalCallableContract,
+        actual: &terminal_psi::TerminalCallableContract,
+        nested: &mut Vec<Comparison>,
+    ) -> bool {
+        let (Some(public), Some(supplied)) = (
+            expected.proof_result.structural(),
+            actual.proof_result.structural(),
+        ) else {
+            return true;
+        };
+        if public.structural_type == supplied.structural_type {
+            return true;
+        }
+        if !self
+            .public
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, public.structural_type, witness))
+            || !expected.result.matches_structural_result(public)
+            || !actual.result.matches_structural_result(supplied)
+            || expected.proof.result != expected.proof_result
+            || actual.proof.result != actual.proof_result
+            || public.place != supplied.place
+            || public.multiplicity != supplied.multiplicity
+            || public.reference_sources != supplied.reference_sources
+        {
+            return false;
+        }
+        let memberships = |result: &terminal_psi::StructuralResultDeclaration| {
+            crate::structural_qualifications::Memberships {
+                whole: result.qualifications.clone(),
+                projected: result.projected_qualifications.clone(),
+            }
+        };
+        if !self.memberships(module, &memberships(public), &memberships(supplied)) {
+            return false;
+        }
+        nested.push(Comparison::Storage(public.structural_type, supplied.structural_type));
+        expected.result.clone_from(&actual.result);
+        expected.proof_result.clone_from(&actual.proof_result);
+        expected.proof.result.clone_from(&actual.proof.result);
+        true
+    }
+
     fn signature(
         &self,
         module: &TerminalModule,
@@ -194,7 +260,8 @@ impl Substitution<'_> {
             &mut expected.proof.structural_parameters,
             &actual.proof.structural_parameters,
             nested,
-        ) {
+        ) || !self.result(module, &mut expected, actual, nested)
+        {
             return false;
         }
         // This equality includes the proof header, checked effects, evidence

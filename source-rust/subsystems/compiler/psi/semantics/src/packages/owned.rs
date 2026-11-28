@@ -21,21 +21,15 @@ fn write(
     origins: &ProjectedOrigins,
 ) -> Option<(PlaceId, Source)> {
     let op = machine.block(&at.0)?.operations.get(at.1 as usize)?;
+    if let Some(result) = op.result.structural()
+        && let Some(&(opening, producer)) =
+            origins.get(&(machine.id, Projected::Owner(result.place)))
+        && producer == op.id
+    {
+        return Some((result.place, Source::Opening(opening, producer)));
+    }
     let (destination, input) = match &op.kind {
-        OperationKind::MoveStructuralValue { source } => {
-            let place = op.result.structural()?.place;
-            if let Some(&(opening, producer)) = origins.get(&(machine.id, Projected::Owner(place)))
-                && producer == op.id
-            {
-                return Some((place, Source::Opening(opening, producer)));
-            }
-            (place, source)
-        }
-        OperationKind::MoveStructuralField { .. } => {
-            let place = op.result.structural()?.place;
-            let &(opening, producer) = origins.get(&(machine.id, Projected::Owner(place)))?;
-            return (producer == op.id).then_some((place, Source::Opening(opening, producer)));
-        }
+        OperationKind::MoveStructuralValue { source } => (op.result.structural()?.place, source),
         OperationKind::StoreStructuralField {
             destination,
             path,
