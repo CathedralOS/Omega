@@ -89,7 +89,10 @@ impl FixedActivationBinding {
 
 impl FixedActivationCall {
     pub const fn binding(self) -> FixedActivationBinding {
-        FixedActivationBinding { boundary: self.boundary, operation: self.action.operation() }
+        FixedActivationBinding {
+            boundary: self.boundary,
+            operation: self.action.operation(),
+        }
     }
 
     pub fn encode(&self, bytes: &mut Vec<u8>) {
@@ -100,32 +103,63 @@ impl FixedActivationCall {
         }
         fn case<const N: usize>(bytes: &mut Vec<u8>, case: FixedCase<N>) {
             bytes.extend_from_slice(&case.tag.to_le_bytes());
-            for member in case.fields { field(bytes, member); }
+            for member in case.fields {
+                field(bytes, member);
+            }
         }
         bytes.extend_from_slice(&self.boundary.get().to_le_bytes());
         match self.action {
-            Action::Prepare { worker, tag, ready, rejected } => {
+            Action::Prepare {
+                worker,
+                tag,
+                ready,
+                rejected,
+            } => {
                 bytes.push(0);
                 bytes.extend_from_slice(&worker.get().to_le_bytes());
-                field(bytes, tag); case(bytes, ready); case(bytes, rejected);
+                field(bytes, tag);
+                case(bytes, ready);
+                case(bytes, rejected);
             }
-            Action::Step { worker, tag, returned, parked } => {
+            Action::Step {
+                worker,
+                tag,
+                returned,
+                parked,
+            } => {
                 bytes.push(1);
                 bytes.extend_from_slice(&worker.get().to_le_bytes());
-                field(bytes, tag); case(bytes, returned); case(bytes, parked);
+                field(bytes, tag);
+                case(bytes, returned);
+                case(bytes, parked);
             }
-            Action::Park { anchor, reply_type, reply_bytes } => {
-                bytes.push(2); field(bytes, anchor);
+            Action::Park {
+                anchor,
+                reply_type,
+                reply_bytes,
+            } => {
+                bytes.push(2);
+                field(bytes, anchor);
                 bytes.extend_from_slice(&reply_type.0.to_le_bytes());
                 bytes.extend_from_slice(&reply_bytes.to_le_bytes());
             }
-            Action::Resume { worker, anchor, reply_type, reply_bytes, tag, ready, mismatch } => {
+            Action::Resume {
+                worker,
+                anchor,
+                reply_type,
+                reply_bytes,
+                tag,
+                ready,
+                mismatch,
+            } => {
                 bytes.push(3);
                 bytes.extend_from_slice(&worker.get().to_le_bytes());
                 field(bytes, anchor);
                 bytes.extend_from_slice(&reply_type.0.to_le_bytes());
                 bytes.extend_from_slice(&reply_bytes.to_le_bytes());
-                field(bytes, tag); case(bytes, ready); case(bytes, mismatch);
+                field(bytes, tag);
+                case(bytes, ready);
+                case(bytes, mismatch);
             }
         }
     }
@@ -147,23 +181,40 @@ impl FixedCallFrame {
     pub fn for_binding(binding: &crate::NormalizedForeignCallBinding) -> Option<Self> {
         binding.fixed_activation()?;
         let call = &binding.boundary_entry_plan.call;
-        if call.policy != calling_conventions::CallingPolicy::SystemVAMD64 || call.stack_alignment != 16
-            || call.shadow_bytes != 0 || call.entry_control != calling_conventions::EntryControl::CallReturn
-            || !call.callback_materializations.is_empty() { return None; }
+        if call.policy != calling_conventions::CallingPolicy::SystemVAMD64
+            || call.stack_alignment != 16
+            || call.shadow_bytes != 0
+            || call.entry_control != calling_conventions::EntryControl::CallReturn
+            || !call.callback_materializations.is_empty()
+        {
+            return None;
+        }
         let mut cursor = 32u32;
         let mut home = |shape: calling_conventions::ValueShape| {
             let width = match shape.class {
-                calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference => 8,
+                calling_conventions::ValueClass::BorrowedReference
+                | calling_conventions::ValueClass::BorrowedScalarReference => 8,
                 _ => shape.byte_size,
             };
             let start = cursor.checked_next_multiple_of(16)?;
             cursor = start.checked_add(width)?;
             Some((start, width))
         };
-        let inputs = call.parameters.iter().map(|p| home(p.shape)).collect::<Option<Vec<_>>>()?;
-        let result = match &call.result { Some(r) => home(r.shape)?, None => (cursor,0) };
+        let inputs = call
+            .parameters
+            .iter()
+            .map(|p| home(p.shape))
+            .collect::<Option<Vec<_>>>()?;
+        let result = match &call.result {
+            Some(r) => home(r.shape)?,
+            None => (cursor, 0),
+        };
         let frame_bytes = cursor.checked_next_multiple_of(16)?.checked_add(8)?;
-        (frame_bytes <= i32::MAX as u32 - 16).then_some(Self {inputs,result,frame_bytes})
+        (frame_bytes <= i32::MAX as u32 - 16).then_some(Self {
+            inputs,
+            result,
+            frame_bytes,
+        })
     }
 
     pub fn caller_stack_bytes(&self) -> u64 {

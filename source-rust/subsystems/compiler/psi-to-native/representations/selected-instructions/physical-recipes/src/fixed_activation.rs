@@ -64,7 +64,7 @@ impl<Origin> FixedTransferPlan<Origin> {
 /// The two post-call sequences differ only when the core operation returns a
 /// tagged outcome. The nonzero path is Ready for prepare/resume and Parked for step.
 pub struct FixedCall<Origin> {
-    pub physical_identity: [u8;32],
+    pub physical_identity: [u8; 32],
     pub frame: std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
     pub binding: target_vocabulary::NormalizedForeignCallBinding,
     pub before: post_allocation_machine::adapters::AdapterInstructions,
@@ -73,10 +73,12 @@ pub struct FixedCall<Origin> {
     pub finish: post_allocation_machine::adapters::AdapterInstructions,
     pub transfer: Option<FixedTransferPlan<Origin>>,
     pub entry_bridge: Option<crate::native_entry_bridge::NativeEntryBridgePlan<Origin>>,
-    pub caller_stack_bytes:u64,
+    pub caller_stack_bytes: u64,
 }
 
 pub type FixedCallPlan<Origin> = crate::PhysicalRecipe<Origin, FixedCall<Origin>>;
 impl<Origin> FixedCallPlan<Origin> {
-    pub fn call(&self) -> &FixedCall<Origin> { &self.instructions }
+    pub fn call(&self) -> &FixedCall<Origin> {
+        &self.instructions
+    }
 }

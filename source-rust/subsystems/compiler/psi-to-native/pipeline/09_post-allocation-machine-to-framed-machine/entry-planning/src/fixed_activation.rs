@@ -1,6 +1,5 @@
 //! Lay out one caller-owned fixed stack. Geometry is not a platform switch permit.
 mod wrapper;
-pub use wrapper::plan_call;
 use crate::{
     callable_entry::PlannedCallableEntryTransport,
     native_foreign_bridge::{self, InlineJob, NativeForeignBridgeRequest},
@@ -12,6 +11,7 @@ use frame_planning::stack_demand::{
     derive_physical_stack_demand, plan_physical_stack_program_for_entry,
 };
 use target::NativeTarget;
+pub use wrapper::plan_call;
 
 pub use physical_recipes::fixed_activation::{
     BACKING_LENGTH, CALLER_CONTEXT, MXCSR, PENDING_PUBLICATION, REPLY_DESTINATION, SAVED_REGISTERS,
@@ -135,15 +135,36 @@ impl FixedActivationLayout {
         // Park reads this private owner at the call, so verify the actual worker
         // code after register allocation, including every callable descendant.
         let owner_register = target_x86_64::validated_x86_64_physical_register_model()
-            .model().view_named("r12").ok_or("fixed activation has no execution owner register")?;
-        for machine in frame.instructions.machine.functions.iter().filter(|m| body.contributing_machines().contains(&m.machine)) {
-            if machine.instructions().any(|row| row.unit_defs.iter().chain(&row.unit_clobbers)
-                .any(|unit| owner_register.units.contains(unit))) {
+            .model()
+            .view_named("r12")
+            .ok_or("fixed activation has no execution owner register")?;
+        for machine in frame
+            .instructions
+            .machine
+            .functions
+            .iter()
+            .filter(|m| body.contributing_machines().contains(&m.machine))
+        {
+            if machine.instructions().any(|row| {
+                row.unit_defs
+                    .iter()
+                    .chain(&row.unit_clobbers)
+                    .any(|unit| owner_register.units.contains(unit))
+            }) {
                 return Err("fixed worker modifies its live execution owner register");
             }
         }
-        for machine in frame.instructions.functions.iter().filter(|m| body.contributing_machines().contains(&m.machine)) {
-            if machine.normalized_foreign_calls.iter().any(|row| !row.call.callbacks.is_empty()) {
+        for machine in frame
+            .instructions
+            .functions
+            .iter()
+            .filter(|m| body.contributing_machines().contains(&m.machine))
+        {
+            if machine
+                .normalized_foreign_calls
+                .iter()
+                .any(|row| !row.call.callbacks.is_empty())
+            {
                 return Err("a fixed worker cannot reenter its owner through a foreign callback");
             }
         }
@@ -224,8 +245,11 @@ impl FixedActivationLayout {
     /// The retained loan, not a successful numeric check, provides custody.
     pub fn fits(&self, base: u64, available: u64) -> bool {
         base != 0
-            && base.checked_next_multiple_of(self.alignment).and_then(|aligned| aligned.checked_add(self.stack_top))
-                .zip(base.checked_add(available)).is_some_and(|(required, end)| required <= end)
+            && base
+                .checked_next_multiple_of(self.alignment)
+                .and_then(|aligned| aligned.checked_add(self.stack_top))
+                .zip(base.checked_add(available))
+                .is_some_and(|(required, end)| required <= end)
     }
 }
 
