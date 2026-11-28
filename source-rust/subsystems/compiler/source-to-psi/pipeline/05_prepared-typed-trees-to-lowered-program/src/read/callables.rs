@@ -197,9 +197,22 @@ impl<'t> Program<'t> {
             }
             id
         } else {
+            let requirement = typed
+                .trait_machine_signature(declared.symbol)
+                .map(|_| {
+                    typed
+                        .runtime_callable_index_identity(
+                            source,
+                            IndexIdentityArgument::Subject(declared.symbol),
+                            &[],
+                        )
+                        .map_err(|reason| unavailable(machine, reason.to_string()))
+                })
+                .transpose()?;
             self.callables.contracts.push(CallableContract {
                 lifetimes,
                 identity,
+                requirement,
                 signature,
                 envelope,
             })

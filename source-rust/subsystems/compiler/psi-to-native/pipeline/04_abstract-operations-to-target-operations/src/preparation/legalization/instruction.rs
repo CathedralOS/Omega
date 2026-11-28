@@ -371,10 +371,12 @@ pub(crate) fn project(
         Operation::EstablishRecord {
             result_home,
             fields,
+            instantiated,
             ..
         } => Kind::EstablishRecord {
             result: result(result_home)?,
             fields: fields.clone(),
+            instantiated: instantiated.clone(),
             shape: result_home.layout.shape(),
         },
         Operation::EstablishScalarArray {

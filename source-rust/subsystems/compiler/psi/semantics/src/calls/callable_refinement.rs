@@ -732,6 +732,22 @@ pub fn descriptor_refinement_goals(
         .execution.callables
         .descriptor(descriptor)
         .ok_or("refinement descriptor is absent")?;
+    let expected = module
+        .execution
+        .callables
+        .contract(descriptor.contract)
+        .ok_or("descriptor has no callable contract")?
+        .requirement;
+    if let Some(requirement) = expected
+        && (descriptor.origin.requirement != Some(requirement)
+            || descriptor.origin.conformance.is_none()
+            || module
+                .identities
+                .text(requirement)
+                .is_none_or(str::is_empty))
+    {
+        return Err("descriptor is not bound to the named callable requirement");
+    }
     let goals =
         callable_contract_refinement_goals(module, descriptor.contract, descriptor.machine)?;
     if descriptor.refinement_obligations.len() != goals.len() {
@@ -795,6 +811,16 @@ pub fn validate_callable_evidence_contracts_in(
     lanes: &[EvidenceContractLane],
 ) -> Result<(), &'static str> {
     for contract in &catalog.contracts {
+        // A normal guarantee's label is scoped to this header. The producer
+        // assigns labels in declaration order, as it does for machine ensures.
+        if !contract
+            .proof
+            .ensures
+            .windows(2)
+            .all(|pair| pair[0].obligation < pair[1].obligation)
+        {
+            return Err("runtime callable guarantees are not in strict obligation order");
+        }
         let mut actual = lanes
             .iter()
             .filter(|lane| lane.owner == EvidenceCallableOwner::Runtime(contract.id))

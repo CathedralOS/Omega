@@ -1004,6 +1004,7 @@ pub(crate) mod primitive_storage {
     pub(crate) fn lower(
         operation: &Operation,
         machine: &TerminalMachine,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
         types: &[StructuralTypeDeclaration],
         values: &BTreeMap<ValueId, ScalarType>,
     ) -> Result<AbstractOperation, LoweringError> {
@@ -1044,13 +1045,23 @@ pub(crate) mod primitive_storage {
                             .map(|parameter| parameter.structural_type)
                     })
                     .ok_or_else(invalid)?;
-                if super::primitive_projection::read_leaf_type(types, identity, path, |index| {
-                    values.get(&index).copied()
-                }) != Some(result.scalar_type)
-                {
+                let storage_scalar =
+                    super::primitive_projection::read_leaf_type(types, identity, path, |index| {
+                        values.get(&index).copied()
+                    })
+                    .ok_or_else(invalid)?;
+                let expected = match packages.projected_field(machine.id, operation.id) {
+                    Some(field) => packages
+                        .field_type(machine.id, operation.id, field)
+                        .and_then(terminal_psi::StructuralFieldType::scalar_type)
+                        .ok_or_else(invalid)?,
+                    None => storage_scalar,
+                };
+                if expected != result.scalar_type {
                     return Err(invalid());
                 }
                 Ok(AbstractOperation::PrimitiveScalarRead {
+                    storage_scalar,
                     psi_operation: operation.id,
                     source,
                     path: path.clone(),
@@ -1079,6 +1090,7 @@ pub(crate) mod structural_establishment {
         operation: &Operation,
         block: &Block,
         machine: &TerminalMachine,
+        packages: &terminal_semantics::packages::CheckedPackageSites,
         structural_types: &[StructuralTypeDeclaration],
         byte_sequence_literals: &[StructuralLiteral<'_>],
         unit_affine_locals: &[StructuralLiteral<'_>],
@@ -1231,9 +1243,21 @@ pub(crate) mod structural_establishment {
             }
             OperationKind::EstablishRecord { fields } => {
                 let result = structural_result(operation, machine, block)?;
+                let field_types = fields
+                    .iter()
+                    .filter_map(|input| {
+                        packages
+                            .field_type(machine.id, operation.id, input.field)
+                            .map(|ty| (input.field, ty.clone()))
+                    })
+                    .collect();
+                let instantiated =
+                    abstract_operations::InstantiatedFieldTypes::from_fields(field_types)
+                        .ok_or(LoweringError::DuplicatePackageField(operation.id))?;
                 AbstractOperation::EstablishRecord {
                     psi_operation: operation.id,
                     result,
+                    instantiated,
                     fields,
                 }
             }

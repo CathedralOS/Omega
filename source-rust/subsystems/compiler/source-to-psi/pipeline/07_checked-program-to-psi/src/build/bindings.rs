@@ -379,6 +379,7 @@ pub(crate) mod build_requests {
     pub enum TerminalBuildRequestOperation {
         /// Send the borrowed bytes to the fixed peer supplied by this invocation.
         SendDatagram,
+        ReceiveDatagram,
         /// Exact authored nominal declaration in the checked Build source.
         LaunchProgram {
             program: source_text::SourceSpan,

@@ -53,6 +53,7 @@ impl PackagePolicyBaseline {
                 | crate::encoding::BASELINE_WITH_APPLIED_SERVICES
                 | crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS
                 | crate::encoding::BASELINE_WITH_NETWORK_REQUESTS
+                | crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
                 | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);
@@ -284,21 +285,31 @@ pub(in crate::encoding::recovery::policy::baseline) const REQUEST_MINIMUM_BYTES:
 pub(in crate::encoding::recovery::policy::baseline) const GRANT_MINIMUM_BYTES: usize = 3;
 pub(in crate::encoding::recovery::policy::baseline) const REQUIRED_OUTPUT_MINIMUM_BYTES: usize = 8;
 
+fn datagram_peer(
+    reader: &mut Reader<'_>,
+    schema: u16,
+) -> Result<build_consent::BuildNetworkPeer, Error> {
+    let address = reader.string()?.parse().map_err(|_| Error::InvalidValue)?;
+    let maximum = u16::try_from(reader.u32()?).map_err(|_| Error::InvalidValue)?;
+    let peer =
+        build_consent::BuildNetworkPeer::new(address, maximum).map_err(|_| Error::InvalidValue)?;
+    if schema >= crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
+        && terminal_permissions::disposition(reader)?.classes() != peer.physical_authority()
+    {
+        return Err(Error::InvalidValue);
+    }
+    Ok(peer)
+}
+
 pub(in crate::encoding::recovery) fn request(
     reader: &mut Reader<'_>,
     schema: u16,
 ) -> Result<PackagePolicyRestrictedBuildRequest, Error> {
     let operation = super::tag!(reader => {
-        3 => {
-            let address = reader.string()?.parse().map_err(|_| Error::InvalidValue)?;
-            let maximum = u16::try_from(reader.u32()?).map_err(|_| Error::InvalidValue)?;
-            let peer = build_consent::BuildNetworkPeer::new(address, maximum).map_err(|_| Error::InvalidValue)?;
-            if schema >= crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
-                && terminal_permissions::disposition(reader)?.classes() != peer.physical_authority()
-            {
-                return Err(Error::InvalidValue);
-            }
-            PackagePolicyRestrictedBuildOperation::SendDatagram { peer }
+        3 => PackagePolicyRestrictedBuildOperation::SendDatagram { peer: datagram_peer(reader, schema)? },
+        4 => {
+            if schema < crate::encoding::BASELINE_WITH_DATAGRAM_REPLIES { return Err(Error::InvalidValue); }
+            PackagePolicyRestrictedBuildOperation::ReceiveDatagram { peer: datagram_peer(reader, schema)? }
         },
         0 => PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
         1 => PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution,

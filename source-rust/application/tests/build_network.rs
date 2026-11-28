@@ -409,8 +409,155 @@ fn the_same_source_requires_a_network_grant_on_each_registration() {
     assert!(!fixture.root().join("omega.lock").exists());
 }
 
+fn reply_consumer() -> &'static str {
+    r#"use {omega}/build/network.omg as network;
+use {omega}/language/core/sandbox/datagram.omg as datagram;
+
+machine build(builder: @mutable BuildPlan) blocks {
+    let mutable bytes: [u8; 5] = [10u8, 11u8, 12u8, 13u8, 14u8];
+    let sent: bool = block |network|::send("query");
+    let outcome: |datagram|::ReceiveResult = block |network|::receive_reply(@mutable bytes[1..4]);
+    transition outcome {
+        |datagram|::ReceiveResult::Received { count } -> inspect(builder, sent, count, @bytes),
+        _ -> failed(builder)
+    }
+    machine inspect(builder: @mutable BuildPlan, sent: bool, count: u64, bytes: @[u8; 5]) {
+        transition sent && count == 2u64 && bytes[0] == 10u8 && bytes[1] == 79u8 && bytes[2] == 75u8 && bytes[3] == 13u8 && bytes[4] == 14u8 {
+            true -> passed(builder),
+            false -> failed(builder)
+        }
+    }
+    machine passed(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "reply_ok" }; }
+    machine failed(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "reply_failed" }; }
+}"#
+}
+
 #[test]
-fn a_checked_recording_answers_the_same_send_without_live_network_backing() {
+fn approving_a_send_alone_cannot_run_a_build_that_also_receives() {
+    let fixture = Fixture::new();
+    fixture.package("root", reply_consumer());
+    let before = fixture.cli(
+        &["packages", "update"],
+        true,
+        Some(fixture.peer.local_addr().unwrap()),
+    );
+    assert_eq!(before.status.code(), Some(3), "{}", report(&before));
+    let phase = fixture.build_review();
+    let draft = fs::read_to_string(&phase).unwrap();
+    assert!(
+        draft.contains("build-request send-datagram")
+            && draft.contains("build-request receive-datagram-reply"),
+        "{draft}"
+    );
+    let mut send = false;
+    let mut edited = String::new();
+    for line in draft.lines() {
+        if let Some(operation) = line.trim().strip_prefix("build-request ") {
+            send = operation == "send-datagram";
+        }
+        if send && line.starts_with("decision build ") {
+            edited.push_str(&line.replace(" pending", " accept"));
+        } else {
+            edited.push_str(line);
+        }
+        edited.push('\n');
+    }
+    assert_ne!(edited, draft);
+    assert!(edited.contains(" pending\n"));
+    fs::write(&phase, edited).unwrap();
+    let withheld = fixture.cli(
+        &["packages", "update", "--resume"],
+        true,
+        Some(fixture.peer.local_addr().unwrap()),
+    );
+    assert_eq!(withheld.status.code(), Some(3), "{}", report(&withheld));
+    assert!(fixture.packets().is_empty());
+    assert!(!fixture.root().join("omega.lock").exists());
+}
+
+#[test]
+fn receiving_requires_delegation_and_a_reply_requires_a_prior_send() {
+    let fixture = Fixture::new();
+    fixture.package("root", &consumer("parent", &[("reader", false)]));
+    let source = r#"use {omega}/build/network.omg as network;
+use {omega}/language/core/sandbox/datagram.omg as datagram;
+machine build(b: @mutable BuildPlan) blocks {
+    let mutable byte: [u8; 1] = [99u8];
+    let result: |datagram|::ReceiveResult = block |network|::receive_reply(@mutable byte[..]);
+    transition result {
+        |datagram|::ReceiveResult::Unavailable -> done(b, byte[0]),
+        _ -> wrong(b)
+    }
+    machine done(b: @mutable BuildPlan, sentinel: u8) {
+        transition sentinel {
+            99u8 -> untouched(b),
+            _ -> wrong(b)
+        }
+    }
+    machine untouched(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "no_open_flow" }; }
+    machine wrong(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "bad_reply" }; }
+}"#;
+    fixture.package("reader", source);
+    let offline = fixture.update(true);
+    let message = report(&offline);
+    assert_eq!(offline.status.code(), Some(1), "{message}");
+    assert!(
+        message.contains("reader/build.omg")
+            && message.contains("requires Network before entry")
+            && message.contains("receive"),
+        "{message}"
+    );
+    assert!(!fixture.root().join("omega.lock").exists());
+    fixture.package("root", &consumer("parent", &[("reader", true)]));
+    let admitted = fixture.update(true);
+    assert!(admitted.status.success(), "{}", report(&admitted));
+    let lock = fs::read_to_string(fixture.root().join("omega.lock")).unwrap();
+    assert!(lock.contains("no_open_flow") && !lock.contains("bad_reply"));
+    assert!(fixture.packets().is_empty());
+}
+
+#[test]
+fn an_inheriting_child_uses_only_its_admitted_peers_reply() {
+    use std::{sync::mpsc, thread};
+    let fixture = Fixture::new();
+    fixture.package("root", &consumer("parent", &[("child", true)]));
+    fixture.package("child", reply_consumer());
+    let socket = fixture.peer.try_clone().unwrap();
+    let stranger = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let (stop, shutdown) = mpsc::channel::<()>();
+    let server = thread::spawn(move || {
+        let mut count = 0;
+        while matches!(shutdown.try_recv(), Err(mpsc::TryRecvError::Empty)) {
+            let mut packet = [0; 16];
+            match socket.recv_from(&mut packet) {
+                Ok((n, client)) => {
+                    assert_eq!(&packet[..n], b"query");
+                    stranger.send_to(b"NO", client).unwrap();
+                    socket.send_to(b"OK", client).unwrap();
+                    count += 1;
+                }
+                Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                    thread::sleep(std::time::Duration::from_millis(2))
+                }
+                Err(error) => panic!("local reply peer: {error}"),
+            }
+        }
+        count
+    });
+    let published = fixture.update(true);
+    drop(stop);
+    let requests = server.join().unwrap();
+    assert!(published.status.success(), "{}", report(&published));
+    assert!(requests > 0);
+    let lock = fs::read_to_string(fixture.root().join("omega.lock")).unwrap();
+    assert!(
+        lock.contains("reply_ok") && !lock.contains("reply_failed"),
+        "{lock}"
+    );
+}
+
+#[test]
+fn checked_recordings_serve_send_and_receive_without_live_network_backing() {
     use build_declarations::{BuildDeclaration, BuildDependencySource, ProjectName};
     use package_manager::project::{BuildLibraryRequest, ProjectInput, open_products};
 
@@ -444,6 +591,20 @@ public RecordedFailure satisfies |datagram|::Datagram {
             bytes.length != 1u64 || bytes[index] != 82u8
         }
     }
+}
+public RecordedReply satisfies |datagram|::DatagramReplies {
+    machine receive(bytes: @mutable [u8]) -> |datagram|::ReceiveResult {
+        transition 0u64 < bytes.length {
+            true -> write(bytes, 0u64),
+            false -> |datagram|::ReceiveResult::TooLarge
+        }
+        machine write(bytes: @mutable [u8], index: u64) -> |datagram|::ReceiveResult
+        requires index < bytes.length
+        {
+            bytes[index] = 83u8;
+            |datagram|::ReceiveResult::Received { count: 1u64 }
+        }
+    }
 }"#,
         )],
     );
@@ -453,11 +614,19 @@ use {omega}/build/network.omg as network;
 use {omega}/language/core/sandbox/datagram.omg as datagram;
 machine build(builder: @mutable BuildPlan) suspends blocks {
     suspend Build::await_provider::<|datagram|::Datagram, |recording|::RecordedFailure>(builder);
-    let payload: [u8; 3] = [88u8, 82u8, 89u8];
+    suspend Build::await_provider::<|datagram|::DatagramReplies, |recording|::RecordedReply>(builder);
+    let mutable payload: [u8; 3] = [88u8, 82u8, 89u8];
     let sent: bool = block |network|::send(@payload[1..2]);
-    transition sent {
-        false -> recorded(builder),
-        true -> unexpected(builder)
+    let received: |datagram|::ReceiveResult = block |network|::receive_reply(@mutable payload[1..2]);
+    transition received {
+        |datagram|::ReceiveResult::Received { count } -> inspect(builder, sent, count, @payload),
+        _ -> unexpected(builder)
+    }
+    machine inspect(builder: @mutable BuildPlan, sent: bool, count: u64, bytes: @[u8; 3]) {
+        transition !sent && count == 1u64 && bytes[0] == 88u8 && bytes[1] == 83u8 && bytes[2] == 89u8 {
+            true -> recorded(builder),
+            false -> unexpected(builder)
+        }
     }
     machine recorded(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "recorded_failure" }; }
     machine unexpected(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "unexpected_live_send" }; }

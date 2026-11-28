@@ -12,6 +12,10 @@ use super::{ForeignStackExtent, LocalStackExtent, PhysicalStackFunction, Physica
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StackDemandError {
+    DifferentEntry {
+        measured: MachineId,
+        requested: MachineId,
+    },
     EntryFunctionMissing(MachineId),
     UnknownInternalCallTarget {
         caller: MachineId,
@@ -46,6 +50,12 @@ pub fn derive_physical_stack_demand(
     entry: MachineId,
     private_demands: Vec<(MachineFunctionIdentity, StackDemand)>,
 ) -> Result<StackDemand, Error> {
+    if entry != program.entry {
+        return Err(Error::DifferentEntry {
+            measured: program.entry,
+            requested: entry,
+        });
+    }
     let mut functions: Vec<_> = program.functions.iter().collect();
     functions.sort_unstable_by_key(|function| function.machine);
     if let Some(pair) = functions

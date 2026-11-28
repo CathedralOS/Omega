@@ -112,7 +112,11 @@ impl BoundBodyContracts {
             .matches_frame(calls.physical_identity, &frame)
             || (entry.psi, entry.machine) != (roots.psi, roots.entry)
             || (calls.psi, calls.target) != (entry.psi, entry.target)
-            || (facts.physical.stack.psi, facts.physical.stack.target) != (entry.psi, entry.target)
+            || (
+                facts.physical.stack.psi,
+                facts.physical.stack.target,
+                facts.physical.stack.entry,
+            ) != (entry.psi, entry.target, entry.machine)
             || facts.physical.foreign_calls.as_ref().is_ok_and(|foreign| {
                 (foreign.psi, foreign.target, foreign.physical_identity)
                     != (entry.psi, entry.target, calls.physical_identity)

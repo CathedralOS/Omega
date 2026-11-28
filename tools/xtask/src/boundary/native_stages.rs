@@ -19,6 +19,8 @@ pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects"
 pub(super) const PRODUCT_PUBLICATION: &str = "source-rust/subsystems/compiler/build/publication";
 const BODY_PLAN: &str = native!("/representations/target-operations/body-plan");
 const PLAN_ISSUER: &str = native!("/representations/target-operations/body-plan/issuer");
+const ALLOCATED_BODY: &str = native!("/representations/register-homes/published");
+const ALLOCATION_ISSUER: &str = native!("/representations/register-homes/published/issuer");
 /// Program forms instruction selection consumes. Later stages read the facts
 /// they need from the target vocabulary and the physical program instead.
 const EARLIER_FORMS: [&str; 5] = [
@@ -104,6 +106,27 @@ pub(super) fn rules() -> Vec<Rule> {
             dependency: PLAN_ISSUER,
         }],
     });
+    rules.push(Rule {
+        owners: vec![stages[7]],
+        forbidden: vec![stages[6]],
+        forbidden_packages: vec![],
+        reason: "machine lowering consumes the issued allocation representation",
+        except_package: None,
+        except_owners: vec![],
+        allowed: vec![],
+    });
+    rules.push(Rule {
+        owners: vec![""],
+        forbidden: vec![],
+        forbidden_packages: vec![ALLOCATION_ISSUER],
+        reason: "only register allocation may issue an allocated body",
+        except_package: Some(ALLOCATED_BODY),
+        except_owners: vec![],
+        allowed: vec![Allowance {
+            owner: stages[6],
+            dependency: ALLOCATION_ISSUER,
+        }],
+    });
     // Stage 02's abstract program and stage 04's target operations stop at
     // instruction selection. The requested object audit that rejoins them to an
     // emitted object lives in the published-object verifier, outside the pipeline,
@@ -149,6 +172,29 @@ mod tests {
                 violations.is_empty(),
                 permitted,
                 "{owner} -> {dependency} ({kind:?}): {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn machine_lowering_reads_the_product_without_its_producer_or_issuer() {
+        for (owner, dependency, permitted) in [
+            (NATIVE_STAGES[7], ALLOCATED_BODY, true),
+            (NATIVE_STAGES[7], NATIVE_STAGES[6], false),
+            (NATIVE_STAGES[7], ALLOCATION_ISSUER, false),
+            (DRIVER, ALLOCATION_ISSUER, false),
+            (NATIVE_STAGES[6], ALLOCATION_ISSUER, true),
+            (ALLOCATED_BODY, ALLOCATION_ISSUER, true),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".into(),
+                packages: vec![pkg("reader", owner, &[("dependency", dependency, None)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &rules()).unwrap();
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency}: {violations:?}"
             );
         }
     }

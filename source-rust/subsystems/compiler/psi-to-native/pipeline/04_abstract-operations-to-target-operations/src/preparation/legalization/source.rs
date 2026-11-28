@@ -443,6 +443,7 @@ pub(crate) mod scalar_graph {
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::PrimitiveScalarRead {
+                    storage_scalar,
                     psi_operation,
                     source,
                     path,
@@ -455,6 +456,7 @@ pub(crate) mod scalar_graph {
                 // The producer retained the selector's scalar source, stride,
                 // extent and proof key.
                 Ok(LegalizedScalarInstructionKind::PrimitiveScalarRead {
+                    storage_scalar: *storage_scalar,
                     source: *source,
                     path: path.clone(),
                     indices: crate::preparation::legalization::runtime_indices::retained_operands(
@@ -1011,6 +1013,7 @@ pub(crate) mod scalar_graph {
                         obligation,
                     }];
                     let read = TargetUnitOperation::PrimitiveScalarRead {
+                        storage_scalar: scalar_type,
                         psi_operation: operation,
                         result: abstract_operations::AbstractResult {
                             value: ValueId::new(5).unwrap(),
@@ -1059,12 +1062,16 @@ pub(crate) mod scalar_graph {
                     let legalized_operations::LegalizedScalarInstructionKind::PrimitiveScalarRead {
                         source,
                         path: actual_path,
+                        storage_scalar,
                         indices,
                     } = lowered_read
                     else {
                         panic!("read");
                     };
-                    assert_eq!((source, actual_path), (place, path.clone()));
+                    assert_eq!(
+                        (source, actual_path, storage_scalar),
+                        (place, path.clone(), scalar_type)
+                    );
                     assert_eq!(
                         (
                             indices[0].operand.value,

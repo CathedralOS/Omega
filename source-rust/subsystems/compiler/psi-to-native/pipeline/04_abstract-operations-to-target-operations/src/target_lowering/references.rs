@@ -269,7 +269,7 @@ pub(crate) fn window_projection(
         root_type,
         &path[..=crossing],
         required_access,
-        None,
+        crate::target_lowering::structural_layout::ReferenceEndpoint::Storage(None),
         types,
     )
     .ok()?;
@@ -331,7 +331,9 @@ pub(crate) fn reference_call_argument(
             root_type,
             &argument.path,
             argument.access,
-            Some(declaration.structural_type),
+            crate::target_lowering::structural_layout::ReferenceEndpoint::BorrowedArgument(
+                declaration.structural_type,
+            ),
             types,
         )?;
     let indices = super::scalar_sources::runtime_indices(

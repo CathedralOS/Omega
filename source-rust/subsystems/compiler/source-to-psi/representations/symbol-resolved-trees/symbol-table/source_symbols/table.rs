@@ -3402,6 +3402,38 @@ impl SymbolTable {
                     || self.fixed_core_declaration_for_symbol(symbol).is_some()
             },
         );
+        let requirement = if let Some((owner, member)) = name.rsplit_once("::") {
+            // Only the requirements of a visible trait can name callable types.
+            // A same-spelled nested machine is executable code, not a type.
+            match self.lookup_top_level_by_name_and_kinds_from_source_matching(
+                owner,
+                &[SymbolKind::Trait],
+                reference,
+                |_| true,
+            ) {
+                SymbolLookup::Unique(owner) => SymbolLookup::from_candidates(
+                    self.child_handles(owner)
+                        .into_iter()
+                        .flatten()
+                        .filter(|child| {
+                            self.get(*child).kind == SymbolKind::State
+                                && self.name(*child) == member
+                                && self.symbol_source_is_selected(*child)
+                        }),
+                ),
+                other => other,
+            }
+        } else {
+            SymbolLookup::NotFound
+        };
+        let lookup = match (lookup, requirement) {
+            (SymbolLookup::NotFound, found) | (found, SymbolLookup::NotFound) => found,
+            (SymbolLookup::Unique(first), SymbolLookup::Unique(second)) if first != second => {
+                SymbolLookup::Ambiguous { first, second }
+            }
+            (_, ambiguous @ SymbolLookup::Ambiguous { .. }) => ambiguous,
+            (found, _) => found,
+        };
         match lookup {
             SymbolLookup::NotFound if !builtin => self
                 .lookup_top_level_by_name_and_kinds_from_source_matching(
