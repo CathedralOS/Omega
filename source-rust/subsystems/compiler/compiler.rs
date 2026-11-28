@@ -186,6 +186,14 @@ pub fn compile(
     request: CompileRequest<'_>,
     options: CompileOptions<'_>,
 ) -> Result<CompileOutput, stage_validators::NativeValidationError> {
+    compile_with_timings(request, options, &mut Default::default())
+}
+
+pub fn compile_with_timings(
+    request: CompileRequest<'_>,
+    options: CompileOptions<'_>,
+    timings: &mut source_compiler::CompileTimings,
+) -> Result<CompileOutput, stage_validators::NativeValidationError> {
     let none = stage_validators::StageValidatorRequest::default();
     let validators = options.validators.unwrap_or(&none);
     match request {
@@ -194,10 +202,11 @@ pub fn compile(
                 source.product.calling_targets,
                 |_| "this product emits Psi before target operations",
             )?;
-            let artifact = source_to_psi::compile_with_declaration_usage(
+            let artifact = source_to_psi::compile_with_timings(
                 source,
                 options.advisories,
                 options.declaration_usage,
+                timings,
             )?;
             Ok(CompileOutput {
                 artifact: Artifact::Psi(artifact),
@@ -213,11 +222,7 @@ pub fn compile(
                 |_| "runtime admission stops before target lowering",
             )?;
             let admitted = program
-                .prepare(
-                    options.advisories,
-                    options.declaration_usage,
-                    &mut Default::default(),
-                )?
+                .prepare(options.advisories, options.declaration_usage, timings)?
                 .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(CompileOutput {
                 artifact: Artifact::Runtime(product_publication::CompletedProduct::from_runtime(
@@ -238,11 +243,7 @@ pub fn compile(
             }
             let application = program.application().clone();
             let emitted = program
-                .prepare(
-                    options.advisories,
-                    options.declaration_usage,
-                    &mut Default::default(),
-                )?
+                .prepare(options.advisories, options.declaration_usage, timings)?
                 .emit(entry_memory, validators)?;
             Ok(CompileOutput {
                 artifact: Artifact::Native(product_publication::CompletedProduct::from_native(

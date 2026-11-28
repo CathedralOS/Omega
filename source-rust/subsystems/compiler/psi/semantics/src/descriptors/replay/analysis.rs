@@ -92,6 +92,11 @@ pub enum LocalReturnBacking {
 
 pub struct DescriptorAnalysis<'a> {
     pub(super) replay: Replay<'a>,
+    /// Site replay and type information of the module that owns these rows.
+    package_sites: Option<(
+        &'a terminal_psi::TerminalModule,
+        &'a crate::packages::CheckedPackageSites,
+    )>,
     storage_queries: StorageQueries,
     flows: Vec<(
         MachineId,
@@ -223,6 +228,7 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::new(types, machines),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -231,13 +237,25 @@ impl<'a> DescriptorAnalysis<'a> {
     /// An analysis that reads a type index built elsewhere over `types`,
     /// such as a `ModuleAnalyses` bundle's, instead of building its own.
     pub(crate) fn with_type_index(
-        types: &'a [StructuralTypeDeclaration],
-        type_index: &'a crate::descriptors::descriptor_lifetimes::StructuralTypeIndex<'a>,
+        analyses: &'a crate::ModuleAnalyses<'_>,
         machines: crate::module_analyses::DescriptorRowView<'a>,
         slot_kind: DescriptorSlotKind,
     ) -> Self {
+        let module = analyses.module();
+        let package_sites =
+            if !slot_kind.tracks_references() || module.execution.packages.sites.is_empty() {
+                None
+            } else {
+                analyses.package_sites().ok().map(|sites| (module, sites))
+            };
         Self {
-            replay: Replay::with_type_index(types, type_index, machines, slot_kind),
+            replay: Replay::with_type_index(
+                &module.types.structural_types,
+                analyses.types(),
+                machines,
+                slot_kind,
+            ),
+            package_sites,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -325,6 +343,7 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -340,10 +359,62 @@ impl<'a> DescriptorAnalysis<'a> {
                 machines,
                 DescriptorSlotKind::BorrowedStorage,
             ),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
     }
+    /// Package certificates replayed on the same immutable module as these rows.
+    pub fn checked_package_sites(
+        &self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Option<&crate::packages::CheckedPackageSites> {
+        let (owner, sites) = self.package_sites?;
+        std::ptr::eq(module, owner).then_some(sites)
+    }
+
+    fn opened_call_homes(
+        &mut self,
+        machine: MachineId,
+        position: DescriptorPosition,
+        owner: Option<DescriptorInvocationOwner>,
+    ) -> Vec<(DescriptorLocation, DescriptorLocation)> {
+        let Some(DescriptorInvocationOwner::Operation(operation)) = owner else {
+            return Vec::new();
+        };
+        self.package_sites
+            .map_or_else(Vec::new, |(module, checked)| {
+                crate::packages::opened_call_homes(
+                    module, checked, machine, operation, position, self,
+                )
+            })
+    }
+
+    /// Concrete local inputs of this checked invocation, paired with the
+    /// operand that denotes them at its evaluation point.
+    pub fn local_opened_inputs(
+        &mut self,
+        machine: MachineId,
+        position: DescriptorPosition,
+        operation: semantic_vocabulary::OperationId,
+    ) -> Vec<(DescriptorLocation, DescriptorLocation)> {
+        self.opened_call_homes(
+            machine,
+            position,
+            Some(DescriptorInvocationOwner::Operation(operation)),
+        )
+    }
+
+    fn local_input_home(
+        location: &DescriptorLocation,
+        homes: &[(DescriptorLocation, DescriptorLocation)],
+    ) -> Option<StorageResolution> {
+        homes
+            .iter()
+            .find(|(input, _)| input == location)
+            .map(|(_, home)| StorageResolution::Unique(home.clone()))
+    }
+
     /// Replay each callee once per module: take summaries this module's
     /// other analyses completed and publish the ones this analysis
     /// completes. `nominal_calls` are the ones this analysis's rows were
@@ -374,6 +445,7 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::AccessOrigins),
+            package_sites: None,
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
         }
@@ -497,6 +569,11 @@ impl<'a> DescriptorAnalysis<'a> {
                     .detail()
                     .unwrap_or("captured storage snapshots could not be reconstructed")
             })?;
+        let package_homes = self.opened_call_homes(
+            identity,
+            position,
+            machine.direct_call(position).map(|call| call.owner),
+        );
         let state = self
             .replay
             .snapshots
@@ -505,6 +582,7 @@ impl<'a> DescriptorAnalysis<'a> {
             .and_then(|ready| ready.before.get(&position))
             .ok_or("captured storage position has no reachable snapshot")?;
         let resolution = Self::resolved_storage(&self.replay, machine, state, location)
+            .or_else(|| Self::local_input_home(location, &package_homes))
             .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
         self.replay
             .checked_storage_family_if_active(machine, state, resolution)
@@ -615,6 +693,7 @@ impl<'a> DescriptorAnalysis<'a> {
             .replay
             .machine(identity)
             .ok_or("captured storage machine is absent or stale")?;
+        let package_homes = self.opened_call_homes(identity, position, Some(owner));
         let state = self
             .replay
             .invocation_state(identity, position, owner)
@@ -622,6 +701,7 @@ impl<'a> DescriptorAnalysis<'a> {
         let resolution = self
             .replay
             .resolve_storage(machine, state, location, None)
+            .or_else(|| Self::local_input_home(location, &package_homes))
             .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
         self.replay
             .checked_storage_family(machine, state, resolution)
@@ -1412,6 +1492,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 detail: None,
             },
         )?;
+        let package_homes = self.opened_call_homes(identity, position, Some(owner));
         let before = self
             .replay
             .invocation_state(identity, position, owner)
@@ -1422,7 +1503,15 @@ impl<'a> DescriptorAnalysis<'a> {
                 detail: None,
             })?;
         let mut step = DescriptorFlowStep::default();
-        self.append_invocation_flow(machine, position, call, before, &mut step, None)?;
+        self.append_invocation_flow(
+            machine,
+            position,
+            call,
+            before,
+            &mut step,
+            &package_homes,
+            None,
+        )?;
         Ok(step)
     }
     pub fn flow_arc(
@@ -1593,11 +1682,18 @@ impl<'a> DescriptorAnalysis<'a> {
             {
                 step.may_escape = false;
             }
+            let package_homes =
+                self.opened_call_homes(identity, *position, call.map(|call| call.owner));
             let replay = &self.replay;
             let mut canonical = |location: &DescriptorLocation| {
                 let resolution = Self::resolved_storage(replay, machine, before, location);
                 replay
-                    .flow_location(machine, before, location, resolution)
+                    .flow_location(
+                        machine,
+                        before,
+                        location,
+                        resolution.or_else(|| Self::local_input_home(location, &package_homes)),
+                    )
                     .map_err(|detail| DescriptorGraphError::IncompleteMachine {
                         machine: identity,
                         position: Some(*position),
@@ -1698,6 +1794,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     call,
                     before,
                     step,
+                    &package_homes,
                     residence_rules.as_deref_mut(),
                 )?;
             }
@@ -1730,6 +1827,7 @@ impl<'a> DescriptorAnalysis<'a> {
                     call,
                     before,
                     &mut effect,
+                    &[],
                     residence_rules.as_deref_mut(),
                 )?;
                 step.inputs.extend(effect.inputs.iter().cloned());
@@ -1823,6 +1921,7 @@ impl<'a> DescriptorAnalysis<'a> {
         call: &DescriptorInvocation,
         before: &super::engine::State,
         step: &mut DescriptorFlowStep,
+        package_homes: &[(DescriptorLocation, DescriptorLocation)],
         mut residence_rules: Option<
             &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
         >,
@@ -1836,7 +1935,12 @@ impl<'a> DescriptorAnalysis<'a> {
         let canonical = |location: &DescriptorLocation| {
             let resolution = self.replay.resolve_storage(machine, before, location, None);
             self.replay
-                .flow_location(machine, before, location, resolution)
+                .flow_location(
+                    machine,
+                    before,
+                    location,
+                    resolution.or_else(|| Self::local_input_home(location, package_homes)),
+                )
                 .map_err(|detail| DescriptorGraphError::IncompleteMachine {
                     machine: machine.id,
                     position: Some(position),

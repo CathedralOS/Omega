@@ -4737,6 +4737,47 @@ impl<'a> Storage<'a> {
         Ok(!trace.crossed_entries[index(owner.get())])
     }
 
+    /// A locally constructed package can retain the original concrete callable
+    /// SSA value. Its checked projection transports that exact initializer into
+    /// the opening. This transport gives the proof solver no scalar equality.
+    fn reads_constructed_package_descriptor(
+        &self,
+        references: &DescriptorAnalysis<'_>,
+        read: &Operation,
+        held: &ScalarTerm,
+    ) -> bool {
+        let ScalarTerm::Value {
+            id,
+            scalar_type: ScalarType::Callable(contract),
+        } = held
+        else {
+            return false;
+        };
+        let Some(sites) = references.checked_package_sites(self.module) else {
+            return false;
+        };
+        let Some(field) = sites.projected_field(self.machine, read.id) else {
+            return false;
+        };
+        sites.admits_descriptor(self.module, self.machine, read.id, *contract)
+            && self.lowered.operations().any(|operation| {
+                let OperationKind::EstablishRecord { fields } = &operation.kind else {
+                    return false;
+                };
+                sites
+                    .field_type(self.machine, operation.id, field)
+                    .and_then(terminal_psi::StructuralFieldType::scalar_type)
+                    == Some(ScalarType::Callable(*contract))
+                    && fields.iter().any(|member| {
+                        member.field == field
+                            && matches!(
+                                member.value,
+                                terminal_psi::RecordFieldValue::Scalar { value, .. } if value == *id
+                            )
+                    })
+            })
+    }
+
     /// The equation a read establishes on its normal successor:
     /// `read == v` when `v` is the one value its place holds on every path
     /// to it, else none.
@@ -4813,7 +4854,8 @@ impl<'a> Storage<'a> {
                 self.lowered,
                 operation,
                 held_type,
-            ) {
+            ) || self.reads_constructed_package_descriptor(references, operation, &held)
+            {
                 return Ok(None);
             }
             return Err(self.unsupported(
@@ -5820,6 +5862,60 @@ impl<'a> Storage<'a> {
         point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Checked<Vec<ValueId>>> {
+        let opened_inputs = match concerns {
+            Construct::Operation(operation) if !used.is_empty() => u32::try_from(up_to)
+                .ok()
+                .map(|ordinal| {
+                    references.local_opened_inputs(self.machine, (block, ordinal), operation)
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let mut captured = Vec::new();
+        if !opened_inputs.is_empty() {
+            for place in used {
+                let home = place
+                    .descriptor_location()
+                    .and_then(|input| opened_inputs.iter().find(|(operand, _)| *operand == input));
+                let Some((_, home)) = home else {
+                    captured.push(place.clone());
+                    continue;
+                };
+                let root = self.root_type(home.root, concerns)?;
+                let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
+                    &self.module.types.structural_types,
+                    root,
+                    &home.path,
+                )
+                .ok_or_else(|| {
+                    self.unsupported(
+                        concerns,
+                        "the checked local callback input lost its storage path",
+                    )
+                })?;
+                let Some((Segment::Referent, carrier)) = place.segments.split_last() else {
+                    captured.push(place.clone());
+                    continue;
+                };
+                if path.iter().any(|part| {
+                    !matches!(
+                        part,
+                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                    )
+                }) {
+                    captured.push(place.clone());
+                    continue;
+                }
+                // Reading through a locally stored reference requires both
+                // its live descriptor and the original borrowed storage.
+                captured.push(Lineage {
+                    root: place.root,
+                    segments: carrier.to_vec(),
+                });
+                captured.push(self.stored_at(home.root, &path, concerns)?);
+            }
+        }
+        let used = if captured.is_empty() { used } else { &captured };
         for place in used {
             let missing = self.any_leaf(
                 place,

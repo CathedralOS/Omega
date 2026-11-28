@@ -54,7 +54,7 @@ fn main() {
     if arguments.len() == 1 && (arguments[0] == "--help" || arguments[0] == "-h") {
         println!(
             "Any command may start with --address-space-gib N (Linux address-space cap, default 64).
-omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <wpr|perf-stat|perf-record|selected-bodies> <new-result-directory>
+omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <wpr|perf-stat|perf-record|selected-bodies|stages> <new-result-directory>
 omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>]
 omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]
 omega-bench dominance-summary <graph-run-directory>

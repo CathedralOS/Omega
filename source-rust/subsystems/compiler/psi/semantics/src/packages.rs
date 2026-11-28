@@ -32,7 +32,7 @@ use construction::construction;
 use fields::{check_field_accesses, enters_package};
 use opening::{invocation, projection};
 pub use restoration::local_call_write_origins;
-pub(crate) use restoration::local_mutable_field_homes;
+pub(crate) use restoration::{local_mutable_field_homes, opened_call_homes};
 use substitution::Substitution;
 
 /// The hidden referent of the inline reference actually stored at this path.

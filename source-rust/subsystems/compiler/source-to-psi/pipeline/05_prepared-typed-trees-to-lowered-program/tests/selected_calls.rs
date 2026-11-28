@@ -57,6 +57,42 @@ fn call(kind: &OperationKind) -> (MachineId, &[ValueId], &[ObligationId]) {
     (*callee, arguments, requirement_obligations)
 }
 
+#[test]
+fn locally_opened_readers_borrow_their_own_captured_state() {
+    let source = r#"data File { byte: u8; }
+data Socket { port: u64; byte: u8; }
+data Read<S> = machine(input: @S) -> u8 reaches none crashes none;
+data Reader<'a, some S> [copy] { state: @'a S; read: Read<S>; }
+
+machine file_byte(input: @File) -> u8 { input.byte }
+machine socket_byte(input: @Socket) -> u8 {
+    transition input.byte == 41u8 { true -> 42u8, false -> 0u8 }
+}
+
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { port: 80u64, byte: 41u8 };
+    let file_reader: Reader = Reader { state: @file, read: file_byte };
+    let socket_reader: Reader = Reader { state: @socket, read: socket_byte };
+    let a: u8 = (file_reader.read)(file_reader.state);
+    let b: u8 = (socket_reader.read)(socket_reader.state);
+    transition a == 17u8 && b == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    Program::of(source).judged(|_| ()).accepted();
+
+    let crossed = source.replace(
+        "(file_reader.read)(file_reader.state)",
+        "(file_reader.read)(socket_reader.state)",
+    );
+    let Err(refusal) = Program::try_of(&[("main.omg", &crossed)]) else {
+        panic!("a callback cannot use another package's state")
+    };
+    assert!(refusal.message.contains("argument types"), "{refusal:?}");
+}
+
 const ECHO: &str = "machine echo(x: u8) -> u8 { x }
 machine after(a: u8, b: u8) -> u8 { a }
 machine before(a: u8, b: u8) -> u8 { b }
