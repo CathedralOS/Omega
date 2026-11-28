@@ -56,6 +56,7 @@ mod module_wire;
 mod obligation_evidence;
 mod sections;
 mod semantic_module;
+mod package_wire;
 mod service_schema_wire;
 #[cfg(test)]
 mod spec_tag_tables;
