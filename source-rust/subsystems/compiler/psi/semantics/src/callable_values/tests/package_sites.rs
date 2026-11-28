@@ -576,3 +576,62 @@ fn dependent_store_requires_a_projected_reference_from_its_destination_opening()
     };
     assert!(check_package_sites(&wrong).is_err());
 }
+
+#[test]
+fn an_opened_callback_retains_each_guarantee_under_its_own_obligation_id() {
+    let mut program = readers();
+    for (index, contract) in program.execution.callables.contracts.iter_mut().enumerate() {
+        for (offset, proposition) in [
+            semantic_vocabulary::Proposition::Truth,
+            semantic_vocabulary::Proposition::Falsehood,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            contract.proof.ensures.push(terminal_psi::ContractClause {
+                obligation: semantic_vocabulary::ObligationId::new(
+                    100 + index as u64 * 2 + offset as u64,
+                )
+                .unwrap(),
+                proposition,
+            });
+        }
+    }
+    let admit = |module: &TerminalModule| {
+        crate::calls::callable_refinement::validate_callable_evidence_contracts_in(
+            &module.execution.callables,
+            &module.proofs.proposition_declarations,
+            &module.proofs.proposition_applications,
+            &module.proofs.evidence_terms,
+            &module.proofs.evidence_contract_lanes,
+        )?;
+        check_package_sites(module).map(|_| ())
+    };
+    assert!(admit(&program).is_ok());
+    let public = program.execution.callables.contracts[0]
+        .proof
+        .ensures
+        .clone();
+    let opened = &program.execution.callables.contracts[1].proof.ensures;
+    let (first, second) = (opened[0].obligation, opened[1].obligation);
+    for (left, right) in [(first, first), (second, first)] {
+        let mut malformed = program.clone();
+        let clauses = &mut malformed.execution.callables.contracts[1].proof.ensures;
+        clauses[0].obligation = left;
+        clauses[1].obligation = right;
+        assert_eq!(
+            admit(&malformed),
+            Err("runtime callable guarantees are not in strict obligation order")
+        );
+    }
+    // Independent headers may reuse labels. Reusing the public label never
+    // establishes a different proposition or a missing guarantee.
+    program.execution.callables.contracts[1].proof.ensures = public;
+    assert!(admit(&program).is_ok());
+    let mut changed = program.clone();
+    changed.execution.callables.contracts[1].proof.ensures[0].proposition =
+        semantic_vocabulary::Proposition::Falsehood;
+    assert!(admit(&changed).is_err());
+    program.execution.callables.contracts[1].proof.ensures.pop();
+    assert!(admit(&program).is_err());
+}

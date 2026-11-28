@@ -795,6 +795,16 @@ pub fn validate_callable_evidence_contracts_in(
     lanes: &[EvidenceContractLane],
 ) -> Result<(), &'static str> {
     for contract in &catalog.contracts {
+        // A normal guarantee's label is scoped to this header. The producer
+        // assigns labels in declaration order, as it does for machine ensures.
+        if !contract
+            .proof
+            .ensures
+            .windows(2)
+            .all(|pair| pair[0].obligation < pair[1].obligation)
+        {
+            return Err("runtime callable guarantees are not in strict obligation order");
+        }
         let mut actual = lanes
             .iter()
             .filter(|lane| lane.owner == EvidenceCallableOwner::Runtime(contract.id))
