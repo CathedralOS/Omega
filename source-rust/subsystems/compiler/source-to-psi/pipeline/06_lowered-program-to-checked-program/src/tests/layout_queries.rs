@@ -34,6 +34,224 @@ fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
 }
 
 #[test]
+fn alignment_contracts_use_the_borrowed_location_across_a_call() {
+    let program = "machine measured(cell: @u64) -> u64
+            ensures result == align_of(cell) { align_of(cell) }
+        machine forward(first: @u64, second: @u64) -> u64
+            ensures result == align_of(first) { measured(@SUBJECT) }";
+    for (subject, same) in [("first", true), ("second", false)] {
+        let verdict = super::entryless::judged(&program.replace("SUBJECT", subject), false);
+        match verdict {
+            RouteVerdict::Accepted(_) if same => {}
+            RouteVerdict::Rejected { unproved, .. } if !same => assert!(
+                unproved.iter().any(|obligation| matches!(
+                    obligation.kind,
+                    ObligationKind::NormalGuarantee { .. }
+                )),
+                "distinct inputs need their own alignment proof: {unproved:?}",
+            ),
+            other => panic!("returning the alignment of {subject}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn slice_alignment_contracts_require_a_live_first_element() {
+    let program = "machine measured(cells: @[u64]) -> u64
+        GUARD
+        ensures result == align_of(cells) { align_of(cells) }
+        machine main() {
+            let words: [u64; 2] = [41u64, 42u64];
+            let window: @[u64] = @words[..];
+            let observed: u64 = measured(window);
+        }";
+    let guarded = super::entryless::judged(
+        &program.replace("GUARD", "requires cells.length > 0u64"),
+        false,
+    );
+    assert!(matches!(guarded, RouteVerdict::Accepted(_)), "{guarded:?}");
+    let unguarded = super::entryless::judged(&program.replace("GUARD", ""), false);
+    assert!(
+        matches!(&unguarded, RouteVerdict::Rejected { violations, .. }
+            if violations.iter().any(|row| row.statement.contains("contract index is not proved within its collection extent"))),
+        "{unguarded:?}"
+    );
+}
+
+#[test]
+fn a_lent_view_keeps_the_alignment_of_its_unchanged_backing() {
+    let program = "machine needs(values: @[u64])
+        requires values.length > 0u64, align_of(values) >= 8u64 {}
+        machine forward(values: VIEW_TYPE)
+        requires values.length > 0u64, align_of(values) >= 8u64 {
+            needs(values);
+        }";
+    for view_type in ["@[u64]", "@mutable [u64]"] {
+        let verdict = super::entryless::judged(&program.replace("VIEW_TYPE", view_type), false);
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{view_type}: {verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn a_fresh_local_can_meet_an_alignment_requirement_without_a_runtime_query() {
+    let program = "machine needs(cell: @u64) requires align_of(cell) >= REQUIRED {}
+        machine main() { let cell: u64 = 7u64; needs(@cell); }";
+    for (bound, accepted) in [("8u64", true), ("16u64", false)] {
+        let verdict = super::entryless::judged(&program.replace("REQUIRED", bound), false);
+        match verdict {
+            RouteVerdict::Accepted(_) if accepted => {}
+            RouteVerdict::Rejected { unproved, .. } if !accepted => {
+                assert!(!unproved.is_empty(), "the call needs a larger alignment");
+            }
+            other => panic!("fresh u64 storage with required alignment {bound}: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn alignment_floors_are_replayed_from_the_consumers_formed_observations() {
+    let source = "machine need(value: @u64) requires align_of(value) >= 1u64 {}
+        public machine forward(first: @u64, second: @u64) requires true {
+            need(@first); need(@second);
+        }
+        public machine main() {
+            let a: u64 = 7u64;
+            let b: u64 = 9u64;
+            forward(@a, @b);
+        }";
+    let program = super::calling_policies::prepared(
+        super::build_purpose::frontier_of(source, "machine unused_build() {}"),
+        &["main"],
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let Ok(RouteVerdict::Accepted(mut accepted)) = crate::judge_compilation(program).remove(0)
+    else {
+        panic!("every live alignment is positive without an executable query");
+    };
+    let machine = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .find(|machine| machine.structural_parameters.len() == 2)
+        .expect("forward has both structural inputs")
+        .id;
+    let tables = accepted.elaboration.tables.machines.get(machine).unwrap();
+    let verdicts = &accepted.discharge.machines.get(machine).unwrap().verdicts;
+    let calls: Vec<_> = tables
+        .obligations
+        .iter()
+        .filter(|(_, row)| matches!(row.kind, ObligationKind::CallRequirement { .. }))
+        .map(|(id, _)| {
+            let Ok(Discharged::Certificate(evidence)) = verdicts.get(id).unwrap() else {
+                panic!("the borrowed floor requires replayable evidence");
+            };
+            (id, evidence.certificate.clone())
+        })
+        .collect();
+    let [(first, first_proof), (second, second_proof)] = calls.as_slice() else {
+        panic!("expected the two calls of need");
+    };
+    // Receive the machine and its two location names afresh. The saved
+    // certificate supplies no assumptions or facts about either input.
+    let publication = accepted.publish().unwrap();
+    accepted.elaboration.module =
+        terminal_codec::decode_module(publication.artifact.semantic_bytes()).unwrap();
+    for (_, tables) in accepted.elaboration.tables.machines.iter_mut() {
+        tables.knowledge = IdTable::default();
+    }
+    let mut activity = crate::ProofSearchActivity::default();
+    let mut consumer = crate::prepare_replay(&mut accepted.elaboration, &mut activity).unwrap();
+    crate::reverify(&mut consumer, machine, *first, first_proof, &mut activity).unwrap();
+    crate::reverify(&mut consumer, machine, *second, second_proof, &mut activity).unwrap();
+    let mut wrong = second_proof.clone();
+    wrong.proof = first_proof.proof.clone();
+    assert!(crate::reverify(&mut consumer, machine, *second, &wrong, &mut activity).is_err());
+    let mut unrelated = second_proof.clone();
+    unrelated.proof.rule = proof_admission::ProofRule::SemanticAxiom { index: usize::MAX };
+    assert!(crate::reverify(&mut consumer, machine, *second, &unrelated, &mut activity).is_err());
+}
+
+#[test]
+fn only_the_location_alignment_has_an_intrinsic_positive_bound() {
+    let source = "machine need(value: @u64) requires align_of(value) >= FLOOR {}
+        public machine forward(value: @u64) requires true { need(@value); }";
+    let strict = super::entryless::judged(
+        &source.replace("align_of(value) >= FLOOR", "0u64 < align_of(value)"),
+        false,
+    );
+    assert!(matches!(strict, RouteVerdict::Accepted(_)), "{strict:?}");
+    let stronger = super::entryless::judged(&source.replace("FLOOR", "2u64"), false);
+    assert!(matches!(stronger, RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))));
+
+    let field_value = super::entryless::judged(
+        "public data Cell { word: u64; }
+         machine need(cell: @Cell) requires cell.word >= 1u64 {}
+         public machine forward(cell: @Cell) requires true { need(@cell); }",
+        false,
+    );
+    assert!(
+        matches!(field_value, RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })))
+    );
+}
+
+#[test]
+fn contract_arithmetic_uses_the_floor_of_a_formed_alignment() {
+    let program = "public machine limited(value: @u64)
+        requires align_of(value) - DECREMENT <= 64u64 {}";
+    let valid = super::entryless::judged(&program.replace("DECREMENT", "1u64"), false);
+    assert!(matches!(valid, RouteVerdict::Accepted(_)), "{valid:?}");
+    let underflow = super::entryless::judged(&program.replace("DECREMENT", "2u64"), false);
+    assert!(
+        matches!(underflow, RouteVerdict::Rejected { violations, .. }
+        if violations.iter().any(|row| row.statement.contains("contract arithmetic is not proved total before its condition")))
+    );
+}
+
+#[test]
+fn writing_the_field_contents_preserves_its_alignment() {
+    let program = "data Cell { word: u64; }
+        machine measured(word: @u64) -> u64
+        ensures result == align_of(word) { align_of(word) }
+        machine change(cell: @mutable Cell) -> u64
+        ensures result == align_of(cell.word) {
+            let before: u64 = measured(@cell.word);
+            cell.word = 27u64;
+            before
+        }";
+    let verdict = super::entryless::judged(program, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn replacing_a_reference_cannot_transfer_the_previous_alignment() {
+    let program = "data Cell { word: u64; }
+        data Borrowed<'storage> { cell: @'storage Cell; }
+        machine choose<'storage>(left: @'storage Cell, right: @'storage Cell) -> u64
+        ensures result == align_of(right) {
+            let mutable selected: Borrowed = Borrowed { cell: left };
+            let before: u64 = align_of(selected.cell);
+            selected.cell = right;
+            before
+        }";
+    let verdict = super::entryless::judged(program, false);
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("replacing the descriptor cannot change an earlier observation: {verdict:?}");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. })),
+        "{unproved:?}"
+    );
+}
+
+#[test]
 fn a_live_field_only_proves_the_alignment_its_allocation_preserves() {
     let program = "data Slots { tag: u8; value: u64; }
         machine main() -> u64 {

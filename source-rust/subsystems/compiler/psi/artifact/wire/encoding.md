@@ -55,6 +55,10 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 307 adds the terminal alignment observation to scalar-read paths. Readers
+check the marker before decoding the module. Rebuild earlier artifacts for this
+format.
+
 Marker 306 adds typed native address borrows (operation 145), mutability
 upgrades (146), and upgraded parameter origins (reference source tag 3).
 The reader rejects earlier markers before reading the payload.
@@ -817,6 +821,9 @@ spelling is noncanonical and rejects rather than selecting another dialect.
 Tag `6` is `Extent`, has no payload, and ends the path by observing the
 selected readable byte/element descriptor's current `u64` count. A scalar or
 fixed-array leaf cannot supply a live descriptor extent.
+Tag `7` is `Alignment`. It has no payload and ends a path at addressable storage.
+It returns the live location's guaranteed alignment as a `u64`. Indirection and
+the selection of the first element of a nonempty slice are explicit path steps.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.
@@ -3383,7 +3390,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 306 | yes |
+| semantic module | `PSITERM\0` | 307 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
