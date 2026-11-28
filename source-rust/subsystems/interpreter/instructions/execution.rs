@@ -3950,14 +3950,8 @@ pub(crate) mod execution {
                     {
                         return meter_status(error);
                     }
-                    let selected;
-                    let operation = if operation.kind.runtime_indexes().is_empty() {
-                        operation
-                    } else {
-                        selected = self.select_runtime_elements(operation)?;
-                        &selected
-                    };
-                    self.validate_case_projections(operation)?;
+                    let selected = self.select_operation_projections(operation)?;
+                    let operation = selected.as_ref();
                     if self.call_observations.is_some()
                         && let Some(call) = terminal_psi::direct_call_parts(&operation.kind)
                     {
