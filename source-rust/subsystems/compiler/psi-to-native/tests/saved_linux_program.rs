@@ -110,7 +110,7 @@ fn published_target_entry_emits_linux_image() {
     let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
     assert_eq!(
         artifact.manifest().identity().to_string(),
-        "67268445edac7ec0ae98551c78b06207173c16ef2ad7f934c33e683c02d44274"
+        "e1b11e284ffab0a3f7ec76ac14d3b8c4ed1e9027db40132b803b9522ce100aa5"
     );
     let entry = artifact
         .semantic_module()

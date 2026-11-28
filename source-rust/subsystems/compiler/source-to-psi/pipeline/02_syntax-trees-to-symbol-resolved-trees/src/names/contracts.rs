@@ -40,6 +40,7 @@ pub(super) fn assign_contract_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     new_runtime_contracts: &[RuntimeCallableContractHandle],
+    openings: &super::runtime_callable_types::CallableOpenings,
 ) -> Result<(), Vec<Diagnostic>> {
     let conformance_scopes = super::scopes::DeclarationTypeScopes::of(program)?;
     // A retained contract already has its names bound. Its original owner
@@ -47,15 +48,11 @@ pub(super) fn assign_contract_reference_symbols(
     let runtime_scopes = new_runtime_contracts
         .iter()
         .map(|&handle| {
-            let declaration = program
-                .tables
-                .declarations
-                .runtime_callable_contracts
-                .get(handle);
-            super::runtime_callable_types::lexical_parameters(
+            super::runtime_callable_types::callable_parameters(
                 program,
                 &conformance_scopes,
-                declaration.lexical_owner,
+                openings,
+                handle,
             )
             .map(|parameters| (handle, parameters))
             .map_err(|error| vec![error])

@@ -18,18 +18,23 @@ pub use expressions::{
     PackageReviewOperatorCoordinate, PackageReviewReferenceAccess,
 };
 pub(crate) use expressions::{
-    PackageReviewAtomicLoadOrdering, PackageReviewConstructorField,
-    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
-    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator, PackageReviewMatchArm,
+    PackageReviewAtomicLoadOrdering, PackageReviewContractEvidenceArgument,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
     PackageReviewOperatorRealization,
 };
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use expressions::{
+    PackageReviewConstructorField, PackageReviewContractEvidenceTerm, PackageReviewMatchArm,
+};
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use propositions::PackageReviewPropositionBinderArgument;
 pub use propositions::{PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement};
 pub(crate) use propositions::{
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
-    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
-    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+    PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewPropositionParameterApplication, PackageReviewPropositionShape,
+    PackageReviewPublicPropositionBody,
 };
 
 // Stable public constant declaration shapes (`PackageReviewConstShape`).

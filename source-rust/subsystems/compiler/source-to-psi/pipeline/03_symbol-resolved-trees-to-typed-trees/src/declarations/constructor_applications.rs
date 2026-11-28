@@ -941,6 +941,9 @@ fn infer(
     if !program.expression_table.expression_is_valid(value) {
         return Ok(None);
     }
+    if let Some(projection) = program.package_projection(value) {
+        return Ok(Some(projection.result_type));
+    }
     let retained = program
         .expression_table
         .constructed_value_type_reference(value);

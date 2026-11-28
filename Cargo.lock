@@ -27,6 +27,8 @@ dependencies = [
  "function-identity",
  "language-core",
  "legalized-operations",
+ "native-body-plan",
+ "native-body-plan-issuer",
  "operation-evidence",
  "optimization-core",
  "optimization-unit",
@@ -136,19 +138,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-swap"
-version = "1.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c049c0be4daef0b145cb3555416b3b8ef5b7888a38aea1a3a155801fe7b0810b"
-dependencies = [
- "rustversion",
-]
-
-[[package]]
 name = "arena"
 version = "0.1.0"
 dependencies = [
- "arc-swap",
  "record-storage",
 ]
 
@@ -413,6 +405,7 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "language-core",
  "layout-planning",
  "layout-plans",
  "runtime-abi",
@@ -1412,6 +1405,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-body-plan"
+version = "0.1.0"
+dependencies = [
+ "function-identity",
+ "legalized-operations",
+ "native-body-plan-issuer",
+ "optimization-core",
+ "verified-optimization-input",
+]
+
+[[package]]
+name = "native-body-plan-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
@@ -1524,9 +1532,12 @@ dependencies = [
  "diagnostics",
  "function-identity",
  "native-execution-reach",
+ "operation-operands",
  "provider-correspondence",
  "psi-target-layouts",
+ "register-environment",
  "semantic-vocabulary",
+ "target",
  "target-bound-program",
  "terminal-codec",
  "terminal-psi",
@@ -1622,7 +1633,6 @@ dependencies = [
 name = "normalized-build-settings"
 version = "0.1.0"
 dependencies = [
- "build-model",
  "optimization-selections",
  "target",
 ]
@@ -2645,12 +2655,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustversion"
-version = "1.0.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
-
-[[package]]
 name = "schema-reflection"
 version = "0.1.0"
 dependencies = [
@@ -3274,6 +3278,7 @@ dependencies = [
  "direct-boundary-bindings",
  "native-execution-reach",
  "native-intrinsics",
+ "operation-operands",
  "program-entry-contracts",
  "provider-correspondence",
  "psi-authorization",
@@ -3350,6 +3355,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
+ "native-body-plan",
  "operation-evidence",
  "operation-operands",
  "optimization-core",

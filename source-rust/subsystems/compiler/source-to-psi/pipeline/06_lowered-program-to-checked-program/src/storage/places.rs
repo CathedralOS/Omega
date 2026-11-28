@@ -431,6 +431,36 @@ fn case_name(names: &[CaseName], place: ExactPlaceId, case: StructuralCaseId) ->
         .map(|found| names[found].value)
 }
 
+/// The names of one sum arrive in increasing value order from `initial_contents`.
+/// Both the disjunction and every exclusion therefore have canonical operand order.
+fn sum_case_premises(names: &[CaseName]) -> impl Iterator<Item = Proposition> {
+    let holds = |name: &CaseName, value| {
+        Proposition::Equal(
+            ScalarTerm::value(name.value, ScalarType::Boolean),
+            ScalarTerm::Boolean(value),
+        )
+    };
+    let some = match names {
+        [only] => holds(only, true),
+        _ => Proposition::Disjunction(names.iter().map(|name| holds(name, true)).collect()),
+    };
+    let exclusions = (0..names.len()).filter_map(move |chosen| {
+        let conclusion = match names {
+            [_] => return None,
+            [_, _] => holds(&names[1 - chosen], false),
+            _ => {
+                let others = names[..chosen].iter().chain(&names[chosen + 1..]);
+                Proposition::Conjunction(others.map(|name| holds(name, false)).collect())
+            }
+        };
+        Some(Proposition::Implication {
+            premise: Box::new(holds(&names[chosen], true)),
+            conclusion: Box::new(conclusion),
+        })
+    });
+    std::iter::once(some).chain(exclusions)
+}
+
 fn initial_contents(
     machine: MachineId,
     tables: &MachineTables,
@@ -4742,25 +4772,19 @@ impl<'a> Storage<'a> {
     /// holds, and each excludes the others. Each premise is available where
     /// its names are bound: at entry, by the formal's declared type, and on a
     /// call's normal continuation, by what the call establishes.
-    pub(crate) fn case_name_premises(
-        &self,
+    pub(crate) fn case_name_premises<'s>(
+        &'s self,
         tables: &MachineTables,
-    ) -> Checked<Vec<(ProgramPoint, Option<OperationId>, Proposition)>> {
-        let holds = |name: &CaseName, holds: bool| {
-            Proposition::Equal(
-                ScalarTerm::value(name.value, ScalarType::Boolean),
-                ScalarTerm::Boolean(holds),
-            )
-        };
-        let mut premises = Vec::new();
+    ) -> Checked<impl Iterator<Item = (ProgramPoint, Option<OperationId>, Proposition)> + use<'s>>
+    {
+        let mut validated = Vec::new();
         let boundaries = std::iter::once((None, self.entry_case_names.as_slice())).chain(
             self.returned_case_names
                 .iter()
                 .enumerate()
-                .filter(|(_, names)| !names.is_empty())
                 .map(|(position, names)| (Some(position), names.as_slice())),
         );
-        for (call, names) in boundaries {
+        for (call, names) in boundaries.filter(|(_, names)| !names.is_empty()) {
             let after = call
                 .map(|position| {
                     u64::try_from(position + 1)
@@ -4790,40 +4814,17 @@ impl<'a> Storage<'a> {
                 if cases.len() != sum.len() {
                     return Err(self.foreign(concerns, "a sum's case names omit a declared case"));
                 }
-                let mut some = sum.iter().map(|name| holds(name, true)).collect::<Vec<_>>();
-                some.sort();
-                premises.push((
-                    point,
-                    after,
-                    match some.len() {
-                        1 => some.remove(0),
-                        _ => Proposition::Disjunction(some),
-                    },
-                ));
-                for name in sum {
-                    let mut others = sum
-                        .iter()
-                        .filter(|other| other.case != name.case)
-                        .map(|other| holds(other, false))
-                        .collect::<Vec<_>>();
-                    others.sort();
-                    let conclusion = match others.len() {
-                        0 => continue,
-                        1 => others.remove(0),
-                        _ => Proposition::Conjunction(others),
-                    };
-                    premises.push((
-                        point,
-                        after,
-                        Proposition::Implication {
-                            premise: Box::new(holds(name, true)),
-                            conclusion: Box::new(conclusion),
-                        },
-                    ));
-                }
             }
+            validated.push((point, after, names));
         }
-        Ok(premises)
+        // Validate all boundaries before publishing knowledge. Borrow their names
+        // so the proposition table can take each tree as soon as it is built.
+        Ok(validated.into_iter().flat_map(|(point, after, names)| {
+            names
+                .chunk_by(|left, right| left.place == right.place)
+                .flat_map(sum_case_premises)
+                .map(move |premise| (point, after, premise))
+        }))
     }
 
     /// A membership test of a sum that still holds the case it held at a

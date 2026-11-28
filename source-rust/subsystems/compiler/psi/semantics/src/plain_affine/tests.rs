@@ -914,6 +914,62 @@ fn a_borrowed_successor_keeps_its_owned_backing_until_the_last_use() {
 }
 
 #[test]
+fn a_backedge_keeps_candidate_and_backing_uses_live_until_their_definition() {
+    use crate::reference_ends::{Candidate, Candidates};
+    use terminal_psi::{Block, Operation, OperationKind, OperationResult, Terminator};
+
+    let mut machine = transferring(&[id(3), id(3)], &[id(3)], Vec::new());
+    let jump = |edge, target, places: &[u64]| Terminator::Jump {
+        edge: id(edge),
+        target: id(target),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: places
+            .iter()
+            .map(|&place| StructuralArgument::whole(id(place), StructuralAccess::Owned))
+            .collect(),
+        cleanup_actions: Vec::new(),
+    };
+    machine.blocks[0].terminator = jump(1, 2, &[1]);
+    machine.blocks[1].terminator = jump(2, 3, &[]);
+    machine.blocks[1].operations.push(Operation::unsuspended(
+        id(1),
+        OperationResult::Scalar(terminal_psi::ValueDeclaration {
+            id: id(1),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        }),
+        OperationKind::BooleanConstant { value: true },
+    ));
+    machine
+        .blocks
+        .push(Block::plain(id(3), vec![], jump(3, 2, &[3])));
+
+    // Block 3 forwards the header (place 3) back to block 2, where a new
+    // binding begins. The use of place 2 in block 2 must reach block 3.
+    let candidates = Candidates::from([(
+        (id(2), 0),
+        vec![Candidate {
+            argument: StructuralArgument::whole(id(2), StructuralAccess::Owned),
+            unproved_case: None,
+        }],
+    )]);
+    let backing = [((id(2), 1), vec![id(2)])].into();
+    for (candidates, backing, live_across_loop) in [
+        (None, &Default::default(), false),
+        (Some(&candidates), &Default::default(), true),
+        (None, &backing, true),
+    ] {
+        let live = live_entries(&machine, &[], candidates, backing).unwrap();
+        assert_eq!(live[2].contains(id(2)), live_across_loop);
+        assert_eq!(live[0].contains(id(2)), live_across_loop);
+        assert!(live[2].contains(id(3)));
+        assert!(!live[1].contains(id(3)));
+    }
+}
+
+#[test]
 fn a_dead_borrowed_header_can_rejoin_a_path_that_never_entered_it() {
     use terminal_psi::{
         Block, BoundaryParameterKind, Operation, OperationKind, OperationResult, SuccessorEdge,

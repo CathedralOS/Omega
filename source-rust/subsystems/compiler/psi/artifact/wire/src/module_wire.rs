@@ -3925,6 +3925,7 @@ module_wire_record! {
         execution: terminal_psi::ExecutionDeclarations {
             dynamic_dispatch,
             callables,
+            packages,
             unoptimized_behavior,
             declaration_contracts,
             suspension_call_plan_count,
@@ -4013,6 +4014,7 @@ module_wire_record! {
     installed_interrupt_registrations: List<installed_interrupt_wire::Registration>,
     boundary_application_candidates: List<BoundaryCandidate>,
     task_activation_demands: List<task_activation_wire::Demand>,
+    packages: crate::package_wire::Catalog,
 }
 
 wire_record! {

@@ -392,17 +392,20 @@ pub(crate) mod optimized {
             None
         };
         let machine = facts.program.entry;
-        let facts = crate::BodyPublication::new(facts, original_for_audit).map_err(|reason| {
-            LoweringError::Publication {
-                machine,
-                reason: reason.into(),
-            }
+        let facts = verified_optimization_input::publication::target_replay::BodyPublication::new(
+            facts,
+            original_for_audit,
+        )
+        .map_err(|reason| LoweringError::Publication {
+            machine,
+            reason: reason.into(),
         })?;
-        Ok(crate::NativeBodyPlan {
+        Ok(crate::NativeBodyPlan::from_lowering(
+            native_body_plan_issuer::TARGET_LOWERING,
             selection,
             facts,
             private_references,
-        })
+        ))
     }
 
     /// Finish the stage: join the lowered target operations to the optimized

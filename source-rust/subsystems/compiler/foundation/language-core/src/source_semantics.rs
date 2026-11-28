@@ -129,6 +129,7 @@ pub enum LocalBindingRole {
     #[default]
     Value,
     DispatchSubject, // Evaluates subject before arm selection; typed preparation chooses copy or place observation.
+    AssemblyRegister, // A physical register is unavailable until the entry plan or an instruction initializes it.
     AtomicObservedResult, // Reserved immutable binding established by the associated atomic event.
     RecordPattern,
     ArmPattern,
@@ -144,6 +145,7 @@ impl LocalBindingRole {
                 | Self::DispatchSubject
                 | Self::DispatchObservation
                 | Self::AtomicObservedResult
+                | Self::AssemblyRegister
         )
     }
 

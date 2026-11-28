@@ -19,11 +19,11 @@ pub(crate) use external_policy::{
 pub(crate) use external_supply::PackageReviewExternalCallableParameter;
 pub use external_supply::PackageReviewForeignLocator;
 
+pub(crate) use signature_vocabulary::PackageReviewPropositionParameterSignature;
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use signature_vocabulary::PackageReviewPropositionParameterValue;
 pub use signature_vocabulary::{
     PackageReviewConformanceBound, PackageReviewSignatureParameter, PackageReviewTypeIdentity,
-};
-pub(crate) use signature_vocabulary::{
-    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
 };
 
 pub use traits::{
