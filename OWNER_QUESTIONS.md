@@ -65,36 +65,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. May a proof that a same-carrier integer `==` is true supply kernel `Identity` of its operands?
-
-A comparison-implies-identity law over integer fields cannot be proved today.
-Take `CoinByValue satisfies EqualImpliesIdentity<Coin>`, whose `equals`
-ensures `result == (left.value == right.value)`. The law's body receives the
-premise `equals(@left, @right)`, the repeated call's congruence with it, and
-that guarantee. The identity prover builds the record's `Identity` from field
-identities in the mathematical kernel. There, `left.value == right.value` is
-an opaque Boolean constant, so its truth never yields
-`Identity::<i32>(left.value, right.value)`. A Boolean comparison is also kept
-from standing in for kernel `Id` when Id formations are received.
-Synthesized bridges over integer fields hit the same limit.
-[Identity prover](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/proofs/equality.rs) ·
-[Id formation receiving](source-rust/subsystems/compiler/psi/artifact/wire/src/identity_formations.rs)
-
-The language rule is stated. [Equality bridges](wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
-"Same-carrier integer equality can support both directions."
-[Integer goals and certificates](wiki/spec/terminal-psi/integer_certificates.md#comparison-denotations):
-"Builtin fixed-integer comparisons ... denote the exact mathematical
-relation between the original operands." Neither document gives a
-certificate rule that carries that denotation into kernel `Identity`, and
-[record identity from field identities](wiki/spec/proofs/contracts.md#record-identity-from-field-identities)
-accepts only identity evidence for each field. Checked: those three
-sections, the elementary certificate rules, and the Id formation receiving
-code.
-
-Recommendation: yes. Add an elementary rule for a true same-carrier,
-non-address fixed-integer `x == y`. The checker and the receiving verifier
-would both admit a kernel `Identity` of `x` and `y`. The converse would be
-derived the same way. Cross-carrier comparisons, address carriers and IEEE
-`==` stay excluded. Without the rule, such laws stay unprovable over integer
-fields, and synthesis of either direction for records of integers stays
-blocked.
+None.
