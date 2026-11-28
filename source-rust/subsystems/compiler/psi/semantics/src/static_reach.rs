@@ -448,6 +448,7 @@ pub fn template_commitment<'identity>(
     projections: impl IntoIterator<Item = (u32, &'identity str)>,
     invocations: &[terminal_psi::TerminalCallableInvocation],
     service_identity: impl Fn(ServiceId) -> Option<&'identity str>,
+    path_commitment: impl Fn(u32, &[terminal_psi::StructuralPathSegment]) -> Result<[u8; 32]>,
 ) -> Result<[u8; 32]> {
     let mut services = fixed
         .iter()
@@ -476,12 +477,17 @@ pub fn template_commitment<'identity>(
     let mut entries = invocations
         .iter()
         .map(|entry| match entry {
-            terminal_psi::TerminalCallableInvocation::Parameter(position) => Ok((0, *position, "")),
+            terminal_psi::TerminalCallableInvocation::Parameter(position) => {
+                Ok((0, *position, Vec::new()))
+            }
             terminal_psi::TerminalCallableInvocation::Service(service) => {
                 service_identity(*service)
                     .filter(|identity| !identity.is_empty())
-                    .map(|identity| (1, 0, identity))
+                    .map(|identity| (1, 0, identity.as_bytes().to_vec()))
                     .ok_or("generic invocation has no exact service identity")
+            }
+            terminal_psi::TerminalCallableInvocation::ParameterPath { parameter, path } => {
+                Ok((2, *parameter, path_commitment(*parameter, path)?.to_vec()))
             }
         })
         .collect::<Result<Vec<_>>>()?;
@@ -491,7 +497,7 @@ pub fn template_commitment<'identity>(
     for (kind, position, identity) in entries {
         digest.raw(&[kind]);
         digest.raw(&position.to_le_bytes());
-        digest.bytes(identity.as_bytes());
+        digest.bytes(&identity);
     }
     digest.len(projections.len());
     for (parameter, identity) in projections {

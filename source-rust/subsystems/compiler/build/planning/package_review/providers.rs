@@ -1259,6 +1259,9 @@ impl PolicySource<'_> {
                 TerminalCallableInvocation::Parameter(position) => {
                     Ok(ServiceSynchronousInvocation::Parameter(*position))
                 }
+                TerminalCallableInvocation::ParameterPath { .. } => Err(unavailable(
+                    "the selected service schema's invoked callback field",
+                )),
                 TerminalCallableInvocation::Service(service) => declarations
                     .surface_service_name(*service)
                     .map(ServiceSynchronousInvocation::Service),
