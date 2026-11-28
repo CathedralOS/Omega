@@ -98,7 +98,12 @@ impl AddressReturnBody {
             expired |= origin.expired;
             for source in origin.sources {
                 match source {
-                    ReturnedStorage::Borrowed { ordinal, path } => {
+                    ReturnedStorage::Borrowed {
+                        ordinal,
+                        path,
+                        exact: precise,
+                    } => {
+                        exact &= precise;
                         exact &= StorageInput::join(&mut storage, ordinal, path)
                     }
                     ReturnedStorage::Local => expired = true,

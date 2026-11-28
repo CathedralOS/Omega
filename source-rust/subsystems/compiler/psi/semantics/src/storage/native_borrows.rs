@@ -238,7 +238,13 @@ fn terminal_home(
     };
     match &operation.kind {
         OperationKind::EstablishPrimitiveLocal { .. }
-        | OperationKind::EstablishStructuralLocal { .. } => StorageHome::Local(ty),
+        | OperationKind::EstablishStructuralLocal { .. }
+        | OperationKind::EstablishZeroedStructural { .. }
+        | OperationKind::EstablishRecord { .. }
+        | OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishStructuralCase { .. }
+        | OperationKind::EstablishScalarArray { .. }
+        | OperationKind::EstablishStructuralArray { .. } => StorageHome::Local(ty),
         OperationKind::EstablishReference {
             source,
             storage: None,
