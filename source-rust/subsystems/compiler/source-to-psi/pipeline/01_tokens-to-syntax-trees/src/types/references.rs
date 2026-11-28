@@ -32,32 +32,45 @@ pub(crate) fn parse_static_name<'tokens, 'source>(
     Ok((Identifier::new(name, source_span), input))
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypePosition {
+    Ordinary,
+    BindingAnnotation,
+    WithoutDomainSuffix,
+}
+
+pub(crate) fn parse_binding_type_reference<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    parse_type_reference_in(syntax_trees, input, TypePosition::BindingAnnotation)
+}
+
 pub(crate) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    parse_type_reference_handle_with_trailing_domain(syntax_trees, input, true)
+    parse_type_reference_in(syntax_trees, input, TypePosition::Ordinary)
 }
 
 pub(crate) fn parse_cast_target_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    parse_type_reference_handle_with_trailing_domain(syntax_trees, input, false)
+    parse_type_reference_in(syntax_trees, input, TypePosition::WithoutDomainSuffix)
 }
 
-fn parse_type_reference_handle_with_trailing_domain<'tokens, 'source>(
+fn parse_type_reference_in<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    allow_trailing_domain: bool,
+    position: TypePosition,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     let outer_depth = input.depth();
     // Every expression a type contains (an array extent, a constant
     // argument, a range bound) is a constant position.
     let outer_constant = input.constant_position();
     let input = input.with_constant_position(true).deepen()?;
-    let (type_reference, rest) =
-        parse_type_reference_handle_inner(syntax_trees, input, allow_trailing_domain)?;
+    let (type_reference, rest) = parse_type_reference_handle_inner(syntax_trees, input, position)?;
     Ok((
         type_reference,
         rest.with_depth(outer_depth)
@@ -68,10 +81,10 @@ fn parse_type_reference_handle_with_trailing_domain<'tokens, 'source>(
 fn parse_type_reference_handle_inner<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    allow_trailing_domain: bool,
+    position: TypePosition,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     if input.at_punctuation(PunctuationKind::At) {
-        return parse_borrow_type_reference(syntax_trees, input, allow_trailing_domain);
+        return parse_borrow_type_reference(syntax_trees, input, position);
     }
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
@@ -130,7 +143,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                     element_type,
                     length,
                 });
-            return if allow_trailing_domain {
+            return if position != TypePosition::WithoutDomainSuffix {
                 apply_in_domain_suffix(syntax_trees, array, input)
             } else {
                 Ok((array, input))
@@ -142,7 +155,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             .insert(TypeReferenceNode::Slice { element_type });
 
         let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-        return if allow_trailing_domain {
+        return if position != TypePosition::WithoutDomainSuffix {
             apply_in_domain_suffix(syntax_trees, type_reference, input)
         } else {
             Ok((type_reference, input))
@@ -165,8 +178,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     let authored = input;
     let checkpoint = syntax_trees.append_checkpoint();
     let (base_name, input) = parse_static_name(input)?;
-    let (reference, rest) =
-        parse_named_type_reference(syntax_trees, base_name, input, allow_trailing_domain)?;
+    let (reference, rest) = parse_named_type_reference(syntax_trees, base_name, input, position)?;
     if !rest.at_path_member() {
         return Ok((reference, rest));
     }
@@ -182,7 +194,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     let reference = syntax_trees
         .type_references
         .insert(TypeReferenceNode::StaticSelection(selection));
-    if allow_trailing_domain {
+    if position != TypePosition::WithoutDomainSuffix {
         apply_in_domain_suffix(syntax_trees, reference, rest)
     } else {
         Ok((reference, rest))
@@ -193,7 +205,7 @@ pub(crate) fn parse_named_type_reference<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     base_name: Identifier,
     mut input: Input<'tokens, 'source>,
-    allow_trailing_domain: bool,
+    position: TypePosition,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     let type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
@@ -218,7 +230,22 @@ pub(crate) fn parse_named_type_reference<'tokens, 'source>(
                 continue;
             }
 
-            let (argument, rest) = parse_static_argument_reference(syntax_trees, input)?;
+            let (argument, rest) = if input.at_contextual_then_name("some") {
+                if position != TypePosition::BindingAnnotation {
+                    return Err(input.error_here(
+                        "a `some` opening belongs to a parameter or local annotation",
+                    ));
+                }
+                let (name, rest) = input.take_contextual("some")?.take_identifier()?;
+                (
+                    syntax_trees
+                        .type_references
+                        .insert(TypeReferenceNode::SomeOpening(name)),
+                    rest,
+                )
+            } else {
+                parse_static_argument_reference(syntax_trees, input)?
+            };
             arguments.push(argument);
             input = rest;
             let Some(next) = input.take_comma()? else {
@@ -269,7 +296,7 @@ pub(crate) fn parse_named_type_reference<'tokens, 'source>(
         ));
     }
 
-    let (type_reference, input) = if allow_trailing_domain {
+    let (type_reference, input) = if position != TypePosition::WithoutDomainSuffix {
         apply_in_domain_suffix(syntax_trees, type_reference, input)?
     } else {
         (type_reference, input)
@@ -414,13 +441,13 @@ pub(crate) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    parse_borrow_type_reference(syntax_trees, input, true)
+    parse_borrow_type_reference(syntax_trees, input, TypePosition::Ordinary)
 }
 
 fn parse_borrow_type_reference<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-    allow_trailing_domain: bool,
+    position: TypePosition,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     let (is_reference, lifetime, access, input) = if input.at_punctuation(PunctuationKind::At) {
         let input = input.take_punctuation(PunctuationKind::At, "@")?;
@@ -437,11 +464,7 @@ fn parse_borrow_type_reference<'tokens, 'source>(
         (false, None, language_core::ReferenceAccess::Shared, input)
     };
 
-    let (type_reference, input) = parse_type_reference_handle_with_trailing_domain(
-        syntax_trees,
-        input,
-        allow_trailing_domain,
-    )?;
+    let (type_reference, input) = parse_type_reference_in(syntax_trees, input, position)?;
     let type_reference = if is_reference {
         syntax_trees
             .type_references

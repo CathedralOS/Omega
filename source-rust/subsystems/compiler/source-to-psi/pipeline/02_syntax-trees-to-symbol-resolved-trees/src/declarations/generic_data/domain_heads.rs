@@ -192,6 +192,7 @@ pub(crate) fn normalize(
                 }
                 TypeReferenceNode::Named(_)
                 | TypeReferenceNode::ConstExpression(_)
+                | TypeReferenceNode::SomeOpening(_)
                 | TypeReferenceNode::Unit => {}
             }
         }

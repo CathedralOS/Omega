@@ -450,6 +450,10 @@ fn lower_type_reference_node(
             symbol: SymbolHandle::invalid(),
             name: lower_name(syntax_trees, name),
         }),
+        TypeReferenceNode::SomeOpening(name) => Err(Diagnostic::error(
+            "a named opening must refer to the package value's declared `some` position",
+        )
+        .with_source_span(name.source_span())),
         TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }?;
     let input = syntax_type_references(syntax_trees)

@@ -1199,7 +1199,7 @@ mod type_structure {
                     );
                 }
             }
-            TypeReferenceNode::Unit => {}
+            TypeReferenceNode::SomeOpening(_) | TypeReferenceNode::Unit => {}
         }
     }
 
