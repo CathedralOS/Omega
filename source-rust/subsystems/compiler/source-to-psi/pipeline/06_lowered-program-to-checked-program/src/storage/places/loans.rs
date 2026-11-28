@@ -127,6 +127,64 @@ enum Ancestry {
 }
 
 impl Formed {
+    /// During one call, a reference held in a borrowed record may be
+    /// reborrowed through the local descriptor that actually holds its
+    /// exclusive loan. The field still supplies its own checked input loan.
+    fn borrows_stored_input_through(&self, carrier: &Formed) -> bool {
+        if self.invocation.is_none()
+            || self.lifetime.is_some()
+            || self.returned_by.is_some()
+            || self.lender != Lender::Incoming
+            || !self.permitted
+            || carrier.invocation.is_some()
+            || carrier.access != ReferenceAccess::Mutable
+        {
+            return false;
+        }
+        let (Some(source), Some(live)) = (&self.from, &carrier.lifetime) else {
+            return false;
+        };
+        let [
+            DescriptorPathSegment::Referent,
+            DescriptorPathSegment::Field(field),
+        ] = source.path.as_slice()
+        else {
+            return false;
+        };
+        let local = DescriptorLocation::whole(source.root);
+        if !live
+            .authorized
+            .get(&self.at)
+            .is_some_and(|names| names.contains(&local))
+            || !live
+                .surviving
+                .get(&self.at)
+                .is_some_and(|names| names.contains(&local))
+        {
+            return false;
+        }
+        let (LoanRegion::Storage(parent), LoanRegion::Storage(target)) =
+            (&carrier.lineage, &self.lineage)
+        else {
+            return false;
+        };
+        let (Some(parent_place), Some(target_place)) =
+            (parent.single_place(), target.single_place())
+        else {
+            return false;
+        };
+        target_place
+            .segments
+            .strip_prefix(parent_place.segments.as_slice())
+            == Some(
+                &[
+                    DescriptorPathSegment::Field(*field),
+                    DescriptorPathSegment::Referent,
+                ][..],
+            )
+            && parent.strictly_contains(target)
+    }
+
     fn immediate_parents(&self) -> impl Iterator<Item = &ObligationId> {
         let single = match &self.lender {
             Lender::Loan(parent) => Some(parent),
@@ -1560,6 +1618,22 @@ impl<'a> Storage<'a> {
             Touch::Change | Touch::NativeWrite => ReferenceAccess::Mutable,
         };
         if competing_borrows(loan.access, &loan.lineage, access, backing).is_none() {
+            return Ok(None);
+        }
+        if matches!(touch, Touch::Read | Touch::Change)
+            && let Some((DescriptorPathSegment::Referent, before)) = place.segments.split_last()
+            && let LoanRegion::Storage(touched) = backing
+            && post_loans.formed_at(at).iter().any(|&idx| {
+                let argument = &formed[idx];
+                argument
+                    .from
+                    .as_ref()
+                    .is_some_and(|slot| slot.root == place.root && slot.path == before)
+                    && argument.borrows_stored_input_through(loan)
+                    && matches!(&argument.lineage, LoanRegion::Storage(target)
+                        if target.same_single_region(touched))
+            })
+        {
             return Ok(None);
         }
         let conflict = match touch {
@@ -3296,6 +3370,11 @@ impl<'a> Storage<'a> {
                         region.returned_by.is_some() && region.returned_by == call.invocation
                     };
                     if returned(loan, earlier) || returned(earlier, loan) {
+                        continue;
+                    }
+                    if loan.borrows_stored_input_through(earlier)
+                        || earlier.borrows_stored_input_through(loan)
+                    {
                         continue;
                     }
                     if self.descends(loan, earlier, &formed, post_loans.by_obligation)?
