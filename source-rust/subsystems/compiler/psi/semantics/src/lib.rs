@@ -147,7 +147,8 @@ pub use structural::inline_carriers::{
 };
 pub(crate) mod operations;
 pub use structural::structural_store::{
-    StructuralStoreValueError, structural_store_value_admitted, validate_structural_store_values,
+    StructuralStoreValueError, discardable_store_value, structural_store_value_admitted,
+    validate_structural_store_values,
 };
 
 pub use access::access_view_referent::{
