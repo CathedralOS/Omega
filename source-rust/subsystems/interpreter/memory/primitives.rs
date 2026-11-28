@@ -4246,7 +4246,38 @@ pub(crate) mod primitive_storage {
             path: &[StructuralPathSegment],
         ) -> Result<(), TerminalInterpretError> {
             let result = operation.result.scalar().ok_or(malformed())?;
-            let scalar = self.read_primitive_place(source, path, result.scalar_type)?;
+            let sites = self.program.package_sites()?;
+            let scalar =
+                if let Some(field) = sites.projected_field(self.current_machine, operation.id) {
+                    let (_, parent) = path.split_last().ok_or(malformed())?;
+                    let package = self.resolve_live_storage_projection(
+                        source,
+                        parent,
+                        StructuralAccess::SharedBorrow,
+                    )?;
+                    let cell =
+                        self.observed_field_cell_in(&package.value, package.view_tip, &[], field)?;
+                    let stored = self.scalar_field_contents(&cell)?.ok_or(malformed())?;
+                    let TerminalScalarValue::Callable { contract, .. } = stored else {
+                        return Err(malformed());
+                    };
+                    let module = &self.program.catalogs;
+                    if stored
+                        .selected_machine(&module.execution.callables, contract)
+                        .is_none()
+                        || !sites.admits_descriptor(
+                            module,
+                            self.current_machine,
+                            operation.id,
+                            contract,
+                        )
+                    {
+                        return Err(malformed());
+                    }
+                    stored
+                } else {
+                    self.read_primitive_place(source, path, result.scalar_type)?
+                };
             self.values.insert(result.id, scalar)?;
             Ok(())
         }

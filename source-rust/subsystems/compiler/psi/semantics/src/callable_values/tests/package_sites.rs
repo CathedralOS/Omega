@@ -153,6 +153,79 @@ fn readers() -> TerminalModule {
 }
 
 #[test]
+fn package_value_queries_keep_the_origin_of_each_callback() {
+    let mut program = readers();
+    add_two_constructions(&mut program);
+    let entry = &mut program.machines[0];
+    for parameter in &entry.contract.structural_parameters {
+        entry.structural_places.push(StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+            },
+        });
+    }
+    for (slot, producer) in [(5, 3), (6, 4)] {
+        entry.structural_places.push(StructuralPlaceDeclaration {
+            id: place(slot),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(producer),
+                structural_type: ty(7),
+            },
+        });
+    }
+    let boundary = (entry.entry, entry.blocks[0].operations.len() as u32);
+    let body = entry.id;
+    let projected = terminal_callable_values(&program).unwrap();
+    let field_path = vec![DescriptorPathSegment::Field(field(2))];
+    let opened = resolve_callable_value(
+        &projected,
+        CallableValueQuery::Scalar {
+            machine: body,
+            value: value(1).id,
+            contract: callable(2),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        opened.inputs,
+        vec![CallableFormalInput {
+            machine: body,
+            parameter: CallableParameter::Structural {
+                position: 0,
+                path: field_path.clone()
+            },
+            contract: callable(1),
+        }]
+    );
+    for (index, slot) in [5, 6].into_iter().enumerate() {
+        let initialized = resolve_callable_value(
+            &projected,
+            CallableValueQuery::Storage {
+                machine: body,
+                position: boundary,
+                location: DescriptorLocation {
+                    root: place(slot),
+                    path: field_path.clone(),
+                },
+                contract: callable(1),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            initialized.inputs,
+            vec![CallableFormalInput {
+                machine: body,
+                parameter: CallableParameter::Scalar(index),
+                contract: callable(index as u64 + 4),
+            }]
+        );
+        assert!(initialized.descriptors.is_empty());
+        assert!(initialized.unresolved_ceilings.is_empty());
+    }
+}
+
+#[test]
 fn package_sites_retain_descriptors_and_require_the_same_state() {
     let mut program = readers();
     let sites = check_package_sites(&program).unwrap();

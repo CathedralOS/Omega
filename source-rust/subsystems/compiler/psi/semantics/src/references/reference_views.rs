@@ -738,15 +738,25 @@ pub fn reference_source_compatible<'types>(
     else {
         return false;
     };
+    reference_referent_compatible(types, source, *referent, *access)
+}
+
+/// Check the selected referent, including the access-dependent scalar view.
+pub fn reference_referent_compatible<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    source: StructuralTypeId,
+    referent: StructuralTypeId,
+    access: StructuralAccess,
+) -> bool {
     let Some(source_shape) = crate::structural_shape(types.clone(), source) else {
         return false;
     };
-    if source == *referent {
+    if source == referent {
         return true;
     }
-    if crate::structural_shape(types.clone(), *referent).is_some_and(|target| {
-        shared_byte_descriptor_reference_shapes(source_shape, target, *access)
-    }) {
+    if crate::structural_shape(types.clone(), referent)
+        .is_some_and(|target| shared_byte_descriptor_reference_shapes(source_shape, target, access))
+    {
         return true;
     }
     if matches!(
@@ -754,18 +764,18 @@ pub fn reference_source_compatible<'types>(
         StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
         )
-    ) && crate::structural_declaration(types.clone(), *referent)
+    ) && crate::structural_declaration(types.clone(), referent)
         .is_some_and(|row| row.shape == *source_shape)
     {
         return true;
     }
     let Some(StructuralTypeShape::PrimitiveScalar(target)) =
-        crate::structural_shape(types, *referent)
+        crate::structural_shape(types, referent)
     else {
         return false;
     };
     matches!(source_shape, StructuralTypeShape::PrimitiveScalar(source)
-        if scalar_reference_view_admits(*access, *source, *target))
+        if scalar_reference_view_admits(access, *source, *target))
 }
 #[cfg(test)]
 mod scalar_view_admission_tests;

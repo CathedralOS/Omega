@@ -2511,6 +2511,7 @@ pub(crate) mod record {
     impl TerminalExecution<'_> {
         pub(crate) fn establish_record(
             &mut self,
+            operation: semantic_vocabulary::OperationId,
             result: &terminal_psi::StructuralOperationResult,
             fields: &[terminal_psi::RecordFieldInitializer],
         ) -> Result<(), TerminalInterpretError> {
@@ -2543,16 +2544,23 @@ pub(crate) mod record {
             let mut consumed = Vec::new();
             let mut claim_operands = Vec::new();
             let mut frontier = self.live_affine_frontier.clone();
+            let checked = self.program.package_sites()?;
             for (binding, declaration) in fields.iter().zip(declarations) {
                 if binding.field != declaration.id || declaration.relevance.is_erased() {
                     return Err(malformed());
                 }
+                let field_type = checked
+                    .field_type(self.current_machine, operation, binding.field)
+                    .unwrap_or(&declaration.field_type);
                 match &binding.value {
                     terminal_psi::RecordFieldValue::Scalar { value: operand, .. } => {
-                        let scalar = self.values.get(operand).copied().ok_or(malformed())?;
-                        if declaration.field_type.scalar_type() != Some(scalar.scalar_type())
-                            || !terminal_scalar_belongs_to_type(scalar)
-                        {
+                        let scalar = self.scalar_value(*operand)?;
+                        let matches = field_type.scalar_type() == Some(scalar.scalar_type())
+                            || checked.repacked_field(self.current_machine, operation, binding.field).is_some_and(|origin| {
+                                matches!(scalar.scalar_type(), semantic_vocabulary::ScalarType::Callable(actual)
+                                    if checked.admits_descriptor(&self.program.catalogs, self.current_machine, origin, actual))
+                            });
+                        if !matches || !terminal_scalar_belongs_to_type(scalar) {
                             return Err(malformed());
                         }
                         storage.stage_scalar_endpoint(
@@ -2596,7 +2604,7 @@ pub(crate) mod record {
                             continue;
                         }
                         if argument.access != StructuralAccess::Owned
-                            || declaration.field_type
+                            || *field_type
                                 != StructuralFieldType::Structural(child.structural_type())
                         {
                             return Err(malformed());

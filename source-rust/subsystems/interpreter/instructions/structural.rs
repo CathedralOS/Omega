@@ -1014,7 +1014,11 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishRecord { ref fields });
-        self.establish_record(operation.result.structural().ok_or(malformed())?, fields)?;
+        self.establish_record(
+            operation.id,
+            operation.result.structural().ok_or(malformed())?,
+            fields,
+        )?;
         Ok(OperationFlow::Advance)
     }
 
@@ -2133,19 +2137,38 @@ impl TerminalExecution<'_> {
                 return Ok(OperationFlow::Advance);
             }
         }
-        let (leaf, source, _, copy_path) = match &operation.kind {
+        let sites = self.program.package_sites()?;
+        let opened = sites.projected_field(self.current_machine, operation.id);
+        let (leaf, source, copy_path) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
-                let (leaf, field) =
-                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?;
-                (leaf, *source, field, path.clone())
+                let leaf = if let Some(field) = opened {
+                    if sites
+                        .field_type(self.current_machine, operation.id, field)
+                        .and_then(terminal_psi::StructuralFieldType::as_structural)
+                        != Some(result.structural_type)
+                    {
+                        return Err(malformed());
+                    }
+                    let leaf = self.resolve_live_projection(
+                        *source,
+                        path,
+                        StructuralAccess::SharedBorrow,
+                    )?;
+                    if self.reference_contract(leaf.structural_type)?.1
+                        != StructuralAccess::SharedBorrow
+                    {
+                        return Err(malformed());
+                    }
+                    leaf
+                } else {
+                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?
+                        .0
+                };
+                (leaf, *source, path.clone())
             }
             OperationKind::StructuralCaseLeafCopy { source, path } => {
                 let (leaf, projection) = self.case_payload_projection(*source, path)?;
-                let field = match path.last() {
-                    Some(CanonicalStructuralPathSegment::Field(field)) => Some(*field),
-                    _ => None,
-                };
-                (leaf, *source, field, projection)
+                (leaf, *source, projection)
             }
             _ => return Err(malformed()),
         };
@@ -2169,6 +2192,7 @@ impl TerminalExecution<'_> {
             })
             .flatten();
         if leaf.structural_type != result.structural_type
+            && opened.is_none()
             && !quotient_adaptation
             && !terminal_semantics::shared_descriptor_copy_matches(
                 self.structural_types().values(),

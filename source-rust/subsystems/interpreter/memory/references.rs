@@ -3939,20 +3939,23 @@ impl TerminalExecution<'_> {
                     remaining = &remaining[boundary + 1..];
                     continue;
                 }
-                let (referent_type, authority) = self.reference_contract(value.structural_type)?;
+                let home = StructuralRuntimePlace::from(&value);
+                let (declared_referent, authority) =
+                    self.reference_contract(value.structural_type)?;
+                let referent_type = self
+                    .opened_call_references
+                    .get(&home)
+                    .copied()
+                    .unwrap_or(declared_referent);
                 if access.is_some_and(|required| !access_covers(authority, required)) {
                     return Err(malformed());
                 }
-                let reference_type = value.structural_type;
                 let qualifications = terminal_psi::StructuralPathQualification::select(
                     &value.qualifications,
                     &value.projected_qualifications,
                     &[StructuralPathSegment::Referent],
                 );
-                let captured = self
-                    .reference_referents
-                    .get(&StructuralRuntimePlace::from(&value))
-                    .ok_or(malformed())?;
+                let captured = self.reference_referents.get(&home).ok_or(malformed())?;
                 primitive_storage = captured
                     .primitive_loan
                     .as_ref()
@@ -4008,10 +4011,11 @@ impl TerminalExecution<'_> {
                     }
                     aggregate_view = Some(view);
                 } else {
-                    if !terminal_semantics::reference_source_compatible(
+                    if !terminal_semantics::reference_referent_compatible(
                         types.values(),
                         value.structural_type,
-                        reference_type,
+                        referent_type,
+                        authority,
                     ) {
                         return Err(malformed());
                     }
@@ -4553,3 +4557,90 @@ impl TerminalExecution<'_> {
 }
 
 pub(crate) use terminal_psi::structural_access_covers as access_covers;
+
+#[cfg(test)]
+mod package_opening_tests {
+    use super::*;
+    use crate::engine::calls::frames::tests::empty_program;
+
+    #[test]
+    fn opened_reference_checks_the_stored_referent_at_its_exact_home() {
+        use terminal_psi::{StructuralTypeDeclaration, TerminalIdentityIndex};
+
+        let witness = StructuralTypeId::new(1).unwrap();
+        let file = StructuralTypeId::new(2).unwrap();
+        let socket = StructuralTypeId::new(3).unwrap();
+        let reference = StructuralTypeId::new(4).unwrap();
+        let access = StructuralAccess::MutableBorrow;
+        let mut program = empty_program();
+        let catalog = &mut std::sync::Arc::get_mut(&mut program)
+            .unwrap()
+            .fixture_module_mut()
+            .types
+            .structural_types;
+        for (id, shape) in [
+            (witness, StructuralTypeShape::Opaque),
+            (file, StructuralTypeShape::Opaque),
+            (socket, StructuralTypeShape::Opaque),
+            (
+                reference,
+                StructuralTypeShape::Reference {
+                    referent: witness,
+                    access,
+                },
+            ),
+        ] {
+            catalog.push(StructuralTypeDeclaration {
+                id,
+                identity: TerminalIdentityIndex(catalog.len() as u32),
+                declaration_identity: Default::default(),
+                shape,
+                requires: vec![],
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+            });
+        }
+        let mut execution =
+            TerminalExecution::start_with_program(program, &[], Default::default(), None, None)
+                .unwrap();
+        let left = TerminalStructuralValue::minted(10, reference, vec![]);
+        let right = TerminalStructuralValue::minted(11, reference, vec![]);
+        let file_state = TerminalStructuralValue::minted(12, file, vec![]);
+        let socket_state = TerminalStructuralValue::minted(13, socket, vec![]);
+        for (carrier, state) in [(&left, &file_state), (&right, &socket_state)] {
+            execution
+                .reference_referents
+                .insert(
+                    StructuralRuntimePlace::from(carrier),
+                    ReferenceReferent::from_view(state.clone()),
+                )
+                .unwrap();
+        }
+        let read = |execution: &TerminalExecution<'_>, carrier: &TerminalStructuralValue| {
+            execution
+                .resolve_reference_storage_projection(
+                    carrier,
+                    &[StructuralPathSegment::Referent],
+                    access,
+                )
+                .map(|resolved| resolved.unwrap().value)
+        };
+        assert!(read(&execution, &left).is_err());
+        execution
+            .opened_call_references
+            .insert(StructuralRuntimePlace::from(&left), file)
+            .unwrap();
+        assert_eq!(read(&execution, &left).unwrap(), file_state);
+        assert!(read(&execution, &right).is_err());
+        execution
+            .opened_call_references
+            .insert(StructuralRuntimePlace::from(&left), socket)
+            .unwrap();
+        assert!(read(&execution, &left).is_err());
+    }
+}

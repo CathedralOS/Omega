@@ -3049,6 +3049,9 @@ pub(crate) mod execution {
     pub struct TerminalExecution<'artifact> {
         pub(crate) float_evaluation: crate::float_result_policy::FloatEvaluation,
         pub(crate) issued_layout_target: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
+        /// Concrete reference types at the checked call's exact argument storage homes.
+        /// Used only while preparing that call, before the callee starts.
+        pub(crate) opened_call_references: RuntimeRows<StructuralRuntimePlace, StructuralTypeId>,
         pub(crate) call_observations: Option<Box<crate::call_observations::CallObservations>>,
         pub(crate) scalar_applications: Option<psi_scalar_applications::ScalarApplicationValues>,
         pub(crate) scalar_entry_checks: Option<psi_scalar_applications::ScalarEntryChecks>,
@@ -3580,6 +3583,7 @@ pub(crate) mod execution {
                 access_view_occurrences,
                 current_machine,
                 current,
+                opened_call_references: RuntimeRows::new(account.as_ref()),
                 next_operation: 0,
                 entry_results: None,
                 scalar_applications: None,
