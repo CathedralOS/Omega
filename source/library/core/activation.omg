@@ -6,36 +6,15 @@
 // demand even when the runtime request rejects. The opaque linear carrier
 // cannot be reconstructed from addresses, lengths, or ordinary record fields.
 use {omega}/language/core/task.omg;
+use {omega}/language/core/reply.omg;
 
 public data Activation {}
 
-// The publication owns its request. Only its matching one-shot reply can
-// resume this visit; another request for the same reply type does not match.
-public boundary data ParkRequest<Reply> [linear];
-
-public boundary data AnswerPermit<Reply> [linear];
-
-public data ReplyPair<Reply> {
-    request: ParkRequest<Reply>;
-    permit: AnswerPermit<Reply>;
-}
-
-public data ParkReply<Reply> {
-    permit: AnswerPermit<Reply>;
-    value: Reply;
-}
-
-// The sender keeps the request and publishes the permit with the item.
-// Pair construction neither runs an activation nor makes it ready.
-public boundary machine new_reply_pair<Reply>() -> ReplyPair<Reply>
-    reaches none crashes none;
-
-public machine answer<Reply>(permit: AnswerPermit<Reply>, value: Reply) -> ParkReply<Reply>
-    reaches none crashes none {
-    ParkReply { permit: permit, value: value }
-}
-
-public boundary machine park<Reply>(request: ParkRequest<Reply>) -> Reply
+// Only an issued request identifies a publication. A bare slot borrow
+// carries neither that publication's role nor its reply contract.
+public boundary machine park<'slot, Reply>(
+    request: |reply|::Publication<'slot> in |reply|::Issued<|reply|::RequestRole, Reply>
+) -> Reply
     reaches none crashes none suspends;
 
 public boundary data ActivationClaim [linear];
@@ -103,4 +82,44 @@ public boundary machine prepare<'storage, Arguments, R,
     const Plan: |task|::ActivationStorage>(
     arguments: Arguments, retained: @'storage mutable [u8]
 ) -> ActivationPreparation<'storage, Arguments, R, Entry, Plan>
+reaches none crashes none terminates;
+
+// Only a successful step may produce this claim. It represents the stopped
+// producer, not the item: the consumer receives that on its typed endpoint.
+public boundary data SuspendedActivation<'storage, Arguments, R,
+    const Entry: |task|::TaskWorker<Arguments, R>,
+    const Plan: |task|::ActivationStorage> [linear];
+
+public data ActivationStep<'storage, Arguments, R,
+    const Entry: |task|::TaskWorker<Arguments, R>,
+    const Plan: |task|::ActivationStorage> {
+    case Returned(value: R, retained: @'storage mutable [u8]);
+    case Parked(owner: SuspendedActivation<'storage, Arguments, R, Entry, Plan>);
+}
+
+// A Fixed step uses only the retained stack. It runs the child's admitted
+// effects until return or park; parking the child does not park the caller.
+public boundary machine step_fixed<'storage, Arguments, R,
+    const Entry: |task|::TaskWorker<Arguments, R>>(
+    owner: ReadyActivation<'storage, Arguments, R, Entry, |task|::ActivationStorage::Fixed>
+) -> ActivationStep<'storage, Arguments, R, Entry, |task|::ActivationStorage::Fixed>
+blocks crashes Trap crashes Abort;
+
+public data ResumeAttempt<'storage, 'slot, Arguments, R, Reply,
+    const Entry: |task|::TaskWorker<Arguments, R>,
+    const Plan: |task|::ActivationStorage> {
+    case Ready(owner: ReadyActivation<'storage, Arguments, R, Entry, Plan>);
+    case Mismatch(owner: SuspendedActivation<'storage, Arguments, R, Entry, Plan>,
+        permit: |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, Reply>,
+        value: Reply);
+}
+
+// Answering does not execute any child code. Both return paths account for
+// the exact permit and value; a mismatch leaves the same producer parked.
+public boundary machine resume<'storage, 'slot, Arguments, R, Reply,
+    const Entry: |task|::TaskWorker<Arguments, R>, const Plan: |task|::ActivationStorage>(
+    owner: SuspendedActivation<'storage, Arguments, R, Entry, Plan>,
+    permit: |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, Reply>,
+    value: Reply
+) -> ResumeAttempt<'storage, 'slot, Arguments, R, Reply, Entry, Plan>
 reaches none crashes none terminates;

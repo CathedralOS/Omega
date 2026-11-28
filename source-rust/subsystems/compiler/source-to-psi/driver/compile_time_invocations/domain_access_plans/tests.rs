@@ -164,7 +164,8 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
     let call = typed.expression_table.call_node(call).unwrap();
     let declaration = typed.machine_by_symbol(call.target_symbol)
         .or_else(|| typed.machine_holding_state(call.target_symbol)).unwrap();
-    let plan = typed.machine_callable_parameters(declaration).last().unwrap();
+    let parameters = typed.machine_callable_parameters(declaration);
+    let plan = parameters.last().unwrap();
     let crate::source_state::data::TypeParameterKind::Const { type_reference } = plan.kind else {
         panic!("the plan is a structural constant, not an extra runtime argument");
     };
@@ -203,34 +204,114 @@ fn preparing_a_child_names_its_worker_and_returns_the_rejected_backing() {
 fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("pipeline/06_lowered-program-to-checked-program/tests/fixtures/owned_activation");
-    for (fixture, permitted) in [("positive/issue_pair", true), ("negative/forge_pair", false)] {
+    for (fixture, permitted) in [
+        ("positive/issue_pair", true),
+        ("negative/forge_pair", false),
+    ] {
         let source = std::fs::read_to_string(directory.join(fixture).join("main.omg")).unwrap();
         let mut typed = schema_customer_source::source_with_core(
-            &fixture_repository::root().join("source/library"), &source,
-            semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(), &[],
-        ).unwrap();
-        let entries = [typed.realized_machine_named("main").unwrap().symbol];
-        let request = production::TerminalSourceCompilation {
-            calling: None, providers: None, declaration_metadata: &[], entries: &entries,
-            subjects: &[], purpose: source_provenance::DependencyScope::Product,
-            selected: &[], bindings: &[], supplies: &[],
-        };
-        evaluate(&mut typed, request, &mut SourceCompletionAccounting::default())
-            .expect("evaluate the actual reply issuance policy");
-        let policy = typed.domain_definitions.iter().map(|(_, d)| d)
-            .find(|d| d.name.as_str() == "Publication::Issued").and_then(|d| d.access_policy.as_ref()).unwrap();
-        assert!(matches!(policy.plan, crate::source_state::domain::AccessPlanJudgment::Checked(_)),
-            "the selected issuer and writer restriction must have been checked: {:?}", policy.plan);
-        let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-        let judged = judge_lowered_source::judge_terminal_source(prepared, request,
-            terminal_codec::TerminalPublication::Portable);
+            &fixture_repository::root().join("source/library"),
+            &source,
+            semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(),
+            &[],
+        )
+        .unwrap();
+        let mut entries = vec![typed.realized_machine_named("main").unwrap().symbol];
         if permitted {
-            let accepted = judged.expect("the checked issuer transfers both borrows of the funded slot");
+            entries.push(typed.realized_machine_named("await_reply").unwrap().symbol);
+        }
+        let request = production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source_provenance::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        evaluate(
+            &mut typed,
+            request,
+            &mut SourceCompletionAccounting::default(),
+        )
+        .expect("evaluate the actual reply issuance policy");
+        let policy = typed
+            .domain_definitions
+            .iter()
+            .map(|(_, d)| d)
+            .find(|d| d.name.as_str() == "Publication::Issued")
+            .and_then(|d| d.access_policy.as_ref())
+            .unwrap();
+        assert!(
+            matches!(
+                policy.plan,
+                crate::source_state::domain::AccessPlanJudgment::Checked(_)
+            ),
+            "the selected issuer and writer restriction must have been checked: {:?}",
+            policy.plan
+        );
+        let prepared = preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        let judged = judge_lowered_source::judge_terminal_source(
+            prepared,
+            request,
+            terminal_codec::TerminalPublication::Portable,
+        );
+        if permitted {
+            let accepted =
+                judged.expect("the checked issuer transfers both borrows of the funded slot");
             let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
-            terminal_codec::decode_module(&bytes).unwrap();
+            let module = terminal_codec::decode_module(&bytes).unwrap();
+            let park = module
+                .interfaces
+                .boundary_machines
+                .iter()
+                .find(|boundary| {
+                    boundary.declaration.as_ref().is_some_and(|d| {
+                        matches!(
+                            d.execution,
+                            terminal_psi::CheckedBoundaryExecution::OwnedActivation(
+                                language_core::sealed_intrinsics::ActivationOperation::Park
+                            )
+                        )
+                    })
+                })
+                .expect("park is a sealed checked call, never a host import");
+            let shape = terminal_semantics::calls::owned_activation::park_shape(&module, park)
+                .expect("the saved program authenticates the funded request");
+            assert!(!shape.reply.is_absent());
+            let mut wrong_role = park.clone();
+            let formal = &mut wrong_role.structural_parameters[0];
+            let other = module
+                .types
+                .structural_domains
+                .iter()
+                .find(|domain| {
+                    domain.carrier == formal.structural_type
+                        && !formal.qualifications.contains(&domain.id)
+                })
+                .expect("the same publication layout also has a distinct answer role");
+            formal.qualifications[0] = other.id;
+            wrong_role.requires = terminal_psi::StructuralDomainRequirement::declared_roots(
+                &wrong_role.structural_parameters,
+            )
+            .collect();
+            assert!(
+                terminal_semantics::calls::owned_activation::park_shape(&module, &wrong_role)
+                    .is_err(),
+                "changing both the use and its declared prerequisite cannot turn an answer into a request"
+            );
         } else {
-            let diagnostics = judged.err().expect("an equally shaped pair from another issuer must reject");
-            assert!(diagnostics.iter().any(|d| d.message.contains("not one of the domain's establishment routes")), "{diagnostics:?}");
+            let diagnostics = judged
+                .err()
+                .expect("an equally shaped pair from another issuer must reject");
+            assert!(
+                diagnostics.iter().any(|d| d
+                    .message
+                    .contains("not one of the domain's establishment routes")),
+                "{diagnostics:?}"
+            );
         }
     }
 }

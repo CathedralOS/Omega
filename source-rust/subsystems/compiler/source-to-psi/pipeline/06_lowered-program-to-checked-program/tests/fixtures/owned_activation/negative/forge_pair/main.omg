@@ -1,4 +1,5 @@
 use {omega}/language/core/reply.omg;
+use {omega}/language/core/activation.omg;
 
 machine main<'p>(slot: @'p mutable |reply|::ReplySlot) -> |reply|::ReplyPair<'p, u8>
 reaches none crashes none {
@@ -8,4 +9,17 @@ reaches none crashes none {
         request: request as + |reply|::Issued<|reply|::RequestRole, u8>,
         permit: permit as + |reply|::Issued<|reply|::AnswerRole, u8>
     }
+}
+
+data ReusedSlot<'slot> {
+    original_permit: |reply|::Publication<'slot> in |reply|::Issued<|reply|::AnswerRole, u8>;
+    second_pair: |reply|::ReplyPair<'slot, u8>;
+}
+
+machine reissue<'slot>(slot: @'slot mutable |reply|::ReplySlot) -> ReusedSlot<'slot>
+reaches none crashes none suspends {
+    let pair: |reply|::ReplyPair<'slot, u8> = |reply|::new_reply_pair::<u8>(@mutable slot);
+    let answer: u8 = suspend |activation|::park::<u8>(pair.request);
+    let again: |reply|::ReplyPair<'slot, u8> = |reply|::new_reply_pair::<u8>(@mutable slot);
+    ReusedSlot { original_permit: pair.permit, second_pair: again }
 }

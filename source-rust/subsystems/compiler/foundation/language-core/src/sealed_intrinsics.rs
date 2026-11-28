@@ -103,7 +103,6 @@ pub enum NativeBorrow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ActivationOperation {
     Park,
-    NewReplyPair,
     Prepare,
 }
 
@@ -921,12 +920,6 @@ const ROWS: &[SealedIntrinsicRow] = &[
         "prepare",
         BundledFile::CoreActivation,
         SealedIntrinsic::OwnedActivation(ActivationOperation::Prepare),
-    ),
-    row(
-        "activation.omg",
-        "new_reply_pair",
-        BundledFile::CoreActivation,
-        SealedIntrinsic::OwnedActivation(ActivationOperation::NewReplyPair),
     ),
     SealedIntrinsicRow {
         file: "task.omg",

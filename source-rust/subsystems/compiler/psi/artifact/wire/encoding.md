@@ -1824,8 +1824,8 @@ authority: settlement retains the exact target-table realization and its ISA
 and floating-control obligations, and receiving checks these against the
 authenticated boundary and canonical method schema.
 Tag 12 names the issued layout target snapshot. Tag 13 carries an owned
-activation operation byte (0: park, 1: create a matching request and reply permit;
-all other values reject). A park is a
+activation operation byte (0: park; all other values reject). Publication
+and reply handles are created by checked source, not by a wire operation. A park is a
 checked specialization of core's `activation.omg` park, not an installable host
 import. Its owned request and result share the same closed reply type.
 Other tags reject. Earlier formats reject at the header, before any table is

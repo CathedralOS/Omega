@@ -4,6 +4,34 @@ use crate::engine::execution::CompletedReturn;
 use crate::storage::storage_addresses::ScalarStorageAddress;
 use crate::{TerminalEffectWait, TerminalInterpretError, TerminalSuspension};
 
+/// Installed programs keep the checked field path and reply type for each
+/// park. Stepping does not revisit domain policies or search record fields.
+#[derive(Default)]
+pub(crate) struct ParkSites(std::sync::OnceLock<Vec<ParkSite>>);
+type ParkShape = terminal_semantics::calls::owned_activation::ParkShape;
+type ParkSite = (semantic_vocabulary::BoundaryMachineId, Result<ParkShape, &'static str>);
+
+impl ParkSites {
+    pub(crate) fn at(&self, module: &terminal_psi::TerminalModule, id: semantic_vocabulary::BoundaryMachineId)
+        -> Result<ParkShape, TerminalInterpretError>
+    {
+        use crate::boundary::errors::malformed;
+        use language_core::sealed_intrinsics::ActivationOperation;
+        use terminal_psi::CheckedBoundaryExecution;
+        let sites = self.0.get_or_init(|| {
+            let mut sites: Vec<_> = module.interfaces.boundary_machines.iter()
+                .filter(|b| b.declaration.as_ref().is_some_and(|d| d.execution ==
+                    CheckedBoundaryExecution::OwnedActivation(ActivationOperation::Park)))
+                .map(|b| (b.id, terminal_semantics::calls::owned_activation::park_shape(module, b)))
+                .collect();
+            sites.sort_unstable_by_key(|site| site.0);
+            sites
+        });
+        let index = sites.binary_search_by_key(&id, |site| site.0).map_err(|_| malformed())?;
+        sites[index].1.map_err(|_| malformed())
+    }
+}
+
 /// Prepared by the ordinary value-transfer machinery for the stopped call.
 /// A reply includes its owned value and custody, not just a readiness bit.
 pub(crate) struct TransferredReply {
@@ -146,7 +174,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
         };
         if control != ActivationOperation::Park {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "issuing a reply requires caller-owned publication storage",
+                "a prepared activation needs its admitted backing",
             ));
         }
         let owner =
@@ -155,11 +183,6 @@ impl crate::engine::execution::TerminalExecution<'_> {
                 .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
                     "park requires a caller stepping this activation",
                 ))?;
-        terminal_semantics::calls::owned_activation::validate_park(
-            &self.program.catalogs,
-            boundary_declaration,
-        )
-        .map_err(|_| malformed())?;
         let [request] = structural_arguments.as_slice() else {
             return Err(malformed());
         };
@@ -180,27 +203,13 @@ impl crate::engine::execution::TerminalExecution<'_> {
                 return self.finish_owned_park(operation, request, completion_receipts, answer.1);
             }
         }
-        let [parameter] = boundary_declaration.structural_parameters.as_slice() else {
-            return Err(malformed());
-        };
-        let request_type = self.structural_declaration(parameter.structural_type)?;
-        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &request_type.shape else {
-            return Err(malformed());
-        };
-        let [anchor] = fields.as_slice() else {
-            return Err(malformed());
-        };
-        let slot = publication_slot(self, request, anchor.identity)?;
-        let source = &boundary_declaration
-            .declaration
-            .as_ref()
-            .ok_or(malformed())?
-            .source;
+        let shape = self.program.park_sites.at(&self.program.catalogs, boundary_declaration.id)?;
+        let slot = publication_slot(self, request, shape.anchor_identity)?;
         let reply = self
             .program
             .catalogs
             .identities
-            .text(source.result_type)
+            .text(shape.reply)
             .ok_or(malformed())?;
         let site = crate::TerminalEffectWait {
             program: self.program.identity.clone(),

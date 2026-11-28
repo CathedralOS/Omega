@@ -16,6 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "process_exit",
         "process_exit_native",
         "program_image",
+        "reply",
         "unsafe",
     ] {
         let filename = format!("{declaration_file}.omg");
