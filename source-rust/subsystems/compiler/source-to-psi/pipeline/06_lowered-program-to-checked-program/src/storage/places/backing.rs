@@ -821,22 +821,39 @@ impl<'a> Storage<'a> {
         let Some(origins) = references.symbolic_source_origins(self.machine, at, &descriptor) else {
             return Ok(None);
         };
-        if origins.is_empty() || !origins.iter().all(|origin| matches!(origin,
+        if !origins.iter().any(|origin| matches!(origin,
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::NativeAddress { .. }))) {
             return Ok(None);
         }
         let crossing = subject.segments.iter().rposition(|step| *step == Segment::Referent)
             .ok_or_else(|| self.foreign(concerns, "native borrow has no referent crossing"))?;
+        let suffix = &subject.segments[crossing + 1..];
         let mut regions = Vec::with_capacity(origins.len());
-        for origin in origins {
-            let DescriptorSourceOrigin::Backing(origin @ DescriptorCallOrigin::NativeAddress { .. }) = origin else { unreachable!() };
-            let DescriptorCallOrigin::NativeAddress { machine, place, projection, .. } = &origin else { unreachable!() };
+        for source in origins {
+            let DescriptorSourceOrigin::Backing(origin) = source else {
+                return Ok(None);
+            };
+            if let DescriptorCallOrigin::Argument { projection, .. } = &origin {
+                // Offset or retyped addresses may touch the enclosing allocation.
+                // A field of the new type is not a field of this storage.
+                let enclosing = projection.is_native_enclosing_storage();
+                let mut backing = self.captured_backing(subject, if enclosing { &[] } else { suffix },
+                    vec![origin], None, concerns)?;
+                for region in &mut backing.regions {
+                    region.place_is_exact &= !enclosing;
+                }
+                regions.extend(backing.regions);
+                continue;
+            }
+            let DescriptorCallOrigin::NativeAddress { machine, place, projection, .. } = &origin else {
+                return Ok(None);
+            };
             let local = *machine == self.machine;
             let (storage, exact) = if local && let Some(path) = projection.validate_captured_storage_address(|_| true)
                 .map_err(|detail| self.unsupported(concerns, detail))? {
                 let mut path_to_value = vec![StructuralPathSegment::Referent];
                 path_to_value.extend(path);
-                (self.stored_beneath(*place, &path_to_value, &subject.segments[crossing + 1..], concerns)?, true)
+                (self.stored_beneath(*place, &path_to_value, suffix, concerns)?, true)
             } else {
                 (subject.clone(), false)
             };

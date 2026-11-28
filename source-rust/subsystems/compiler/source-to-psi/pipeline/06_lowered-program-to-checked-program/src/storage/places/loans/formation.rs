@@ -235,7 +235,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Formation> {
         let StructuralTypeShape::Reference {
-            access: declared, ..
+            access: declared, referent
         } = self.declaration(result.structural_type, concerns)?.shape
         else {
             return Err(self.foreign(
@@ -269,7 +269,7 @@ impl<'a> Storage<'a> {
                 )
             })?;
         let raw =
-            self.native_address_loan_region(references, address, &descriptor, at, concerns)?;
+            self.native_address_loan_region(references, address, &descriptor, referent, at, concerns)?;
         Ok(Formation {
             captured,
             access,
@@ -285,20 +285,24 @@ impl<'a> Storage<'a> {
         references: &mut DescriptorAnalysis<'a>,
         address: semantic_vocabulary::ValueId,
         descriptor: &Lineage,
+        referent: semantic_vocabulary::StructuralTypeId,
         at: DescriptorPosition,
         concerns: Construct,
     ) -> Checked<LoanRegion> {
         let origin =
             terminal_semantics::storage::native_borrows::address_origin(self.lowered, address);
         let mut sources = Vec::new();
+        let mut exact = origin.exact && origin.sources.len() == 1;
         for source in origin.sources {
+            exact &= terminal_semantics::runtime_structural_path_tip(self.types.iter(),
+                self.root_type(source.place, concerns)?, &source.path).is_some_and(|ty| ty.id == referent);
             let place = self.argument(source, concerns)?;
             match self.storage_loan_region(references, &place, at, concerns)? {
                 LoanRegion::Storage(backing) => sources.push(backing),
                 LoanRegion::Provider(_) => sources.push(Backing::direct(place)),
             }
         }
-        let backing = Backing::native_address(address, descriptor, sources, origin.exact);
+        let backing = Backing::native_address(address, descriptor, sources, exact);
         Ok(LoanRegion::Storage(backing))
     }
 }
