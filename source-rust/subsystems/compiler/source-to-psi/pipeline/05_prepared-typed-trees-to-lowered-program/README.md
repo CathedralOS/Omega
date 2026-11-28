@@ -1376,6 +1376,14 @@ retains its target observation.
   identity. An erased scalar formal is a value after the result pseudo-value
   and travels in neither lane.
 - **Callees** are `MachineId`s reached from a `SymbolKind::Machine` symbol.
+  `read/machine.rs` `reserve_row` gives each one a row in every machine table
+  at once, and only the row's owner answers for it: `machine_symbol`,
+  `machine_signature` and `machine_names` refuse an identity that holds no
+  row, such as a diagnostic identity from `next_identity` or a row
+  `abandon_row` removed. Readers call those accessors rather than refusing a
+  missing row with a message of their own. The same holds for record rows
+  (`read/places.rs` `record_type`, `record_source`) and for the signature
+  reader's bodies (`read/signature.rs` `Converter::body`).
 - No table here is keyed by text; text appears only in `Refusal::detail`.
 
 ## Evaluation order and control

@@ -40,6 +40,14 @@ use crate::{SourceOrigin, Unserved};
 
 /// Different checking machines own different const-input storage rows.
 /// Their labels must be unique; type equality still uses source applications.
+/// The refusal of a structural type identity that holds no record row.
+fn missing_record(machine: MachineId) -> terminal_check_tables::Refusal {
+    refuse_at(
+        machine,
+        Unserved::Type("structural type identity has no record row"),
+    )
+}
+
 pub(super) fn storage_identity_for_inputs(identity: String, owner: Option<MachineId>) -> String {
     match owner {
         Some(owner) => format!("{identity} (checking machine {})", owner.get()),
@@ -107,6 +115,31 @@ pub(super) enum Member {
 }
 
 impl Program<'_> {
+    /// The storage row pushed at `record`, with `machine` anchoring the
+    /// refusal of an identity that holds no row. Every `records.push` pushes
+    /// the record's source beside it, so `record_source` answers for the same
+    /// identities.
+    pub(super) fn record_type(
+        &self,
+        machine: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&crate::body::RecordType> {
+        self.records
+            .get(record)
+            .ok_or_else(|| missing_record(machine))
+    }
+
+    /// The source declaration and application pushed beside `record`.
+    pub(super) fn record_source(
+        &self,
+        machine: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<&RecordSource> {
+        self.record_sources
+            .get(record)
+            .ok_or_else(|| missing_record(machine))
+    }
+
     /// The data declaration a `Named` type's symbol resolves to, when it is
     /// one. A symbol of kind `Data` with no declaration in the typed trees is
     /// not a record this route can read and stays with the scalar route's
