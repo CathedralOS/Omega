@@ -9566,7 +9566,7 @@ impl TypedTrees {
     ) -> Option<&data::DataField> {
         use data::DataMember;
         let instance = self.data_constructor_definition(reference, authored)?;
-        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Field {
+        if !self.is_record_field_declaration(retained) {
             return None;
         }
         let parent = self.symbols.get(retained).parent;

@@ -688,12 +688,13 @@ mod references {
                 if case_field.is_valid() {
                     case_field
                 } else if type_symbol.is_valid() {
-                    child_symbol_by_kinds(
-                        symbols,
-                        type_symbol,
-                        &[SymbolKind::Field],
-                        field.name.as_str(),
-                    )
+                    // Named requirements are operation fields only on their own trait.
+                    let kinds: &[SymbolKind] = if symbols.get(type_symbol).kind == SymbolKind::Trait {
+                        &[SymbolKind::Field, SymbolKind::State]
+                    } else {
+                        &[SymbolKind::Field]
+                    };
+                    child_symbol_by_kinds(symbols, type_symbol, kinds, field.name.as_str())
                 } else {
                     SymbolHandle::invalid()
                 }

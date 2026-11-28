@@ -154,7 +154,7 @@ impl Program<'_> {
     /// not a record this route can read and stays with the scalar route's
     /// refusal.
     pub(super) fn data_declaration(&self, symbol: SymbolHandle) -> Option<&DataDefinition> {
-        if !symbol.is_valid() || self.typed.symbols.get(symbol).kind != SymbolKind::Data {
+        if !symbol.is_valid() || !matches!(self.typed.symbols.get(symbol).kind, SymbolKind::Data | SymbolKind::Trait) {
             return None;
         }
         self.typed.data_definition_by_symbol(symbol)
