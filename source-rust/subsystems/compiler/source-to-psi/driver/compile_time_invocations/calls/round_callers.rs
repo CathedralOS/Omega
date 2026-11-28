@@ -7,7 +7,7 @@
 //! every caller it can name in advance to one copy and freezes that copy
 //! once. Each call is still lowered, checked, published, executed and
 //! charged alone, with only its own caller as the entry
-//! (`PreparedBuildMachineProgram::judge_shared`).
+//! (`PreparedBuildMachineProgram::planned_judgment`).
 //!
 //! Sharing is only a saving, never a different answer. A caller that cannot
 //! be added, a copy that does not freeze, or a call whose shared judgment
@@ -45,7 +45,7 @@ pub(crate) struct PlannedCall {
     pub(super) requester: SymbolHandle,
     pub(super) callee: PlannedCallee,
     pub(super) call: TableCallExpression,
-    pub(super) arguments: Vec<BuildTimeValue>,
+    pub(super) arguments: std::sync::Arc<[BuildTimeValue]>,
     pub(super) selected: Option<(StaticMachineArgument, SymbolHandle)>,
     /// The deployment whose layout facts the call carries. Calls for
     /// different deployments are never frozen together.
