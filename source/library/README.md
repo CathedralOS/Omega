@@ -44,6 +44,10 @@ The specified import for the numeric laws is
 library migration is tracked under `PROOF-KERNEL-CORE` in [TASKS.md](../../TASKS.md).
 [Mathematical declarations](../../wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
 
+Core's constructive `Real` needs a public bound on the state types a regular
+rational sequence may carry. The owner question records how that bound affects
+which projections share a quotient. [State universes for core Real](../../OWNER_QUESTIONS.md#1-which-state-universe-does-core-real-admit)
+
 ## Core integer and float APIs
 
 Import the files that declare the carrier queries and bit conversions.
