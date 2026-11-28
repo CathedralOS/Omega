@@ -94,7 +94,7 @@ impl<'program> ServiceMemberships<'program> {
                     starts,
                 )?;
                 let (subject, path) = self.subject_path(owner, formals, membership.value)?;
-                match (contract.kind, subject) {
+                match (&contract.kind, subject) {
                     (SignatureContractKind::Requires, ServiceMembershipSubject::Input(_))
                     | (SignatureContractKind::Ensures, ServiceMembershipSubject::NormalResult) => {}
                     _ => {
