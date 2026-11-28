@@ -570,6 +570,7 @@ dependencies = [
  "build-providers",
  "component-description",
  "diagnostics",
+ "language-core",
  "native-compiler",
  "package-compilation",
  "product-publication",
@@ -578,7 +579,10 @@ dependencies = [
  "psi-entry-memory",
  "review-evidence",
  "semantic-vocabulary",
+ "source-admission",
  "source-compiler",
+ "source-provenance",
+ "symbols",
  "target",
  "terminal-codec",
 ]
