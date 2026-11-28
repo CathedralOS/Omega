@@ -171,3 +171,95 @@ machine main() crashes Trap {
         "{message}"
     );
 }
+
+#[test]
+fn an_explicit_borrow_keeps_its_layer_at_a_named_call() {
+    const BODY: &str = r#"
+data Pair { value: u8 }
+machine read(pair: @Pair) -> u8 { pair.value }
+machine relay(pair: @Pair) -> u8 { read(ARGUMENT) }
+machine main() crashes Trap {
+    let owned: Pair = Pair { value: 43u8 };
+    transition relay(@owned) == 43u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(&BODY.replace("ARGUMENT", "@pair"), &[]).check();
+    let diagnostic = super::report(&refused);
+    assert!(
+        !refused.status.success()
+            && diagnostic.contains("adds a reference layer beyond the destination type")
+            && !diagnostic.contains("not supported yet"),
+        "{diagnostic}"
+    );
+    for expression in ["pair", "@$pair"] {
+        let program = Program::new(&BODY.replace("ARGUMENT", expression), &[]);
+        program.assert_psi_returns();
+        program.assert_native_returns();
+    }
+}
+
+#[test]
+fn a_nested_reference_argument_keeps_each_written_layer() {
+    let body = r#"
+machine read(value: @@u8) -> u8 { $$value }
+machine main() crashes Trap {
+    let owned: u8 = 53u8;
+    let slot: @u8 = @owned;
+    transition read(ARGUMENT) == 53u8 { true -> {}, _ -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let refused = Program::new(&body.replace("ARGUMENT", "@@slot"), &[]).check();
+    let message = super::report(&refused);
+    assert!(
+        !refused.status.success()
+            && message.contains("adds a reference layer beyond the destination type"),
+        "{message}"
+    );
+    for argument in ["@slot", "@@owned"] {
+        let program = Program::new(&body.replace("ARGUMENT", argument), &[]);
+        program.assert_psi_returns();
+        program.assert_native_returns();
+    }
+}
+
+#[test]
+fn a_binding_field_or_return_checks_the_same_written_borrow_as_a_call() {
+    let source = r#"
+data Pair { value: u8 }
+data Holder<'a> { pair: @'a Pair }
+machine read(pair: @Pair) -> u8 { pair.value }
+DECLARATION
+machine main() crashes Trap {
+    let owned: Pair = Pair { value: 39u8 };
+    transition RESULT == 39u8 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    for (declaration, result) in [
+        (
+            "machine relay(pair: @Pair) -> u8 { let stored: @Pair = FORM; read(stored) }",
+            "relay(@owned)",
+        ),
+        (
+            "machine relay<'a>(pair: @'a Pair) -> u8 { let holder: Holder<'a> = Holder { pair: FORM }; read(holder.pair) }",
+            "relay(@owned)",
+        ),
+        (
+            "machine relay<'a>(pair: @'a Pair) -> @'a Pair { FORM }",
+            "read(relay(@owned))",
+        ),
+    ] {
+        let body = source
+            .replace("DECLARATION", declaration)
+            .replace("RESULT", result);
+        let refused = Program::new(&body.replace("FORM", "@pair"), &[]).check();
+        let diagnostic = super::report(&refused);
+        assert!(
+            !refused.status.success()
+                && diagnostic.contains("adds a reference layer beyond the destination type"),
+            "{declaration}: {diagnostic}"
+        );
+        let valid = Program::new(&body.replace("FORM", "@$pair"), &[]);
+        valid.assert_psi_returns();
+        valid.assert_native_returns();
+    }
+}
