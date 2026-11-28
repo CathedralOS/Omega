@@ -23,6 +23,7 @@ pub struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
     request_meaning: String,
+    call_path: Option<String>,
     request_path: Option<DependencyRequestPath>,
 }
 
@@ -40,6 +41,7 @@ impl UngrantedRestrictedBuildRequest {
             package,
             context,
             request_meaning,
+            call_path: request.call_path().map(str::to_owned),
             request_path,
         })
     }
@@ -55,6 +57,9 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
             self.context.target().identity().as_str(),
             self.request_meaning
         )?;
+        if let Some(path) = &self.call_path {
+            writeln!(formatter, "    call path: {}", path.escape_debug())?;
+        }
         if let Some(profile) = self.context.build_execution_profile() {
             writeln!(formatter, "    build host {}", profile.identity().as_str())?;
         }

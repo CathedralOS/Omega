@@ -20,7 +20,7 @@ mod snapshot_request;
 
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
-pub use execution_inputs::{BuildExecutionContract, BuildExecutionInputs};
+pub use execution_inputs::{BuildExecutionContract, BuildExecutionInputs, BuildNetworkInvocation};
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
 pub use filesystem_scope::runtime::{
     BuildFileError, BuildFilesystemEffects, BuildFilesystemRuntime,
@@ -35,9 +35,9 @@ pub use observation_identity::BuildObservationIdentity;
 pub use observations::*;
 pub use platform_custody::directory_mappings::DirectoryAccess;
 pub use restricted_requests::{
-    ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
-    RestrictedBuildGrants, RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite,
-    RestrictedBuildSubject, RestrictedProgramLaunch,
+    BuildNetworkPeer, ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant,
+    RestrictedBuildGrantRoot, RestrictedBuildGrants, RestrictedBuildOperation,
+    RestrictedBuildRequest, RestrictedBuildSite, RestrictedBuildSubject, RestrictedProgramLaunch,
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 

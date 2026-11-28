@@ -197,6 +197,7 @@ fn compile_targets(
     let root_inputs = package_manager::project::RootBuildInputs {
         snapshot,
         programs: arguments.programs.clone(),
+        network: arguments.network,
     };
     let subjects: Box<dyn Iterator<Item = (PathBuf, Option<OpenedProduct>)> + '_> =
         if active.is_empty() {
@@ -221,7 +222,11 @@ fn compile_targets(
         } else {
             let products = timeline.borrow_mut().record("open_products", || {
                 package_manager::project::open_products(
-                    package_manager::project::ProjectInput::File(&arguments.root_path),
+                    if arguments.staged_build {
+                        package_manager::project::ProjectInput::Staged(&arguments.root_path)
+                    } else {
+                        package_manager::project::ProjectInput::File(&arguments.root_path)
+                    },
                     &active,
                     arguments.offline,
                     arguments.timings,
