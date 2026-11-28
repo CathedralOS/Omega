@@ -285,6 +285,8 @@ pub enum TypeReferenceNode {
     },
     ConstExpression(ExpressionHandle),
     Named(Identifier),
+    /// Names the witness of this parameter or local at a declared `some` slot.
+    SomeOpening(Identifier),
     #[default]
     Unit,
 }
