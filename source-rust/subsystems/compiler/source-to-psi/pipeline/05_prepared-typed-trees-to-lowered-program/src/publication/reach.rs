@@ -10,32 +10,12 @@ use semantic_vocabulary::ServiceReachId;
 use semantic_vocabulary::{MachineId, ServiceId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
-    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableInvocation,
-    TerminalCallableTermination, TerminalModule,
+    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableTermination, TerminalModule,
 };
 
 use crate::{Elaboration, Unserved, refuse};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SourceInvocation {
-    Parameter(u32),
-    Service(ServiceReachId),
-}
-
-impl Ord for SourceInvocation {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let key = |target: &Self| match target {
-            Self::Parameter(position) => (0u8, *position),
-            Self::Service(service) => (1, service.0),
-        };
-        key(self).cmp(&key(other))
-    }
-}
-impl PartialOrd for SourceInvocation {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
+pub(crate) type SourceInvocation = semantic_vocabulary::SynchronousInvocation<ServiceReachId>;
 
 /// These identities belong to frozen typed trees, not a Terminal namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,14 +164,7 @@ impl ServiceMap {
         let mut invocations = source
             .invocations
             .iter()
-            .map(|target| match target {
-                SourceInvocation::Parameter(position) => {
-                    Ok(TerminalCallableInvocation::Parameter(*position))
-                }
-                SourceInvocation::Service(service) => self
-                    .service(context, *service)
-                    .map(TerminalCallableInvocation::Service),
-            })
+            .map(|target| target.try_map_service(|id| self.service(context, *id)))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();

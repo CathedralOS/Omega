@@ -12,7 +12,7 @@ use crate::proof_declarations::{
 use crate::signatures::{Declaration, MachineResult};
 use crate::signatures::{ParameterKind, StructuralParameter};
 use crate::wire::{Writer, decode_canonical};
-use psi_declaration_encoding::dispatch::{ClaimPath, Region};
+use psi_declaration_encoding::dispatch::{ClaimPath, InvocationPathSegment, Region};
 use terminal_psi::{
     TerminalBoundaryEnvelope, TerminalCallableCatalog, TerminalCallableContract,
     TerminalCallableEnvelope, TerminalCallableEvidenceLane, TerminalCallableInvocation,
@@ -81,7 +81,9 @@ wire_enum! {
     Invocation: TerminalCallableInvocation, "TerminalCallableInvocation" {
         1 => Parameter(parameter: U32),
         2 => Service(service: Id),
+        3 => ProjectedParameter { parameter: U32, path: List<InvocationPathSegment> },
     }
+
     Termination: TerminalCallableTermination, "TerminalCallableTermination" {
         0 => NotGuaranteed,
         1 => Terminates { premises: List<Premise, 16> },

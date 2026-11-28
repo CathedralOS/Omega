@@ -7,6 +7,32 @@ use crate::record::{PackageReviewInstallationReach, PackageReviewSynchronousInvo
 
 use super::identity::encode_nominal;
 
+pub(in crate::encoding::encode) fn encode_invocation_path(
+    encoder: &mut Encoder,
+    parameter: u32,
+    path: &[semantic_vocabulary::InvocationPathSegment],
+) -> Result<(), PackageReviewEncodingError> {
+    use semantic_vocabulary::InvocationPathSegment as Step;
+    encoder.u32_field("position", parameter)?;
+    encoder.sequence_field("path", path, |encoder, step| match step {
+        Step::Field(name) => {
+            encoder.tag("field", 1);
+            encoder.string_field("identity", name)
+        }
+        Step::FixedIndex(index) => {
+            encoder.tag("fixed_index", 2);
+            encoder.u64_field("index", *index)
+        }
+        Step::Case(name) => {
+            encoder.tag("case", 3);
+            encoder.string_field("identity", name)
+        }
+        Step::Referent => {
+            encoder.tag("referent", 4);
+            Ok(())
+        }
+    })
+}
 pub(crate) fn encode_synchronous_invocation(
     encoder: &mut Encoder,
     invocation: &PackageReviewSynchronousInvocation,
@@ -15,6 +41,10 @@ pub(crate) fn encode_synchronous_invocation(
         PackageReviewSynchronousInvocation::Parameter(position) => {
             encoder.tag("parameter", 0);
             encoder.u32_field("position", *position)?;
+        }
+        PackageReviewSynchronousInvocation::ProjectedParameter { parameter, path } => {
+            encoder.tag("projected_parameter", 2);
+            encode_invocation_path(encoder, *parameter, path)?;
         }
         PackageReviewSynchronousInvocation::Service(service) => {
             encoder.tag("service", 1);

@@ -6,7 +6,7 @@ use semantic_vocabulary::MachineId;
 use semantic_vocabulary::ServiceReachId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
-use terminal_psi::{TerminalCallableInvocation, TerminalCallableTermination, TerminalModule};
+use terminal_psi::{TerminalCallableTermination, TerminalModule};
 
 use crate::publication::reach::{ServiceMap, SourceInvocation};
 use crate::{Signature, Unserved, refuse};
@@ -45,14 +45,7 @@ impl StaticSourceEnvelope {
         let mut invocations = self
             .invocations
             .iter()
-            .map(|invocation| match invocation {
-                SourceInvocation::Parameter(position) => {
-                    Ok(TerminalCallableInvocation::Parameter(*position))
-                }
-                SourceInvocation::Service(service) => services
-                    .service(context, *service)
-                    .map(TerminalCallableInvocation::Service),
-            })
+            .map(|invocation| invocation.try_map_service(|id| services.service(context, *id)))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
@@ -71,10 +64,7 @@ impl StaticSourceEnvelope {
         roots.extend(
             self.invocations
                 .iter()
-                .filter_map(|invocation| match invocation {
-                    SourceInvocation::Service(service) => Some(*service),
-                    SourceInvocation::Parameter(_) => None,
-                }),
+                .filter_map(|invocation| invocation.service().copied()),
         );
     }
 }

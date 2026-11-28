@@ -55,6 +55,12 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 307 records which callable field of a parameter may run. The callable
+envelope and service schema invocation lists use tag 1 for a whole parameter
+and tag 2 for a service. Tag 3 carries the zero-based parameter position
+(`u32`) and a counted nonempty path: 1 field identity (text), 2 fixed index
+(`u64`), 3 case identity (text), or 4 referent. The path must end at a callable.
+
 Marker 306 adds typed native address borrows (operation 145), mutability
 upgrades (146), and upgraded parameter origins (reference source tag 3).
 The reader rejects earlier markers before reading the payload.
@@ -3382,7 +3388,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 306 | yes |
+| semantic module | `PSITERM\0` | 307 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

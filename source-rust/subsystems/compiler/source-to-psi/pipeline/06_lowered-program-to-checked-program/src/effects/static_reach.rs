@@ -255,10 +255,7 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
         if !checking
             .invocations
             .iter()
-            .filter_map(|entry| match entry {
-                terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service),
-                terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
-            })
+            .filter_map(|entry| entry.service().copied())
             .eq(machine.published_synchronous_entries.iter().copied())
         {
             return Err(fault(

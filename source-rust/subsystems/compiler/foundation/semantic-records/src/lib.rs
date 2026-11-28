@@ -944,6 +944,7 @@ pub use scalars::scalar_refinement::{ScalarRefinement, ScalarRefinementError};
 pub use storage::reference_origins::ReferenceOriginExtent;
 
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
+mod synchronous_invocation;
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
     CallableContractId, CallableInvocationSite, CallingAbiIdentity, CallingDeclarationOwner,
@@ -978,6 +979,9 @@ pub use storage::content::{
 /// type and qualify its variants, for example `ContentPlaceSegment::Case`.
 pub type ContentPlaceSegment = StructuralPlaceSegment<false>;
 pub use storage::structural_places::{AffineConstructionElement, StructuralPlaceKind};
+pub use synchronous_invocation::{
+    InvocationPathSegment, SynchronousInvocation, display_invocation_path,
+};
 
 pub use boundary::foreign_locator::{ForeignLocatorCandidate, NativeBindingLocator};
 
