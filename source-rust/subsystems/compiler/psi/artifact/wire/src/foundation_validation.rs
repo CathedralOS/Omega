@@ -1815,8 +1815,14 @@ pub(crate) mod declaration_foundations {
                     })?;
             }
             for row in &module.interfaces.provider_exports {
-                row.check_members(module)
-                    .map_err(CodecError::MalformedStructuralFoundation)?;
+                row.check_member_contracts(module, |id, method| {
+                    let boundary = module
+                        .boundary_machine(id)
+                        .ok_or("unknown exported boundary")?;
+                    terminal_semantics::validate_boundary_memberships(module, boundary, method)
+                        .map_err(|_| "exported method changes its requirement's domain membership")
+                })
+                .map_err(CodecError::MalformedStructuralFoundation)?;
             }
             for request in &module.interfaces.calling_policy_requests {
                 match &request.declaration {
@@ -5507,6 +5513,7 @@ pub(crate) mod scalar_applications {
                 structural_parameters: Vec::new(),
                 result: terminal_psi::BoundaryMachineResult::Unit,
                 requires: Vec::new(),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -6325,6 +6332,7 @@ pub(crate) mod scalar_qualifications {
             ),
             Error::MalformedStructuralFoundation(detail)
             | Error::MalformedMachine { detail, .. }
+            | Error::UnmetInputMembership { detail, .. }
             | Error::NormalResultMembership { detail, .. } => {
                 crate::CodecError::MalformedStructuralFoundation(detail)
             }
@@ -13856,6 +13864,7 @@ mod installed_interrupt_owner_tests {
                 result_reference_regions: Vec::new(),
                 result_lifetimes: None,
                 requires: Vec::new(),
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),

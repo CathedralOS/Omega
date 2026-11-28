@@ -3474,7 +3474,7 @@ fn validate_shape_for_bodies_from(
     let facts = crate::membership_facts::analyze_bodies_from(rows, bodies).map_err(|error| {
         StructuralQualificationError {
             violation: None,
-            machine: error.machine,
+            machine: error.machine(),
             detail: error.detail,
         }
     })?;
@@ -3631,7 +3631,7 @@ fn validate_from(rows: &DescriptorRowSource<'_, '_>) -> Judged<()> {
     let facts = crate::membership_facts::analyze_from(rows).map_err(|error| {
         StructuralQualificationError {
             violation: None,
-            machine: error.machine,
+            machine: error.machine(),
             detail: error.detail,
         }
     })?;

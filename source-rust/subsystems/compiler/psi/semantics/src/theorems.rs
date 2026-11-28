@@ -316,6 +316,7 @@ pub(crate) fn named_contract(
     {
         Some("named theorem application names a machine with reach, suspension or blocking")
     } else if !contract.outcome_specific_ensures.is_empty()
+        || !contract.membership_requires.is_empty()
         || !contract.membership_ensures.is_empty()
     {
         Some("named theorem application names a machine with a guarantee about its outcome")
@@ -674,6 +675,7 @@ fn citation_goals_with(
         || !supplied.erased_scalar_formals.is_empty()
         || !supplied.entry_claims.is_empty()
         || !supplied.content_entry_claims.is_empty()
+        || !supplied.membership_requires.is_empty()
         || !supplied.membership_ensures.is_empty()
         || !supplied.outcome_specific_ensures.is_empty()
         || !supplied.published_service_ceiling.is_empty()

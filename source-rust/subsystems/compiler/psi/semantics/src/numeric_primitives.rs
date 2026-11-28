@@ -552,7 +552,8 @@ pub fn validate_boundary(
     );
     require!(
         crash_routes_match(&boundary.crash_routes, &expected_crashes)
-            && boundary.scalar_requires == expected_requires,
+            && boundary.scalar_requires == expected_requires
+            && boundary.membership_requires.is_empty(),
         "formation and crash clauses"
     );
     require!(
