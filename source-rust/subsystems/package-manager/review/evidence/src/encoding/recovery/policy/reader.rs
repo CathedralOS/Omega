@@ -130,6 +130,19 @@ impl<'a> Reader<'a> {
         minimum_encoded_bytes: usize,
         mut decode: impl FnMut(&mut Self) -> Result<T, Error>,
     ) -> Result<Vec<T>, Error> {
+        let (count, mut values) = self.sequence_buffer(minimum_encoded_bytes)?;
+        for _ in 0..count {
+            values.push(decode(self)?);
+        }
+        Ok(values)
+    }
+
+    /// Charge the encoded count and reserve one bounded output buffer. A
+    /// subject prefix can consume an entry without allocating a projection.
+    pub(in crate::encoding::recovery) fn sequence_buffer<T>(
+        &mut self,
+        minimum_encoded_bytes: usize,
+    ) -> Result<(usize, Vec<T>), Error> {
         let count = self.usize()?;
         self.elements(count)?;
         if minimum_encoded_bytes == 0 || count > self.remaining.len() / minimum_encoded_bytes {
@@ -144,10 +157,7 @@ impl<'a> Reader<'a> {
         values
             .try_reserve_exact(count)
             .map_err(|_| Error::AllocationFailed)?;
-        for _ in 0..count {
-            values.push(decode(self)?);
-        }
-        Ok(values)
+        Ok((count, values))
     }
 
     pub(in crate::encoding::recovery) fn option<T>(

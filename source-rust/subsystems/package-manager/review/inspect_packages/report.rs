@@ -191,6 +191,7 @@ fn contents(
         for review in reviews.reviews_for(package.key()) {
             checked_context(output, "fresh", review.checked_context())?;
             policy::render(output, "fresh-policy", review.policy(), source, verbose)?;
+            policy::unsafe_authority(output, review.unsafe_authority(), source)?;
             for stage in review.preparations() {
                 writeln!(
                     output,

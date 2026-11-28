@@ -19,6 +19,8 @@ use crate::record::{
 };
 pub(super) use bindings::binding as encode_binding;
 pub(super) use service::method as encode_service_method;
+#[cfg(test)]
+pub(in crate::encoding) use service::encode_membership;
 use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 mod bindings;
 mod service;

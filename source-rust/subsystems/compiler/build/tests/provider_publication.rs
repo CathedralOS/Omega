@@ -1968,11 +1968,19 @@ fn a_supplier_exports_one_record_without_selecting_it_for_local_calls() {
     std::fs::write(
         tmp.path().join("main.omg"),
         r#"
+        public data Ticket { number: u64; }
+        public domain Ticket::Issued established by issue;
+        public machine issue(ticket: Ticket) -> Ticket in Issued { ticket as +Issued }
         public boundary trait Reading {
-            machine value() -> u64 reaches none crashes none;
+            machine value(spare: Ticket, checked: Ticket) -> u64
+            requires checked in Issued reaches none crashes none;
         }
-        public Internal satisfies Reading { machine value() -> u64 { 11u64 } }
-        public External satisfies Reading { machine value() -> u64 { 29u64 } }
+        public Internal satisfies Reading {
+            machine value(spare: Ticket, checked: Ticket) -> u64 { 11u64 }
+        }
+        public External satisfies Reading {
+            machine value(spare: Ticket, checked: Ticket) -> u64 { checked.number }
+        }
     "#,
     )
     .unwrap();
@@ -2031,6 +2039,41 @@ fn a_supplier_exports_one_record_without_selecting_it_for_local_calls() {
             row.provider_identity == local.provider_identity && row.boundary == member.boundary
         })
         .unwrap();
+    let schema = module
+        .service_schema(export.schema_declaration, export.schema_application)
+        .unwrap();
+    let [method] = schema.surface.methods.as_slice() else {
+        panic!("Reading publishes one method");
+    };
+    let [premise] = method.domain_memberships.as_slice() else {
+        panic!("the saved supplier must publish the issued-ticket premise");
+    };
+    assert_eq!(
+        premise.subject,
+        service_surface::ServiceMembershipSubject::Input(1)
+    );
+    let boundary = module.boundary_machine(member.boundary).unwrap();
+    terminal_semantics::validate_boundary_memberships(module, boundary, method).unwrap();
+    let mut changed = module.clone();
+    let exported_schema = changed
+        .interfaces
+        .service_schemas
+        .iter_mut()
+        .find(|row| {
+            row.declaration == export.schema_declaration
+                && row.application == export.schema_application
+        })
+        .unwrap();
+    let changed_method = &mut std::sync::Arc::make_mut(&mut exported_schema.surface).methods[0];
+    changed_method.domain_memberships[0].subject =
+        service_surface::ServiceMembershipSubject::Input(0);
+    let changed = terminal_codec::ClosedTerminalModule::new(changed).unwrap();
+    assert!(matches!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(changed.semantic_bytes()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "exported method changes its requirement's domain membership"
+        ))
+    ));
     let mut forged = export.clone();
     forged.members[0].machine = private.candidate;
     assert_eq!(

@@ -478,3 +478,52 @@ fn a_stored_callable_may_change_an_exclusive_fields_entry_value() {
         "{rejected:?}"
     );
 }
+
+#[test]
+fn a_reader_package_keeps_its_callbacks_output_bound() {
+    const SOURCE: &str = r#"
+        data ReadInto<S> = machine(state: @mutable S, output: @mutable [u8]) -> u64
+            ensures result <= output.length
+            reaches none
+            crashes none;
+
+        data Reader<'a, some S> {
+            state: @'a mutable S;
+            read: ReadInto<S>;
+        }
+
+        machine read_one(reader: @mutable Reader, output: @mutable [u8]) -> u64
+        ensures result <= output.length
+        {
+            (reader.read)(reader.state, output)
+        }
+    "#;
+    let opened =
+        invocation(SOURCE, "read_one").expect("open the package and call its stored descriptor");
+    assert!(
+        opened
+            .module
+            .execution
+            .packages
+            .sites
+            .iter()
+            .any(|site| matches!(
+                site.event,
+                terminal_psi::TerminalPackageEvent::Invoke { .. }
+            ))
+    );
+    let accepted = judge(Ok(opened)).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let missing = SOURCE.replacen("ensures result <= output.length", "", 1);
+    let rejected = judge(invocation(&missing, "read_one")).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. } if
+            unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::NormalGuarantee { .. }))
+        ),
+        "{rejected:?}"
+    );
+}

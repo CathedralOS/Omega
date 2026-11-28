@@ -1,4 +1,5 @@
-data Index [copy] { value: u32; }
+// Expected exit: 0.
+public data Index [copy] { value: u32; }
 domain Index::Bounded requires self.value <= 1;
 public boundary trait Required { machine get(index: Index) -> u32 reaches none crashes none; }
 public Actual satisfies Required {

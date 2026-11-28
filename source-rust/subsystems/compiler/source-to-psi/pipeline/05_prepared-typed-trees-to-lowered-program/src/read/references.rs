@@ -254,9 +254,13 @@ impl Program<'_> {
         // no permission to reinterpret either storage type.
         let presented = self.borrowed_argument_type(machine, slots, &value, referent, &formal)?;
         if !self.same_type(presented, referent) {
-            return Err(refuse_at(
+            return Err(self.mistyped(
                 machine,
-                Unserved::Typing("reference formation changes its referent type"),
+                source,
+                super::rejections::Destination::Referent,
+                Some(referent),
+                presented,
+                "reference formation changes its referent type",
             ));
         }
         self.finish_reference_value(machine, slots, value, expected, source)
@@ -902,6 +906,7 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             reaches: crate::Ceiling::Inferred,
