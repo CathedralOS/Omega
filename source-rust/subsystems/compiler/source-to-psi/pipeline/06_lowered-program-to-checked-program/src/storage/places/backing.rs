@@ -771,7 +771,7 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Backing> {
-        self.optional_backing(references, place, block, before, concerns)?
+        self.optional_backing(references, place, block, before, concerns, false)?
             .ok_or_else(|| self.unsupported(concerns, "captured storage family is empty"))
     }
 
@@ -784,6 +784,7 @@ impl<'a> Storage<'a> {
         block: BlockId,
         before: usize,
         concerns: Construct,
+        call_write: bool,
     ) -> Checked<Option<Backing>> {
         let borrowed_arrival = self.is_borrowed_arrival(place.root, concerns)?;
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
@@ -816,12 +817,23 @@ impl<'a> Storage<'a> {
                 "reference backing has no complete descriptor coordinate",
             )
         })?;
-        let Some(addresses) = references
-            .captured_storage_family_if_active(self.machine, (block, before), &location)
-            .map_err(|detail| self.unsupported(concerns, detail))?
-        else {
-            return Ok(None);
-        };
+        let at = (block, before);
+        let addresses =
+            match references.captured_storage_family_if_active(self.machine, at, &location) {
+                Ok(Some(addresses)) => addresses,
+                Ok(None) => return Ok(None),
+                Err(detail) if call_write => {
+                    terminal_semantics::packages::local_call_write_origins(
+                        self.module,
+                        self.lowered,
+                        at,
+                        references,
+                        &location,
+                    )
+                    .ok_or_else(|| self.unsupported(concerns, detail))?
+                }
+                Err(detail) => return Err(self.unsupported(concerns, detail)),
+            };
         let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             match self.root_kind(place.root, concerns)? {
                 StructuralPlaceKind::BlockParameter { block, .. } => Some(block),

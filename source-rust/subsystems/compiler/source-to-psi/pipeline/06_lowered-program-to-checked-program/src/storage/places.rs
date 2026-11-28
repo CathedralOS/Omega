@@ -1425,6 +1425,7 @@ impl<'a> Storage<'a> {
                         row.block,
                         before,
                         concerns,
+                        true,
                     )?
                     else {
                         return Ok(None);

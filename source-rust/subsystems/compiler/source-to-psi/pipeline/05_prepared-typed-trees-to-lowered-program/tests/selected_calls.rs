@@ -505,6 +505,31 @@ machine main() {
 }
 
 #[test]
+fn calls_invalidate_the_actual_lenders_of_two_hidden_mutable_fields() {
+    let source = "
+data File { byte: u8; }
+data Socket { unused: u8; byte: u8; }
+data Read<S> = machine(state: @mutable S) -> u8 reaches none crashes none;
+data Reader<'a, some S> { state: @'a mutable S; read: Read<S>; }
+machine read_file(state: @mutable File) -> u8 reaches none crashes none { state.byte }
+machine read_socket(state: @mutable Socket) -> u8 reaches none crashes none { state.byte }
+machine read(reader: @mutable Reader) -> u8 { (reader.read)(reader.state) }
+machine main() -> bool {
+    let mutable file: File = File { byte: 17u8 };
+    let mutable socket: Socket = Socket { unused: 0u8, byte: 42u8 };
+    let mutable readers: [Reader; 2] = [
+        Reader { state: @mutable file, read: read_file },
+        Reader { state: @mutable socket, read: read_socket }
+    ];
+    let first: u8 = read(@mutable readers[0]);
+    let second: u8 = read(@mutable readers[1]);
+    first == 17u8 && second == 42u8
+}";
+    let program = Program::of(source);
+    assert_eq!(program.judged(|_| ()), program::Verdict::Accepted);
+}
+
+#[test]
 fn a_dependent_field_update_survives_publication_and_independent_replay() {
     use source_compiler::test_support::checking::{RouteVerdict, judge};
     use terminal_psi::TerminalPackageEvent;
