@@ -709,6 +709,29 @@ machine main() crashes Trap {
 }
 
 #[test]
+fn a_successor_can_read_a_literal_after_the_loop_releases_its_local_descriptors() {
+    let typed = super::boundary_calls::typed(
+        r#"
+machine entry() -> u64 {
+    transition { _ -> select(0) }
+    machine select(count: u64) -> u64 {
+        transition count == 0 { true -> take("forward"), false -> (count) }
+    }
+    machine take(label: @[u8]) -> u64 { transition { _ -> select(label.length) } }
+}
+"#,
+    );
+    let results = super::boundary_calls::compilation_results_of(&typed);
+    assert!(!results.is_empty());
+    assert!(
+        results
+            .iter()
+            .all(|result| matches!(result, Ok(RouteVerdict::Accepted(_)))),
+        "{results:?}"
+    );
+}
+
+#[test]
 fn an_empty_shared_payload_keeps_its_owned_permission_at_a_call() {
     let typed = super::boundary_calls::typed(
         r#"

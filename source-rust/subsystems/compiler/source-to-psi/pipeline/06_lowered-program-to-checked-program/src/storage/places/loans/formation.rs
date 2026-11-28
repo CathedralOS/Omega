@@ -330,6 +330,12 @@ impl<'a> Storage<'a> {
             match self.storage_loan_region(references, &place, at, concerns)? {
                 LoanRegion::Storage(backing) => sources.push(backing),
                 LoanRegion::Provider(_) => sources.push(Backing::direct(place)),
+                LoanRegion::ImmutableImageBytes(_) => {
+                    return Err(self.foreign(
+                        concerns,
+                        "native address source is an immutable byte payload",
+                    ));
+                }
             }
         }
         let backing = Backing::native_address(address, descriptor, sources, exact);
