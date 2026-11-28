@@ -2113,9 +2113,7 @@ pub(crate) fn close_typed_cohort(
             cohort,
         );
     if applied_signatures_walk_program {
-        lowerer
-            .typed_trees
-            .prepare_applied_callable_signatures()
+        crate::declarations::applied_callable_signatures::prepare(&mut lowerer.typed_trees)
             .map_err(|message| Diagnostic::error(message.to_owned()))?;
     }
     // Infer unannotated constants whose initializer type is already known

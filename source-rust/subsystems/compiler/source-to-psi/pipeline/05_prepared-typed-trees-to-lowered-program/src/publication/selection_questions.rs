@@ -15,6 +15,7 @@ use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::references::{DeclarationSelection, TypedReferences};
 use crate::source_state::statement::{StatementHandle, StatementNode, StatementRootRole};
+use crate::source_state::static_applications::StaticMachineApplicationHandle;
 use crate::source_state::types::{ProductTypeInput, TypeOperandOrigin, TypeReferenceHandle};
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -373,7 +374,7 @@ struct Capture<'a> {
     )>,
     seen_expressions: Membership<(SymbolHandle, ExpressionHandle, bool)>,
     seen_types: Membership<(SymbolHandle, SymbolHandle, TypeReferenceHandle)>,
-    product_type_inputs: Membership<ProductTypeInput>,
+    product_inputs: FormedProductInputs,
     product_alias_instances: Membership<TypeReferenceHandle>,
     seen_facts: Membership<(
         SymbolHandle,
@@ -441,19 +442,30 @@ fn product_alias_input(
     Ok(Some(*input))
 }
 
+#[derive(Default)]
+struct FormedProductInputs {
+    types: Membership<ProductTypeInput>,
+    heads: Membership<(StaticMachineApplicationHandle, SymbolHandle, SymbolHandle)>,
+}
+
 /// The same live selection that supplied the normalized argument must contain
 /// this type or domain occurrence. An unrelated argument, a stale lookup or a type
 /// merely carrying the same name cannot authorize the rejoined reference.
-fn formed_product_type_inputs(
+fn formed_product_inputs(
     typed: &TypedTrees,
     product_alias_instances: &Membership<TypeReferenceHandle>,
-) -> Membership<ProductTypeInput> {
+) -> FormedProductInputs {
     use crate::declaration_selection::product_operands::ProductOperandConstraint;
     use crate::source_state::types::{TypeConstraintNode, TypeReferenceNode};
 
-    let mut inputs = Membership::default();
+    let mut inputs = FormedProductInputs::default();
     for handle in typed.live_product_operand_applications() {
         let selected = typed.product_operand_applications.get(handle);
+        if let Some(head) = selected.selected_head(typed) {
+            inputs
+                .heads
+                .insert((selected.supplying_application, selected.owner, head));
+        }
         let Some(application) = &selected.argument.application else {
             continue;
         };
@@ -480,7 +492,7 @@ fn formed_product_type_inputs(
                 && input.declaration == declaration
                 && written.contains(&input.occurrence)
             {
-                inputs.insert(*input);
+                inputs.types.insert(*input);
             }
         };
         let parameters = typed
@@ -1421,12 +1433,27 @@ impl TypedReferences for Capture<'_> {
         self.formation_owner(formation_owner);
     }
     fn product_type_input(&mut self, input: ProductTypeInput, symbol: SymbolHandle) {
-        if input.declaration != symbol || !self.product_type_inputs.contains(&input) {
+        if input.declaration != symbol || !self.product_inputs.types.contains(&input) {
             self.fail("a retained Product type does not match its selected operand");
         } else {
             // The Build already issued the designation. Reading its resulting
             // type in a prepared contract does not select code in Build.
             self.formation_owner(symbol);
+        }
+    }
+    fn product_application_head(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
+    ) {
+        if self
+            .product_inputs
+            .heads
+            .contains(&(application, self.owner, declaration))
+        {
+            self.formation_owner(declaration);
+        } else {
+            self.fail("a retained Product application head does not match its supplying operand");
         }
     }
     fn formation_owner(&mut self, owner: SymbolHandle) {
@@ -1551,7 +1578,7 @@ pub(crate) fn capture_with_bodies(
         seen_dependencies: Membership::default(),
         seen_expressions: Membership::default(),
         seen_types: Membership::default(),
-        product_type_inputs: formed_product_type_inputs(typed, &product_alias_instances),
+        product_inputs: formed_product_inputs(typed, &product_alias_instances),
         product_alias_instances,
         seen_facts: Membership::default(),
         next_authored_symbol: None,

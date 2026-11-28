@@ -2,6 +2,7 @@ use super::AppliedTraitScope;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::TypeParameterKind;
 use crate::source_state::name::Identifier;
+use crate::source_state::static_applications::StaticMachineApplicationHandle;
 use crate::source_state::type_identity::lifetime_parameter_identity;
 use crate::source_state::type_identity::{
     AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
@@ -15,6 +16,7 @@ use symbols::SymbolHandle;
 pub(crate) struct AppliedDeclarationRegionScope {
     pub(crate) declaration: SymbolHandle,
     pub(crate) argument_owner: SymbolHandle,
+    pub(crate) product_head: StaticMachineApplicationHandle,
     pub(crate) lifetimes: Vec<(String, String)>,
 }
 
@@ -28,6 +30,7 @@ impl AppliedDeclarationRegionScope {
         Self {
             declaration,
             argument_owner,
+            product_head: Default::default(),
             lifetimes: parameters
                 .iter()
                 .zip(arguments)
@@ -407,6 +410,7 @@ fn invocation_region_scope(
     Some(AppliedDeclarationRegionScope {
         declaration,
         argument_owner,
+        product_head: Default::default(),
         lifetimes,
     })
 }

@@ -24,6 +24,7 @@ the selected core operation; they do not look for a provider for it.
 | Pass | What it writes | Who reads it |
 | --- | --- | --- |
 | [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay::<u8>(..)`, `advance::<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
+| [conformance headers](src/passes/conformance_headers.rs) | Closed signatures for concrete provider requirements, including those without a source call | Lowering reads the required inputs and result from each closed signature |
 | [domain applications](src/passes/domain_applications.rs) | The declaration’s carrier, proof facts and cleanup selection with its retained type and value arguments substituted, or a refusal on that application | Structural elaboration reads the theory for the exact declaration and semantic domain identity |
 
 Record patterns already carry their record and field identities from typing.

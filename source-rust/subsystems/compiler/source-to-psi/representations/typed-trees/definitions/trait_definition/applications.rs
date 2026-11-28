@@ -92,7 +92,7 @@ impl TypedTrees {
     }
 
     /// `occurrences` must come from a walk of this program as it is now.
-    pub(crate) fn applied_trait_roots_from(
+    pub fn applied_trait_roots_from(
         &self,
         occurrences: crate::source_state::references::ProgramApplicationOccurrences,
     ) -> Vec<AppliedTraitScope<'_>> {
