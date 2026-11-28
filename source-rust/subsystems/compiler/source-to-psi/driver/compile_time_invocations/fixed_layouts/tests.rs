@@ -289,3 +289,62 @@ machine packet_size<'target>(target: @'target |layout|::LayoutTarget, outer_alig
     assert_eq!(accounting.receipts().len(), 2);
     accounting.validate_charges().unwrap();
 }
+
+#[test]
+fn repeated_inactive_fields_still_require_established_alignment() {
+    let source = with_reflection(AUTHORED).unwrap();
+    let make = source.realized_machine_named("make").unwrap();
+    let [entry] = source.machine_states(make).as_array().unwrap();
+    let storage = source.layout_storage_arguments(entry.return_type).unwrap();
+    let program = PreparedBuildMachineProgram::prepare(&source, None)
+        .unwrap()
+        .for_layout_policies();
+    let facts = layout_plans::LayoutTargetFacts {
+        profile: "linux_x86_64".into(),
+        pointer_size: 8,
+        pointer_alignment: 8,
+        case_tag_size: 4,
+        case_tag_alignment: 4,
+        little_endian: true,
+    };
+    let call = layout_call(&source, &program, make.symbol, storage, &facts, None).unwrap();
+    let mut arguments = call.argument.arguments;
+    fn member<'a>(record: &'a mut BuildTimeValue, name: &str) -> &'a mut BuildTimeValue {
+        let BuildTimeValue::Struct { fields, .. } = record else {
+            panic!("schema record")
+        };
+        &mut fields
+            .iter_mut()
+            .find(|(label, _)| label == name)
+            .unwrap()
+            .1
+    }
+    let schema = &mut Arc::make_mut(&mut arguments)[0];
+    let BuildTimeValue::Array(fields) = member(schema, "fields") else {
+        panic!("schema fields")
+    };
+    // Pair has two live fields. The repeated remainder is ordinary affine
+    // SchemaField data with the same constructor requirements as a live row.
+    for field in &mut fields[2..] {
+        *member(field, "align") = BuildTimeValue::Int(0);
+    }
+    let plan = program
+        .plan_selected(
+            make.symbol,
+            make.symbol,
+            &call.policy,
+            storage.plan_requirement(&source, make.symbol).unwrap(),
+            arguments,
+        )
+        .unwrap()
+        .for_target(&facts);
+    let diagnostic = program
+        .prepare_planned(&plan)
+        .err()
+        .expect("an invalid inactive constructor must be refused");
+    let message = diagnostics::join_messages(&diagnostic);
+    assert!(
+        message.contains("require") || message.contains("invariant"),
+        "{message}"
+    );
+}
