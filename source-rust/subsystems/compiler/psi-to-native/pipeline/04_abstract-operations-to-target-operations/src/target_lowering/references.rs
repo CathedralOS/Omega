@@ -1340,6 +1340,11 @@ mod stored_calls {
         Incoming(StructuralArgument),
         Backing(StructuralArgument),
         Provider(target_operations::TargetReferenceOrigin),
+        Native {
+            machine: MachineId,
+            operation: semantic_vocabulary::OperationId,
+            carrier: StructuralTypeId,
+        },
     }
 
     pub(crate) struct StoredEffects {
@@ -1437,6 +1442,14 @@ mod stored_calls {
                 projection,
             } => eprintln!(
                 "CHECKSITE stored-reference-origin machine={machine:?} kind=invocation carrier={carrier_type:?} projection={projection:?}"
+            ),
+            DescriptorStoredOrigin::NativeAddress {
+                machine: owner,
+                operation,
+                place,
+                ..
+            } => eprintln!(
+                "CHECKSITE stored-reference-origin machine={machine:?} kind=native-address owner={owner:?} operation={operation:?} place={place:?}"
             ),
             DescriptorStoredOrigin::AccessFormation {
                 machine: owner,
@@ -1693,6 +1706,12 @@ mod stored_calls {
                             | DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
                             DescriptorStoredOrigin::ProducedContents(_) => return Err("a generic call result has no concrete reference origin"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
+                            DescriptorStoredOrigin::NativeAddress { machine, operation, carrier, projection, .. } => {
+                                if !projection.path.is_empty() || projection.window.is_some() || projection.indirect {
+                                    return Err("stored native reference has an unresolved projection");
+                                }
+                                sources.push(Source::Native { machine, operation, carrier });
+                            }
                             DescriptorStoredOrigin::AccessFormation { .. } => return Err("stored-reference access formation has no physical metadata conversion"),
                             DescriptorStoredOrigin::Carried { .. } => return Err("stored-reference carried sequence roster has no physical metadata conversion"),
                         }
@@ -1845,6 +1864,24 @@ mod stored_calls {
                             placed: super::access_source(function, live, types, &source),
                         }
                     }
+                    Source::Native {
+                        machine,
+                        operation,
+                        carrier,
+                    } => {
+                        let inner = super::referent(types, *carrier)
+                            .ok_or_else(|| invalid("stored native borrow has no referent"))?;
+                        ReferenceStorage {
+                            root: ReferenceRoot::Alternatives(vec![target_operations::TargetReferenceOrigin {
+                                base: target_operations::TargetReferenceOriginBase::NativeAddress { machine: *machine, operation: *operation },
+                                path: Vec::new(),
+                                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                            }]),
+                            carrier_type: *carrier,
+                            referent: inner,
+                            placed: None,
+                        }
+                    }
                     Source::Provider(origin) => {
                         let mut origin = origin.clone();
                         let target_operations::TargetReferenceOriginBase::Provider {
@@ -1995,6 +2032,140 @@ fn formation_indices(
         &super::scalar_sources::ScalarSources::from(live),
         types,
     )
+}
+
+/// Create the descriptor in the same home used by checked RAM borrows. A raw
+/// address supplies an external origin. An upgrade inherits the source loan.
+pub(crate) fn establish_trusted(
+    operation: &AbstractOperation,
+    site: &mut RowSite<'_>,
+) -> Result<(), LoweringError> {
+    let (function, types, live, operations, provenance) = site.parts();
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let (psi_operation, result) = match operation {
+        AbstractOperation::BorrowAt {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::UpgradeMutability {
+            psi_operation,
+            result,
+            ..
+        } => (*psi_operation, result),
+        _ => return Err(invalid()),
+    };
+    let StructuralTypeShape::Reference { access, referent } =
+        types.get(result.structural_type).ok_or_else(invalid)?.shape
+    else {
+        return Err(invalid());
+    };
+    if !matches!(
+        access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || result.multiplicity != StructuralMultiplicity::Affine
+        || !result.claims.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || live.structural_homes.contains_key(&result.place)
+        || live.references.contains_key(&(result.place, Vec::new()))
+    {
+        return Err(invalid());
+    }
+    let result_home = super::aggregate_results::home(psi_operation, result, types)?;
+    let targeted = match operation {
+        AbstractOperation::BorrowAt {
+            address,
+            sources,
+            exact_origin,
+            ..
+        } => {
+            let scalar = super::scalar_sources::source(*address, function, live)?.scalar_type();
+            if !terminal_psi::StorageLocationQuery::Address.admits_result(scalar) {
+                return Err(invalid());
+            }
+            let mut origins = Vec::new();
+            for source in sources {
+                let root = normalized_source(function, live, types, source)?;
+                let extent = if *exact_origin {
+                    semantic_vocabulary::ReferenceOriginExtent::Projected
+                } else {
+                    semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                };
+                origins.extend(root.projected_family(&[], extent).origins());
+            }
+            if origins.is_empty() {
+                origins.push(target_operations::TargetReferenceOrigin {
+                    base: target_operations::TargetReferenceOriginBase::NativeAddress {
+                        machine: function.machine,
+                        operation: psi_operation,
+                    },
+                    path: Vec::new(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                });
+            }
+            origins.sort_unstable();
+            origins.dedup();
+            live.references.insert(
+                (result.place, Vec::new()),
+                ReferenceStorage {
+                    root: ReferenceRoot::Alternatives(origins),
+                    carrier_type: result.structural_type,
+                    referent,
+                    placed: None,
+                },
+            );
+            TargetUnitOperation::BorrowAt {
+                psi_operation,
+                result_home: result_home.clone(),
+                address: *address,
+            }
+        }
+        AbstractOperation::UpgradeMutability { source, .. } => {
+            if source.access != StructuralAccess::SharedBorrow
+                || access != StructuralAccess::MutableBorrow
+            {
+                return Err(invalid());
+            }
+            let from = source_contract(function, live, source.place)
+                .and_then(|root| leaf_type(types, root, &source.path))
+                .ok_or_else(invalid)?;
+            if types.get(from).ok_or_else(invalid)?.shape
+                != (StructuralTypeShape::Reference {
+                    access: StructuralAccess::SharedBorrow,
+                    referent,
+                })
+            {
+                return Err(invalid());
+            }
+            // Retain the descriptor's actual backing and storage codec. The
+            // final dereference selects its pointee, including projected loans.
+            let mut pointee = source.clone();
+            pointee.path.push(StructuralPathSegment::Referent);
+            let root = normalized_source(function, live, types, &pointee)?;
+            let placed = access_source(function, live, types, &pointee);
+            let indices = formation_indices(function, live, types, &pointee)?;
+            live.references.insert(
+                (result.place, Vec::new()),
+                ReferenceStorage {
+                    root,
+                    carrier_type: result.structural_type,
+                    referent,
+                    placed,
+                },
+            );
+            TargetUnitOperation::UpgradeMutability {
+                psi_operation,
+                result_home: result_home.clone(),
+                source: pointee,
+                indices,
+            }
+        }
+        _ => return Err(invalid()),
+    };
+    live.structural_homes.insert(result.place, result_home);
+    operations.push(targeted);
+    provenance.operations.push(psi_operation);
+    Ok(())
 }
 
 pub(crate) fn establish(
@@ -2594,11 +2765,12 @@ pub(crate) fn call_results(
         let mut candidates = Vec::with_capacity(mapping.sources.len());
         let mut public_interpretations = Vec::with_capacity(mapping.sources.len());
         for binding in &mapping.sources {
-            let (source, transfers_existing) = match &binding.origin {
+            let (source, transfers_existing, upgraded) = match &binding.origin {
                 terminal_semantics::ReferenceCallOrigin::Parameter {
                     source,
                     transfers_existing,
-                } => (source, *transfers_existing),
+                    upgraded_mutability,
+                } => (source, *transfers_existing, *upgraded_mutability),
                 terminal_semantics::ReferenceCallOrigin::Invocation {
                     carrier_type,
                     path: origin_path,
@@ -2633,7 +2805,11 @@ pub(crate) fn call_results(
                     continue;
                 }
             };
-            if !access_covers(source.access, result_access) {
+            if !(access_covers(source.access, result_access)
+                || upgraded
+                    && source.access == StructuralAccess::SharedBorrow
+                    && result_access == StructuralAccess::MutableBorrow)
+            {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let Some(suffix) =

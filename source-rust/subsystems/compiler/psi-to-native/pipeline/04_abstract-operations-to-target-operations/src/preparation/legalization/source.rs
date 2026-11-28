@@ -1115,8 +1115,8 @@ pub(crate) mod scalar_graph {
             targeted: &target_operations::TargetUnitOperation,
         ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
             use target_operations::TargetUnitOperation as Target;
-            let (operation, home, indices) = match targeted {
-                Target::EstablishReference {
+            let (operation, home, indices): (_, _, &[_]) = match targeted {
+                Target::BorrowAt {
                     psi_operation,
                     result_home,
                     indices,
@@ -1140,6 +1140,19 @@ pub(crate) mod scalar_graph {
             let shape = home.layout.shape();
             // Formation already owns its result contract and selector geometry.
             Ok(match targeted {
+                Target::BorrowAt { address, .. } => LegalizedScalarInstructionKind::BorrowAt {
+                    result: result.clone(),
+                    address: *address,
+                    shape,
+                },
+                Target::UpgradeMutability { source, .. } => {
+                    LegalizedScalarInstructionKind::UpgradeMutability {
+                        result: result.clone(),
+                        source: source.clone(),
+                        indices,
+                        shape,
+                    }
+                }
                 Target::EstablishReference {
                     source, storage, ..
                 } => LegalizedScalarInstructionKind::EstablishReference {

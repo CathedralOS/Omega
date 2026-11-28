@@ -621,6 +621,7 @@ pub(crate) mod aggregate_result_input {
                     })
                 }
                 LegalizedScalarInstructionKind::EstablishReference { source, .. }
+                | LegalizedScalarInstructionKind::UpgradeMutability { source, .. }
                 | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. }
                 | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => {
                     source.place == place
@@ -2491,6 +2492,7 @@ pub(crate) mod established_view_input {
                     LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                         .structural_arguments.iter().any(|argument| argument.place == place),
                     LegalizedScalarInstructionKind::EstablishReference { source: argument, .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { source: argument, .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { source: argument, .. } =>
                         argument.place == place
                             && crate::instruction_selection::selection::reference_input::establishment(source, row).is_some_and(|address|
@@ -4146,6 +4148,12 @@ pub(crate) mod reference_input {
                 indices,
                 shape,
             } => (result, source, *storage, indices, shape, None),
+            LegalizedScalarInstructionKind::UpgradeMutability {
+                result,
+                source,
+                indices,
+                shape,
+            } => (result, source, None, indices, shape, None),
             LegalizedScalarInstructionKind::EstablishAccessReference {
                 result,
                 source,
@@ -4180,6 +4188,11 @@ pub(crate) mod reference_input {
         };
         if source.access == StructuralAccess::Owned
             || !(access == source.access
+                || matches!(
+                    row.kind,
+                    LegalizedScalarInstructionKind::UpgradeMutability { .. }
+                ) && access == StructuralAccess::MutableBorrow
+                    && source.access == StructuralAccess::SharedBorrow
                 || source.access == StructuralAccess::MutableBorrow
                     && matches!(
                         access,

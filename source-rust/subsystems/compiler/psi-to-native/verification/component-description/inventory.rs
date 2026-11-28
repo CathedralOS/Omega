@@ -185,6 +185,8 @@ pub fn derive_component_inventory(
                     | OperationKind::CallDynamic { .. }
                     | OperationKind::CallMachine { .. } => {}
                     OperationKind::EstablishAccessReference { .. }
+                    | OperationKind::BorrowAt { .. }
+                    | OperationKind::UpgradeMutability { .. }
                     | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
                     | OperationKind::PackedIntegerUnary { .. }

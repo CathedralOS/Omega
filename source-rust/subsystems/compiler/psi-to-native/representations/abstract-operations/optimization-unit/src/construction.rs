@@ -661,6 +661,8 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::EstablishAccessReference { .. }
+        | O::BorrowAt { .. }
+        | O::UpgradeMutability { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::InvokeNoNormal { .. }
@@ -715,6 +717,8 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .collect(),
         O::EstablishStructuralArray { .. } => Vec::new(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
+        O::BorrowAt { address, .. } => vec![*address],
+        O::UpgradeMutability { .. } => Vec::new(),
         O::EstablishReference { storage, .. } => {
             storage.iter().map(|view| view.byte_offset).collect()
         }
@@ -981,7 +985,11 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*source);
             places.insert(result.place);
         }
-        O::EstablishReference { result, source, .. }
+        O::BorrowAt { result, .. } => {
+            places.insert(result.place);
+        }
+        O::UpgradeMutability { result, source, .. }
+        | O::EstablishReference { result, source, .. }
         | O::MoveStructuralValue { result, source, .. }
         | O::EstablishAccessReference { result, source, .. } => {
             places.insert(result.place);
@@ -1199,6 +1207,8 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::Conditional { .. }
         | O::StructuralCase { .. }
         | O::EstablishAccessReference { .. }
+        | O::BorrowAt { .. }
+        | O::UpgradeMutability { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EliminateEmpty { .. } => Vec::new(),

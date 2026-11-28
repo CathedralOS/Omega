@@ -1809,6 +1809,26 @@ fn adapt(
                         },
                     ));
                 }
+                O::BorrowAt {
+                    psi_operation,
+                    result,
+                    sources,
+                    exact_origin,
+                    ..
+                } if slot_kind.tracks_references() => {
+                    graph.native_address_borrow(
+                        types,
+                        position,
+                        &mut step,
+                        *psi_operation,
+                        result,
+                        sources,
+                        *exact_origin,
+                    )?;
+                }
+                O::UpgradeMutability { result, source, .. } if slot_kind.tracks_references() => {
+                    graph.mutability_upgrade(types, position, &mut step, source, result)?;
+                }
                 O::EstablishElementView { result, source, .. }
                 | O::EstablishReference { result, source, .. } => {
                     let destination = DescriptorLocation::whole(result.place);
@@ -2660,6 +2680,8 @@ fn adapt(
                 O::EstablishAccessReference { .. }
                     | O::EstablishElementView { .. }
                     | O::EstablishReference { .. }
+                    | O::BorrowAt { .. }
+                    | O::UpgradeMutability { .. }
             ) {
                 step.authority_derivations = step.derivations.clone();
             }

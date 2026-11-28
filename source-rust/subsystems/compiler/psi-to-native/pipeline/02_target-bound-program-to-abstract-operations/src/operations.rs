@@ -829,6 +829,35 @@ mod machine {
                             path: source.path.clone(),
                         })
                     }
+                    OperationKind::BorrowAt { address } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                        let origin = terminal_semantics::storage::native_borrows::address_origin(
+                            machine, *address,
+                        );
+                        Ok(AbstractOperation::BorrowAt {
+                            psi_operation: operation.id,
+                            result,
+                            address: *address,
+                            sources: origin.sources.into_iter().cloned().collect(),
+                            exact_origin: origin.exact,
+                        })
+                    }
+                    OperationKind::UpgradeMutability { source } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(LoweringError::UnsupportedReferenceCustody(operation.id))?;
+                        Ok(AbstractOperation::UpgradeMutability {
+                            psi_operation: operation.id,
+                            result,
+                            source: source.clone(),
+                        })
+                    }
                     OperationKind::EstablishReference { source, storage } => {
                         let Some(result) = operation.result.structural().cloned() else {
                             return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
