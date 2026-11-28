@@ -3020,7 +3020,7 @@ impl<'a> Storage<'a> {
                             "returned reference has no actual result descriptor",
                         )
                     })?;
-                    if let Some(identity) = terminal_semantics::reference_loan_parent(
+                    let sources = terminal_semantics::borrowed_loan_sources(
                         module,
                         self.lowered,
                         references,
@@ -3030,10 +3030,9 @@ impl<'a> Storage<'a> {
                             loan.lifetime.as_ref().map(|life| (loan.obligation, life))
                         }),
                     )
-                    .map_err(|reason| self.unsupported(concerns, reason))?
-                    {
-                        returned.push(identity);
-                    }
+                    .and_then(terminal_semantics::BorrowedLoanSources::returned_loans)
+                    .map_err(|reason| self.unsupported(concerns, reason))?;
+                    returned.extend(sources);
                 }
             }
             if returned.is_empty() {

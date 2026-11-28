@@ -228,6 +228,52 @@ machine main() {
 }
 
 #[test]
+fn forwarding_a_call_result_keeps_every_alternative_lender() {
+    let program = Program::of(
+        r"
+data File { byte: u8; }
+data Socket { port: u64; }
+data Pair<'a, some S> { state: @'a S; }
+machine choose<'a>(flag: bool, file: @'a File, socket: @'a Socket) -> Pair<'a> {
+    match flag { true -> Pair { state: file }, false -> Pair { state: socket }, }
+}
+machine relay<'a>(socket: @'a Socket, file: @'a File, flag: bool) -> Pair<'a> {
+    choose(flag, file, socket)
+}
+machine main() {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { port: 42u64 };
+    let p: Pair = relay(@socket, @file, false);
+}",
+    );
+    program.judged(|_| {}).accepted();
+    let relay = program.machine("relay");
+    let sources = &relay.result.structural().unwrap().reference_sources[0].sources;
+    assert_eq!(sources.len(), 2);
+    for parameter in &relay.structural_parameters {
+        assert!(
+            sources
+                .iter()
+                .any(|source| source.parameter().unwrap().place == parameter.place)
+        );
+    }
+
+    let incomplete = program.judged_in("relay", |machine| {
+        let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.contract.result
+        else {
+            unreachable!()
+        };
+        result.reference_sources[0].sources.pop().unwrap();
+    });
+    match incomplete {
+        program::Verdict::Refused(refusal) | program::Verdict::Unserved(refusal) => {
+            assert!(refusal.detail.contains("returned reference"), "{refusal:?}");
+        }
+        other => panic!("a forwarded result must retain both possible inputs: {other:?}"),
+    }
+}
+
+#[test]
 fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
     let program = Program::of(
         r"
