@@ -213,12 +213,30 @@ impl RetainedTraitScope {
         program: &TypedTrees,
         retained: &mut impl crate::source_state::references::TypedReferences,
     ) {
+        self.visit_references_with_product_head(program, retained, None);
+    }
+
+    pub(crate) fn visit_references_with_product_head(
+        self,
+        program: &TypedTrees,
+        retained: &mut impl crate::source_state::references::TypedReferences,
+        designated: Option<(SymbolHandle, SymbolHandle)>,
+    ) {
         retained.formation_owner(self.argument_owner);
-        for frame in program.trait_application_frames.span_or_empty(self.frames) {
+        for (ordinal, frame) in program
+            .trait_application_frames
+            .span_or_empty(self.frames)
+            .iter()
+            .enumerate()
+        {
             // The supplier selected this application. An imported parent may
             // expose the resulting signature without ever naming its client.
             retained.enter_lexical_scope(frame.argument_owner);
-            retained.declaration_description_dependency(frame.declaration);
+            if ordinal == 0 && designated == Some((frame.argument_owner, frame.declaration)) {
+                retained.formation_owner(frame.declaration);
+            } else {
+                retained.declaration_description_dependency(frame.declaration);
+            }
             retained.leave_lexical_scope();
             if frame.argument_owner != self.argument_owner
                 && (!frame.arguments.is_empty() || !frame.lifetimes.is_empty())
@@ -311,6 +329,7 @@ mod retained_reference_tests {
         owner: SymbolHandle,
         outer: Vec<SymbolHandle>,
         descriptions: Vec<(SymbolHandle, SymbolHandle)>,
+        formations: Vec<(SymbolHandle, SymbolHandle)>,
         names: Vec<(SymbolHandle, SymbolHandle)>,
     }
     impl Extend<SymbolHandle> for ScopedReferences {
@@ -329,6 +348,9 @@ mod retained_reference_tests {
         }
         fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
             self.descriptions.push((self.owner, symbol));
+        }
+        fn formation_owner(&mut self, symbol: SymbolHandle) {
+            self.formations.push((self.owner, symbol));
         }
     }
 
@@ -509,10 +531,11 @@ mod retained_reference_tests {
             owner: observed,
             outer: Vec::new(),
             descriptions: Vec::new(),
+            formations: Vec::new(),
             names: Vec::new(),
         };
         scope.visit_references(&program, &mut references);
-        assert!(references.descriptions.contains(&(observed, supplier)));
+        assert!(references.formations.contains(&(observed, supplier)));
         assert!(references.descriptions.contains(&(supplier, formal_owner)));
         assert!(
             references
@@ -536,5 +559,36 @@ mod retained_reference_tests {
         assert!(!references.names.contains(&(supplier, nested_actual)));
         assert_eq!(references.owner, observed);
         assert!(references.outer.is_empty());
+
+        // Build designates the outer declaration. Its parent and both supplied
+        // arguments still have to be read by the declarations that named them.
+        references.descriptions.clear();
+        references.names.clear();
+        scope.visit_references_with_product_head(
+            &program,
+            &mut references,
+            Some((supplier, formal_owner)),
+        );
+        assert!(references.formations.contains(&(supplier, formal_owner)));
+        assert!(!references.descriptions.contains(&(supplier, formal_owner)));
+        assert!(
+            references
+                .descriptions
+                .contains(&(formal_owner, nested_owner))
+        );
+        assert!(references.names.contains(&(supplier, actual)));
+        assert!(
+            references
+                .names
+                .contains(&(retained_supplier, nested_actual))
+        );
+
+        references.descriptions.clear();
+        scope.visit_references_with_product_head(
+            &program,
+            &mut references,
+            Some((observed, formal_owner)),
+        );
+        assert!(references.descriptions.contains(&(supplier, formal_owner)));
     }
 }

@@ -2786,8 +2786,22 @@ impl MachineSidecarIndex {
                 }
             }
             visit_static_machine_bindings(program, roots, application.supplying_application);
-            visit_static_argument(program, roots, &application.argument);
-            application.scope.visit_references(program, roots);
+            // The request selected the head in Product. Its supplied arguments
+            // and the provider's own parents still have their original readers.
+            let head = source.binding_declaration;
+            let designated = (head.is_valid()
+                && head == application.argument.symbol
+                && (head == application.declaration
+                    || program
+                        .closed_requirement_application(application.declaration)
+                        .is_some_and(|closed| closed.template == head)))
+            .then_some(head);
+            visit_static_argument_with_product_head(program, roots, &application.argument, designated);
+            application.scope.visit_references_with_product_head(
+                program,
+                roots,
+                designated.map(|head| (source.lexical_owner, head)),
+            );
             roots.leave_lexical_scope();
         }
     }
@@ -2937,6 +2951,15 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
+    visit_static_argument_with_product_head(program, retained, argument, None);
+}
+
+fn visit_static_argument_with_product_head(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    argument: &StaticMachineArgument,
+    designated: Option<SymbolHandle>,
+) {
     if let Some(occurrence) = argument.authored_selection {
         visit_authored_selection(program, retained, occurrence);
     }
@@ -2954,7 +2977,9 @@ pub fn visit_static_argument(
             TypeReferenceNode::Named { symbol, .. }
             | TypeReferenceNode::Generic { base_symbol: symbol, .. }
             if *symbol == argument.symbol);
-    if argument.symbol != SymbolHandle::invalid() && !named_data {
+    if argument.symbol.is_valid() && designated == Some(argument.symbol) {
+        retained.formation_owner(argument.symbol);
+    } else if argument.symbol != SymbolHandle::invalid() && !named_data {
         visit_callable_symbol(program, retained, argument.symbol);
     }
     visit_type_reference(program, retained, argument.type_reference);
