@@ -53,6 +53,10 @@ pub fn call_structural_arguments(kind: &OperationKind) -> &[StructuralArgument] 
         | OperationKind::CallDynamic {
             structural_arguments,
             ..
+        }
+        | OperationKind::CallMachine {
+            structural_arguments,
+            ..
         } => structural_arguments,
         kind => direct_call_parts(kind).map_or(&[], |call| call.structural_arguments),
     }
