@@ -2197,6 +2197,7 @@ fn lower_program_with_parallel<'source>(
             use terminal_psi::TerminalPackageEvent;
             match &mut site.event {
                 TerminalPackageEvent::Project { opening, .. }
+                | TerminalPackageEvent::Store { opening, .. }
                 | TerminalPackageEvent::Invoke { opening } => {
                     *opening = opening.checked_add(base).ok_or_else(|| {
                         read::unavailable(
