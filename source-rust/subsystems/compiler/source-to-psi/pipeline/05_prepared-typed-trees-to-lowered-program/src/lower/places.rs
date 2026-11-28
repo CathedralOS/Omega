@@ -3820,6 +3820,14 @@ impl<'a> Lowering<'a> {
         &mut self,
         expression: &Expression,
     ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
+        self.capture_place_as(expression, None)
+    }
+
+    fn capture_place_as(
+        &mut self,
+        expression: &Expression,
+        opened_field: Option<ValueType>,
+    ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
         let captured = match &expression.kind {
             ExpressionKind::OwnedTemporary {
                 value, scalar_home, ..
@@ -3889,7 +3897,7 @@ impl<'a> Lowering<'a> {
                     owner,
                     field: *field,
                 };
-                let value_type = self.declared(step)?.value_type;
+                let value_type = opened_field.unwrap_or(self.declared(step)?.value_type);
                 let exact = self.step(parent, step)?;
                 steps.push(step);
                 (root, steps, exact, value_type)
@@ -5450,7 +5458,9 @@ impl<'a> Lowering<'a> {
         }
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
-        let (root, steps, place, expected) = continuing!(self.capture_place(destination));
+        let projected = self.records.package_projections.get(destination.source).cloned();
+        let opened_type = projected.as_ref().and(destination.result);
+        let (root, steps, place, expected) = continuing!(self.capture_place_as(destination, opened_type));
         let (root, steps, place) =
             self.capture_view_element(root, steps, place, StructuralAccess::MutableBorrow, source)?;
         self.name_passed_clauses(root, &steps)?;
@@ -5515,6 +5525,16 @@ impl<'a> Lowering<'a> {
                     }
                     _ => None,
                 };
+                if let Some(projection) = projected {
+                    let (Some(Step::Field { owner, field }), Some((StructuralPathSegment::Field(_), parent))) =
+                        (steps.last(), storage.split_last()) else {
+                        return Err(self.internal("a dependent field store has no destination field"));
+                    };
+                    let field = self.record_type(*owner)?.fields().get(*field)
+                        .ok_or_else(|| self.internal("a dependent field store has no declaration"))?.id;
+                    let subject = StructuralArgument { place: root, path: parent.to_vec(), access: StructuralAccess::SharedBorrow };
+                    self.package_store_site(projection, subject, *owner, field, operation)?;
+                }
                 let kind = match view_field {
                     Some(field) => {
                         // The carrier is the path without the field itself.

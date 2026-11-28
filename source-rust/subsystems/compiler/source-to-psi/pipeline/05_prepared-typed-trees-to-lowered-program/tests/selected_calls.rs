@@ -503,3 +503,65 @@ machine main() {
     released.sort_unstable();
     assert_eq!(released, [0, 1]);
 }
+
+#[test]
+fn a_dependent_field_update_survives_publication_and_independent_replay() {
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+    use terminal_psi::TerminalPackageEvent;
+    const SAVED_INPUT: &str = "OMEGA_TEST_SAVED_DEPENDENT_FIELD_UPDATE";
+    if let Some(path) = std::env::var_os(SAVED_INPUT) {
+        let bytes = std::fs::read(path).unwrap();
+        let decoded = terminal_codec::decode_module(&bytes).unwrap();
+        terminal_codec::sealing::prepare_received_execution(&decoded).unwrap();
+        assert!(decoded.execution.packages.sites.iter().any(|s| matches!(s.event, TerminalPackageEvent::Store { .. })));
+        return;
+    }
+    let source = "
+data File { value: u8; }
+data Pair<'a, some S> { first: @'a S; second: @'a S; }
+machine update(p: @mutable Pair) { p.first = p.second; }
+machine main() {
+    let a: File = File { value: 11u8 };
+    let b: File = File { value: 42u8 };
+    let mutable pair: Pair = Pair { first: @a, second: @b };
+    update(@mutable pair);
+}";
+    let program = Program::of(source);
+    let lowered = &program.elaboration().module;
+    let (index, site) = lowered.execution.packages.sites.iter().enumerate()
+        .find(|(_, s)| matches!(s.event, TerminalPackageEvent::Store { .. }))
+        .expect("the dependent assignment emits an opening at its ordinary store");
+    assert!(matches!(
+        lowered.machine(site.machine).unwrap().operation(site.operation).unwrap().kind,
+        OperationKind::StoreStructuralField { .. }
+    ));
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!("same-opening source update must reach publication: {:?}", program.judged(|_| ()));
+    };
+    let module = accepted.prepare_publication().unwrap().module().clone();
+    let bytes = terminal_codec::encode_module(&module).unwrap();
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+    let path = std::env::temp_dir().join(format!("omega-package-update-{}-{nonce}.psi", std::process::id()));
+    {
+        use std::io::Write;
+        std::fs::File::create_new(&path).unwrap().write_all(&bytes).unwrap();
+    }
+    let receiver = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "a_dependent_field_update_survives_publication_and_independent_replay"])
+        .env(SAVED_INPUT, &path).output();
+    std::fs::remove_file(&path).unwrap();
+    let receiver = receiver.unwrap();
+    assert!(receiver.status.success(), "{}", String::from_utf8_lossy(&receiver.stdout));
+    let source_field = lowered.execution.packages.sites.iter().find_map(|site| match site.event {
+        TerminalPackageEvent::Project { field, .. } => Some(field),
+        _ => None,
+    }).unwrap();
+    let mut crossed = module.clone();
+    let TerminalPackageEvent::Store { field, .. } = &mut crossed.execution.packages.sites[index].event else { unreachable!() };
+    assert_ne!(*field, source_field);
+    *field = source_field;
+    assert!(terminal_codec::decode_module(&terminal_codec::encode_module(&crossed).unwrap()).is_err());
+    let mut missing = module;
+    missing.execution.packages.sites.remove(index);
+    assert!(terminal_codec::decode_module(&terminal_codec::encode_module(&missing).unwrap()).is_err());
+}
