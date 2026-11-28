@@ -8380,6 +8380,53 @@ pub(crate) mod storage_foundations {
         Ok(())
     }
 
+    pub(crate) fn validate_native_borrow(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Result<(), CodecError> {
+        let Some(result) = operation.result.structural() else {
+            return malformed("native borrow requires a structural reference result");
+        };
+        let Some(StructuralTypeShape::Reference { referent, access }) =
+            module.structural_type(result.structural_type).map(|ty| &ty.shape)
+        else {
+            return malformed("native borrow result must be a reference");
+        };
+        use terminal_psi::StructuralAccess::{MutableBorrow, SharedBorrow};
+        if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.additional_input_qualifications.is_empty()
+            || !result.claims.is_empty()
+        {
+            return malformed("native borrow requires an affine unqualified reference without claims");
+        }
+        match &operation.kind {
+            OperationKind::BorrowAt { address } => {
+                if !matches!(access, SharedBorrow | MutableBorrow)
+                    || !matches!(declared_scalar_type(machine, *address), Some(ScalarType::Integer(ty)) if ty.is_address())
+                {
+                    return malformed("native borrow requires an address and a shared or mutable reference result");
+                }
+            }
+            OperationKind::UpgradeMutability { source } => {
+                let input = structural_place_type(machine, source.place).and_then(|root|
+                    terminal_semantics::runtime_structural_path_tip(
+                        module.types.structural_types.iter(), root, &source.path,
+                    )
+                );
+                if *access != MutableBorrow || source.access != SharedBorrow
+                    || !matches!(input.map(|ty| &ty.shape), Some(StructuralTypeShape::Reference { referent: source, access: SharedBorrow }) if source == referent)
+                {
+                    return malformed("mutability upgrade requires a shared reference to the same referent");
+                }
+            }
+            _ => unreachable!("dispatched native borrow"),
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_establish_reference(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -12450,6 +12497,9 @@ fn validate_operation_foundation(
         )?;
     }
     match &operation.kind {
+        OperationKind::BorrowAt { .. } | OperationKind::UpgradeMutability { .. } => {
+            storage_foundations::validate_native_borrow(module, machine, operation)?
+        }
         OperationKind::EstablishAccessReference { .. } => {
             storage_foundations::validate_establish_access_reference(module, machine, operation)?
         }

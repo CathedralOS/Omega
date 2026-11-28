@@ -55,6 +55,10 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 304 adds typed native address borrows (operation 145), mutability
+upgrades (146), and upgraded parameter origins (reference source tag 3).
+The reader rejects earlier markers before reading the payload.
+
 Marker 303 encodes section 54 as a counted list of task activation demands.
 Structural arguments, outcomes and frame residents refer to the module's
 structural storage declarations by ID. The module's target layout applications
@@ -1135,6 +1139,8 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 142 | PackedIntegerBinary | selector byte, optional shuffle indices, left and right structural arguments |
 | 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
 | 144 | ElementViewFixedArray | source structural argument naming a shared element or byte view + length value id + `u64` extent + obligation id; affine shared reference to `[T; extent]` result, immediately after the view's length measurement |
+| 145 | BorrowAt | address value id; affine shared or mutable reference result specifies referent type and access |
+| 146 | UpgradeMutability | structural argument selecting the input shared reference; affine mutable result preserves its referent, extent and lifetime |
 
 Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
 (1), a two-input shuffle (2), wrapping 16-byte unsigned addition (3),
@@ -3025,6 +3031,13 @@ union from this original type relation and requires the public header's groups
 to agree. Constraint
 and array-length type arguments do not become stored reference occurrences.
 Unresolved nominal or method-argument frontiers remain unavailable.
+
+Within a result's returned-reference alternatives, source tag 1 names an
+ordinary parameter and tag 2 names invocation backing. Tag 3 names a parameter
+whose shared input was reborrowed through a checked mutability upgrade. It
+stores the parameter place, shared input access, extent and projection using
+the same fields as tag 1. Its effective result access is mutable. The checker
+validates this origin against the returned value's actual formation.
 
 These groups come from the original public signature and its complete method
 tuple before lifetime erasure. No commitment replaces that independent

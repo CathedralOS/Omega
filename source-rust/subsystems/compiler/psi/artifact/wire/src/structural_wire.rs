@@ -525,7 +525,8 @@ pub(crate) mod structural_result_wire {
             };
             for source in &reference.sources {
                 let root = match source {
-                    terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
+                    terminal_psi::StructuralReferenceOrigin::Parameter(source)
+                    | terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source) => {
                         machine
                             .signature_structural_parameter(source.place)
                             .ok_or(CodecError::MalformedStructuralFoundation(
