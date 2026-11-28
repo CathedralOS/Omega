@@ -1533,15 +1533,25 @@ fn copied_parts(
         && program
             .sealed_callable(symbol)
             .is_some_and(|intrinsic| intrinsic.specializes_bodyless_header());
+    let attached = machine.attached_data_application;
+    let owner = machine.attached_data_symbol;
+    let attachment_is_known = if owner.is_valid() {
+        program.unique_data_definition_by_symbol(owner).is_some_and(|data| {
+            if attached.is_valid() {
+                matches!(program.type_reference_node(attached), TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == owner)
+            } else {
+                program.data_type_parameters(data).is_empty()
+            }
+        })
+    } else {
+        !attached.is_valid()
+    };
     let plain = ((machine.body_is_present
         && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody) || sealed_header)
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
         && program.signature_invokes.span(machine.invokes).is_some()
-        // The written prefix and operator spelling are diagnostic labels on
-        // this same callable. Actual data attachment still needs its copier.
-        && !machine.attached_data_symbol.is_valid()
-        && !machine.attached_data_application.is_valid()
+        && attachment_is_known
         && !machine.generic_data_template.is_valid()
         && machine.target.is_none()
         && !machine.target_family_interface
@@ -1653,6 +1663,9 @@ fn copied_parts(
         .chain([state.return_type])
         .collect::<Vec<_>>();
     types.extend(fact_types);
+    if attached.is_valid() {
+        types.push(attached);
+    }
     for root in roots.into_iter().filter(|root| root.is_valid()) {
         types.extend(
             crate::source_state::references::collect_expression_references(program, root)

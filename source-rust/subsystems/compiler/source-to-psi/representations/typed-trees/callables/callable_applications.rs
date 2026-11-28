@@ -9486,6 +9486,10 @@ impl TypedTrees {
         }
         for (declaration, machine, state, body) in entries {
             application.region_scope = declaration;
+            if machine.attached_data_application.is_valid() {
+                machine.attached_data_application =
+                    application.type_reference(self, machine.attached_data_application)?;
+            }
             machine.service_reach_row =
                 application.applied_reach_row(self, machine.service_reach_row)?;
             application.copy_authored_reach(self, declaration, machine.symbol)?;
