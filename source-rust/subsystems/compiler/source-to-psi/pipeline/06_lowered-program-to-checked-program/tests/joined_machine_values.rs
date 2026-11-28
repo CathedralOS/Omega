@@ -37,9 +37,37 @@ fn a_trait_record_projects_the_exact_callable_named_by_its_field() {
     program.judged(|_| {}).accepted();
     let module = &program.elaboration().module;
     for name in ["display", "direct"] {
-        let row = module.execution.callables.machine_envelope(program.machine(name).id).unwrap();
-        assert!(matches!(row.invocations.as_slice(), [TerminalCallableInvocation::ProjectedParameter { parameter: 0, path }] if !path.is_empty()), "{row:?}");
+        let row = module
+            .execution
+            .callables
+            .machine_envelope(program.machine(name).id)
+            .unwrap();
+        assert!(
+            matches!(row.invocations.as_slice(), [TerminalCallableInvocation::ProjectedParameter { parameter: 0, path }] if !path.is_empty()),
+            "{row:?}"
+        );
     }
+}
+
+#[test]
+fn a_trait_record_constructor_requires_its_own_operation() {
+    let program = |owner: &str| {
+        format!(
+            "trait First {{ machine read() -> i32 reaches none crashes none; }} \
+             trait Second {{ machine read() -> i32 reaches none crashes none; }} \
+             Version satisfies {owner} {{ machine read() -> i32 reaches none crashes none {{ 29 }} }} \
+             machine built() -> First {{ First {{ read: Version::read }} }}"
+        )
+    };
+    Program::of(&program("First")).judged(|_| {}).accepted();
+    let wrong = program("Second");
+    let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+        .err()
+        .expect("a same-signature operation on another trait is not First::read");
+    assert!(
+        refusal.message.contains("bound to that exact requirement"),
+        "{refusal:?}"
+    );
 }
 
 #[test]

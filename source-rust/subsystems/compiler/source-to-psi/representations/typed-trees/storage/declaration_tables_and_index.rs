@@ -607,14 +607,17 @@ pub mod declaration_index {
             /// An operation record's named field uses the requirement declaration
             /// itself, not another field with a coincident spelling.
             pub fn is_record_field_declaration(&self, symbol: SymbolHandle) -> bool {
-                self.symbols.symbols().nodes().is_valid(symbol) && match self.symbols.get(symbol).kind {
-                    symbols::SymbolKind::Field => true,
-                    symbols::SymbolKind::State => self.trait_machine_signature(symbol).is_some_and(|(owner, _)| {
-                        self.symbols.get(symbol).parent == owner.symbol
-                            && self.data_definition_by_symbol(owner.symbol).is_some()
-                    }),
-                    _ => false,
-                }
+                self.symbols.symbols().nodes().is_valid(symbol)
+                    && match self.symbols.get(symbol).kind {
+                        symbols::SymbolKind::Field => true,
+                        symbols::SymbolKind::State => self
+                            .trait_machine_signature(symbol)
+                            .is_some_and(|(owner, _)| {
+                                self.symbols.get(symbol).parent == owner.symbol
+                                    && self.data_definition_by_symbol(owner.symbol).is_some()
+                            }),
+                        _ => false,
+                    }
             }
 
             pub fn data_field_positions_for_symbol(

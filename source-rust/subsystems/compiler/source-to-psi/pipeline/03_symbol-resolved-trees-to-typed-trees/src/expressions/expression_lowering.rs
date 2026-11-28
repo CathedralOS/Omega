@@ -3334,7 +3334,11 @@ pub(crate) mod expression {
                             },
                         )
                     })
-                    .or_else(|| program.and_then(|p| operation_field(p, expressions, member)).map(|symbol| (symbol, None)))
+                    .or_else(|| {
+                        program
+                            .and_then(|p| operation_field(p, expressions, member))
+                            .map(|symbol| (symbol, None))
+                    })
                     .unwrap_or_else(|| (member.member_symbol, member.case_variant.clone()))
             }
 
@@ -3347,12 +3351,18 @@ pub(crate) mod expression {
                     return None;
                 }
                 let receiver = declared_type(program, expressions, member.receiver, 0)?;
-                let TypeReference::Named { symbol, .. } = peel(program, receiver) else { return None };
+                let TypeReference::Named { symbol, .. } = peel(program, receiver) else {
+                    return None;
+                };
                 let owner = program.roots.trait_definition(*symbol)?;
-                let mut matches = program.trait_machine_signatures(owner.machines).iter().filter(|op| {
-                    op.name.as_str() == member.member.as_str() && op.symbol.is_valid()
-                        && program.symbols.get(op.symbol).parent == *symbol
-                });
+                let mut matches = program
+                    .trait_machine_signatures(owner.machines)
+                    .iter()
+                    .filter(|op| {
+                        op.name.as_str() == member.member.as_str()
+                            && op.symbol.is_valid()
+                            && program.symbols.get(op.symbol).parent == *symbol
+                    });
                 let field = matches.next()?.symbol;
                 matches.next().is_none().then_some(field)
             }

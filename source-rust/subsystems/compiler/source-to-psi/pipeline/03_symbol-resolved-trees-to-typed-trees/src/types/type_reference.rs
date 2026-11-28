@@ -4543,7 +4543,9 @@ fn retain_operation_record(
     {
         return;
     }
-    let Some(owner) = source.roots.trait_definition(symbol) else { return };
+    let Some(owner) = source.roots.trait_definition(symbol) else {
+        return;
+    };
     if !owner.lifetime_parameters.is_empty()
         || !owner.type_parameters.is_empty()
         || !owner.conformance_bounds.is_empty()
@@ -4551,17 +4553,23 @@ fn retain_operation_record(
         || owner.refines.is_some()
         || !owner.refinement_clauses.is_empty()
         || owner.machines.is_empty()
-        || source.symbols.child_handles(symbol).into_iter().flatten().any(|field| {
-            source.symbols.get(field).kind == symbols::SymbolKind::Field
-        })
+        || source
+            .symbols
+            .child_handles(symbol)
+            .into_iter()
+            .flatten()
+            .any(|field| source.symbols.get(field).kind == symbols::SymbolKind::Field)
     {
         return;
     }
     let operations = source.trait_machine_signatures(owner.machines);
-    if operations.iter().any(|op| !op.symbol.is_valid()
-        || source.symbols.get(op.symbol).parent != symbol
-        || !op.type_parameters.is_empty()
-        || !op.conformance_bounds.is_empty()) {
+    if operations.iter().any(|op| {
+        !op.symbol.is_valid()
+            || source.symbols.get(op.symbol).parent != symbol
+            || !op.lifetime_parameters.is_empty()
+            || !op.type_parameters.is_empty()
+            || !op.conformance_bounds.is_empty()
+    }) {
         return;
     }
     let mut record = typed::data::DataDefinition {
@@ -4573,15 +4581,22 @@ fn retain_operation_record(
     for operation in operations {
         let tables = &mut typed.tables;
         let contract = tables.runtime_callable_lowering.requirement(
-            &mut tables.runtime_callable_contracts, operation.symbol, symbol,
+            &mut tables.runtime_callable_contracts,
+            operation.symbol,
+            symbol,
         );
-        let type_reference = typed.type_reference_table.insert(typed::types::TypeReferenceNode::Callable { contract });
-        typed.push_data_member(&mut record, typed::data::DataMember::Field(typed::data::DataField {
-            symbol: operation.symbol,
-            name: crate::lowerer::name::lower_name(&operation.name),
-            type_reference,
-            ..Default::default()
-        }));
+        let type_reference = typed
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Callable { contract });
+        typed.push_data_member(
+            &mut record,
+            typed::data::DataMember::Field(typed::data::DataField {
+                symbol: operation.symbol,
+                name: crate::lowerer::name::lower_name(&operation.name),
+                type_reference,
+                ..Default::default()
+            }),
+        );
     }
     typed.push_data_definition(record);
 }

@@ -689,7 +689,8 @@ mod references {
                     case_field
                 } else if type_symbol.is_valid() {
                     // Named requirements are operation fields only on their own trait.
-                    let kinds: &[SymbolKind] = if symbols.get(type_symbol).kind == SymbolKind::Trait {
+                    let kinds: &[SymbolKind] = if symbols.get(type_symbol).kind == SymbolKind::Trait
+                    {
                         &[SymbolKind::Field, SymbolKind::State]
                     } else {
                         &[SymbolKind::Field]
