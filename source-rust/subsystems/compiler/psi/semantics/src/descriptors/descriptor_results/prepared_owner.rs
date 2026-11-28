@@ -67,11 +67,15 @@ pub(super) fn invocation(
     machine: &TerminalMachine,
     operation: &Operation,
     boundary: &BoundaryMachineDeclaration,
-    control: ActivationOperation,
     kind: DescriptorSlotKind,
     failure_detail: &mut Option<&'static str>,
     step: &mut crate::descriptor_lifetimes::DescriptorFlowStep,
 ) -> Option<DescriptorInvocation> {
+    let terminal_psi::CheckedBoundaryExecution::OwnedActivation(control) =
+        boundary.declaration.as_ref()?.execution
+    else {
+        return None;
+    };
     let transfer = Transfer::checked(module, boundary, control)
         .inspect_err(|detail| *failure_detail = Some(*detail))
         .ok()?;

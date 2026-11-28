@@ -27,7 +27,8 @@ pub(crate) type DescriptorFlowInput = (
     Option<(access_vocabulary::AccessOperation, DescriptorFlowSource)>,
 );
 
-/// Qualified memory effects of one authenticated owned-activation operation.
+/// A checked execution-owner operation at its original instruction. Park
+/// has no owner result, and records its anchor read as a direct flow input.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ActivationAccess {
     Prepare(semantic_vocabulary::MachineId),
