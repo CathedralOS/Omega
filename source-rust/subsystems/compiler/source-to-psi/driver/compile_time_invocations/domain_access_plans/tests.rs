@@ -419,6 +419,96 @@ fn judge_activation(
 }
 
 #[test]
+fn park_requires_the_source_revision_of_its_nominal_reply() {
+    use language_core::sealed_intrinsics::ActivationOperation::Park;
+    use terminal_psi::{CheckedBoundaryExecution, ClosedReachArgument};
+    use terminal_semantics::calls::owned_activation::park_shape;
+
+    let source = r"
+        use {omega}/language/core/activation.omg;
+        use {omega}/language/core/generator.omg;
+        use {omega}/language/core/reply.omg;
+        machine await_decision<'slot>(
+            request: |reply|::Publication<'slot> in |reply|::Issued<|reply|::RequestRole, |generator|::Decision>
+        ) -> |generator|::Decision reaches none crashes none suspends {
+            suspend |activation|::park::<|generator|::Decision>(move request)
+        }
+    ";
+    let accepted = judge_activation(source, &["await_decision"]).expect("a checked nominal reply");
+    let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+    let module = terminal_codec::decode_module(&bytes).unwrap();
+    let boundary = module
+        .interfaces
+        .boundary_machines
+        .iter()
+        .find(|boundary| {
+            boundary
+                .declaration
+                .as_ref()
+                .is_some_and(|d| d.execution == CheckedBoundaryExecution::OwnedActivation(Park))
+        })
+        .unwrap();
+    let park = boundary.id;
+    let shape = park_shape(&module, boundary).unwrap();
+    let domain = boundary.structural_parameters[0].qualifications[0];
+    let generator =
+        std::fs::read(fixture_repository::root().join("source/library/core/generator.omg"))
+            .unwrap();
+    let digest = source_provenance::toolchain_owned_identity_digest(
+        "core",
+        vec!["generator.omg".into()],
+        &generator,
+    )
+    .unwrap();
+    let revision = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let exact = module.identities.text(shape.reply).unwrap();
+    assert!(
+        exact.contains(&revision),
+        "the engine must match the complete reply owner"
+    );
+
+    // Preserve the name, shape and role, changing only its source revision.
+    for change_binder in [false, true] {
+        let mut wrong = module.clone();
+        let mut ids = std::mem::take(&mut wrong.identities).into_builder();
+        let role = wrong
+            .types
+            .structural_domains
+            .iter_mut()
+            .find(|d| d.id == domain)
+            .unwrap();
+        let issued = ids
+            .text(role.identity)
+            .unwrap()
+            .replace(&revision, &"a".repeat(64));
+        role.identity = ids.intern(&issued);
+        if change_binder {
+            let declaration = wrong
+                .interfaces
+                .boundary_machines
+                .iter_mut()
+                .find(|b| b.id == park)
+                .unwrap()
+                .declaration
+                .as_mut()
+                .unwrap();
+            let substituted = exact.replace(&revision, &"a".repeat(64));
+            declaration.method_arguments[0] = ClosedReachArgument::Type(ids.intern(&substituted));
+        }
+        wrong.identities = ids.build();
+        assert!(park_shape(&wrong, wrong.boundary_machine(park).unwrap()).is_err());
+        assert!(
+            terminal_codec::encode_module(&wrong)
+                .and_then(|bytes| terminal_codec::decode_module(&bytes).map(drop))
+                .is_err()
+        );
+    }
+}
+
+#[test]
 fn fixed_step_and_resume_preserve_the_closed_owner_and_returned_inputs() {
     use language_core::sealed_intrinsics::ActivationOperation;
     use terminal_psi::CheckedBoundaryExecution;

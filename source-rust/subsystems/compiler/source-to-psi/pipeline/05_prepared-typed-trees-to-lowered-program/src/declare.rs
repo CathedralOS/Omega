@@ -2832,6 +2832,7 @@ pub(crate) fn intrinsic_boundary_source(
                 semantic: text(closed.template_semantic_declaration)?,
                 application: RequirementApplicationSource::primitive(
                     typed,
+                    &sources,
                     symbol,
                     arguments.ok_or("a specialized primitive has no closed argument record")?,
                     text(closed.template_callable)?,

@@ -410,6 +410,24 @@ fn worker_application_commitment(
     Ok(commitment.finish())
 }
 
+/// A callable's ordinary type identity can omit a toolchain file revision.
+/// Bind the exact reply selected by the same source application before its
+/// request and answer are allowed to meet in the execution engine.
+pub fn reply_application_commitment(
+    application: [u8; 32],
+    declared: &str,
+    exact: &str,
+) -> [u8; 32] {
+    if declared == exact {
+        return application;
+    }
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.activation-reply-owner\0");
+    digest.raw(&application);
+    digest.string(exact);
+    digest.finish()
+}
+
 fn named(name: &str) -> String {
     compound(TypeForm::Named, [atom(Label::Name, name)])
 }
@@ -434,7 +452,12 @@ fn only_declared_inputs(boundary: &BoundaryMachineDeclaration) -> bool {
         && boundary.content_guarantees.is_empty()
 }
 
-fn publication_types(role: &str, reply: &str, region: usize) -> (String, String, String) {
+fn publication_types(
+    role: &str,
+    declared_reply: &str,
+    exact_reply: &str,
+    region: usize,
+) -> (String, String, String) {
     use application_identity::type_identity::vocabulary::ConstraintForm;
     use language_core::bundled_files::core_revision;
     let carrier = named(&toolchain_name("Publication"));
@@ -444,7 +467,7 @@ fn publication_types(role: &str, reply: &str, region: usize) -> (String, String,
         [
             atom(Label::Name, &toolchain_name(family)),
             named(&toolchain_name(role)),
-            reply.to_owned(),
+            declared_reply.to_owned(),
         ],
     );
     let declared = compound(
@@ -475,7 +498,7 @@ fn publication_types(role: &str, reply: &str, region: usize) -> (String, String,
         [
             atom(Label::Name, &core_owner(&core_revision::REPLY, &owner)),
             named(&core_owner(&core_revision::REPLY, role)),
-            reply.to_owned(),
+            exact_reply.to_owned(),
         ],
     );
     (carrier, declared, issued)
@@ -539,10 +562,10 @@ fn scalar_identity(scalar: semantic_vocabulary::ScalarType) -> Option<String> {
     ))
 }
 
-fn checked_reply<'m>(
-    module: &'m TerminalModule,
+fn checked_reply(
+    module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
-) -> Result<&'m str, &'static str> {
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
     use terminal_psi::{
         BoundaryCompletion, BoundaryRequirementKind, CheckedBoundaryExecution, ClosedReachArgument,
     };
@@ -588,14 +611,16 @@ fn checked_reply<'m>(
     let [ClosedReachArgument::Type(reply)] = checked.method_arguments.as_slice() else {
         return Err("owned activation requires one closed reply type");
     };
-    let reply = text(*reply).ok_or("owned activation lacks its closed reply identity")?;
+    let exact = text(*reply).ok_or("owned activation lacks its closed reply identity")?;
+    let declared = text(source.result_type).ok_or("park lacks its declared reply type")?;
     let template = text(specialized.template_callable).ok_or("park lacks its template callable")?;
     let mut commitment = MachineApplicationCommitment::new(template)?;
-    commitment.type_argument(reply)?;
-    if specialized.commitment != commitment.finish() {
+    commitment.type_argument(declared)?;
+    if specialized.commitment != reply_application_commitment(commitment.finish(), declared, exact)
+    {
         return Err("park reply differs from its closed application");
     }
-    Ok(reply)
+    Ok(*reply)
 }
 
 pub fn validate_park(
@@ -609,16 +634,17 @@ pub fn park_shape(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<ParkShape, &'static str> {
-    let reply = checked_reply(module, boundary)?;
+    let exact_reply = checked_reply(module, boundary)?;
     let source = &boundary
         .declaration
         .as_ref()
         .ok_or("park lacks its declaration")?
         .source;
-    let text = |id| module.identities.text(id);
-    if text(source.result_type) != Some(reply)
-        || !reply_result_matches(module, &boundary.result, reply)
-    {
+    let reply = module
+        .identities
+        .text(source.result_type)
+        .ok_or("park lacks its declared reply type")?;
+    if !reply_result_matches(module, &boundary.result, reply) {
         return Err("park result differs from its reply");
     }
     let [request] = boundary.structural_parameters.as_slice() else {
@@ -637,6 +663,7 @@ pub fn park_shape(
         request,
         *request_declared,
         source.result_type,
+        exact_reply,
         "RequestRole",
         0,
     )
@@ -696,7 +723,6 @@ pub fn resume_permit(
         || !only_declared_inputs(boundary)
         || !boundary.unconditional_termination
         || boundary.parameter_order.get(1) != Some(&BoundaryParameterKind::Structural)
-        || module.identities.text(*value) != module.identities.text(*reply)
     {
         return Err("resume has a different operation or value type");
     }
@@ -707,12 +733,14 @@ pub fn resume_permit(
             .filter(|s| !s.is_empty())
             .ok_or("resume has an unresolved binder")
     };
-    if worker_application_commitment(
+    let declared_reply = text(*value)?;
+    let application = worker_application_commitment(
         text(closed.template_callable)?,
-        &[text(*args)?, text(*out)?, text(*reply)?],
+        &[text(*args)?, text(*out)?, declared_reply],
         text(*identity)?,
         text(*plan)?,
-    )? != closed.commitment
+    )?;
+    if reply_application_commitment(application, declared_reply, text(*reply)?) != closed.commitment
     {
         return Err("resume differs from its checked reply, worker or storage application");
     }
@@ -721,13 +749,14 @@ pub fn resume_permit(
         .get(1)
         .filter(|p| p.position == 1)
         .ok_or("resume needs its original answer permit")?;
-    publication_shape(module, permit, *declared, *reply, "AnswerRole", 1)
+    publication_shape(module, permit, *declared, *value, *reply, "AnswerRole", 1)
 }
 
 fn publication_shape(
     module: &TerminalModule,
     request: &terminal_psi::StructuralParameterDeclaration,
     declared_type: terminal_psi::TerminalIdentityIndex,
+    declared_reply: terminal_psi::TerminalIdentityIndex,
     reply_type: terminal_psi::TerminalIdentityIndex,
     role: &str,
     region: usize,
@@ -804,7 +833,8 @@ fn publication_shape(
     {
         return Err("the publication must borrow the slot's ordinary byte");
     }
-    let (base, declared, issued) = publication_types(role, reply, region);
+    let declared_reply = text(declared_reply).ok_or("publication lost its declared reply type")?;
+    let (base, declared, issued) = publication_types(role, declared_reply, reply, region);
     if text(declared_type) != Some(declared.as_str())
         || text(qualified.identity) != Some(issued.as_str())
         || text(qualified.subject_identity) != Some(base.as_str())
