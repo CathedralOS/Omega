@@ -23,6 +23,7 @@ pub struct PackageSourceBinding {
     pub(super) canonical_name: String,
     pub(super) resolution: Option<[u8; 32]>,
     pub(super) source_root: PathBuf,
+    pub(super) local_lineage: Option<source_acquisition::ExternalLocalLineage>,
     pub(super) preparing_source: Option<crate::CapturedLocalSource>,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     pub(super) captured_source: Option<Arc<source_acquisition::capture::CapturedSourceTree>>,
@@ -41,6 +42,7 @@ impl PackageSourceBinding {
             canonical_name: canonical_name.into(),
             resolution: None,
             source_root,
+            local_lineage: None,
             preparing_source: None,
             canonical_source_metadata: None,
             captured_source: None,
@@ -67,6 +69,7 @@ impl PackageSourceBinding {
             && self.canonical_name == requested.canonical_name
             && self.resolution == requested.resolution
             && self.source_root == requested.source_root
+            && self.local_lineage == requested.local_lineage
             && self.preparing_source == requested.preparing_source
             && &self.build_entries == entries
             && self.captured_source.as_ref() == selected
@@ -83,6 +86,16 @@ impl PackageSourceBinding {
         entries.require_capture(tree)?;
         self.build_entries = entries;
         Ok(self)
+    }
+
+    /// The resolver keeps each local package in a separate immutable snapshot.
+    /// Preserve its authored directory for comparing ownership across snapshots.
+    pub fn with_local_lineage(
+        mut self,
+        lineage: &source_acquisition::ExternalLocalLineage,
+    ) -> Self {
+        self.local_lineage = Some(lineage.clone());
+        self
     }
 
     pub fn with_resolution(
