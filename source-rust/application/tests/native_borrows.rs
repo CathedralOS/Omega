@@ -749,9 +749,15 @@ fn assert_upgraded_window(element: &str, first: u32, second: u32) {
             "let shared: @[{element}] = @items[1..3];\n    let writable: @mutable [{element}] = |native|::upgrade_mutability::<[{element}]>(shared);\n    mark(writable);"
         ),
         String::from("forward(@items[1..3]);"),
+        format!(
+            "let writable: @mutable [{element}] = upgraded(@items[1..3]);\n    mark(writable);"
+        ),
     ] {
         let source = format!(
             r#"
+machine upgraded(shared: @[{element}]) -> @mutable [{element}] {{
+    |native|::upgrade_mutability::<[{element}]>(shared)
+}}
 machine forward(shared: @[{element}]) crashes Trap {{
     let writable: @mutable [{element}] = |native|::upgrade_mutability::<[{element}]>(shared);
     mark(writable);
