@@ -72,6 +72,18 @@ pub fn plan_foreign_adapter(
 pub fn plan_native_foreign_bridge(
     request: NativeForeignBridgeRequest,
 ) -> Result<NativeForeignBridgePlan, Error> {
+    Ok(NativeForeignBridgePlan::from_planner(
+        crate::PhysicalRecipeOrigin(()),
+        plan_call(request, None)?,
+    ))
+}
+
+/// Both adapters make an ordinary call. A foreign frame holds addresses; a
+/// returning worker receives an exclusive retained frame with inline homes.
+pub(crate) fn plan_call(
+    request: NativeForeignBridgeRequest,
+    retained: Option<crate::retained_call::ReturningJobHomes>,
+) -> Result<NativeForeignInstructions, Error> {
     let policy = CallingPolicy::native_for_target(request.target);
     let foreign = &request.foreign.plan().call;
     if request.scalar_parameters.len() != foreign.parameters.len() {
@@ -175,8 +187,11 @@ pub fn plan_native_foreign_bridge(
         placements.push((placement, size));
     }
     let frame_pointer = allocate_word(&mut cursor)?;
-    let input_array = allocate_word(&mut cursor)?;
-    let input_pointer = allocate_word(&mut cursor)?;
+    let input_table = if retained.is_none() {
+        Some((allocate_word(&mut cursor)?, allocate_word(&mut cursor)?))
+    } else {
+        None
+    };
     let mut arguments = Vec::with_capacity(placements.len());
     for ((placement, size), parameter) in placements.into_iter().zip(&foreign.parameters) {
         let snapshot = allocate_home(
@@ -196,8 +211,12 @@ pub fn plan_native_foreign_bridge(
         .as_ref()
         .map(|value| value_storage(value, extent(value.shape)))
         .transpose()?;
+    if retained.is_some() && result.as_ref().is_some_and(ValueStorage::is_indirect) {
+        return Err(Error::UnsupportedValueTransport);
+    }
     let output_pointer = result
         .as_ref()
+        .filter(|_| retained.is_none())
         .map(|_| allocate_word(&mut cursor))
         .transpose()?;
     let result_snapshot = match (&result, &foreign.result) {
@@ -246,14 +265,16 @@ pub fn plan_native_foreign_bridge(
         encoding.memory(&mut bytes, MachineRegister::Aarch64X(30), offset, 8, false)?;
     }
     encoding.memory(&mut bytes, *frame_register, frame_pointer, 8, false)?;
-    encoding.memory(&mut bytes, address_scratch, frame_pointer, 8, true)?;
-    encoding.pointer_memory(
-        &mut bytes,
-        runtime_abi::NATIVE_FOREIGN_FRAME_ARGUMENTS_BYTE_OFFSET,
-        8,
-        true,
-    )?;
-    encoding.memory(&mut bytes, scratch, input_array, 8, false)?;
+    if let Some((input_array, _)) = input_table {
+        encoding.memory(&mut bytes, address_scratch, frame_pointer, 8, true)?;
+        encoding.pointer_memory(
+            &mut bytes,
+            runtime_abi::NATIVE_FOREIGN_FRAME_ARGUMENTS_BYTE_OFFSET,
+            8,
+            true,
+        )?;
+        encoding.memory(&mut bytes, scratch, input_array, 8, false)?;
+    }
     if let Some(offset) = output_pointer {
         encoding.memory(&mut bytes, address_scratch, frame_pointer, 8, true)?;
         encoding.pointer_memory(
@@ -265,6 +286,21 @@ pub fn plan_native_foreign_bridge(
         encoding.memory(&mut bytes, scratch, offset, 8, false)?;
     }
     for (ordinal, argument) in arguments.iter().enumerate() {
+        if let Some(homes) = retained {
+            if ordinal != 0 {
+                return Err(Error::IncompatiblePlan);
+            }
+            encoding.copy_indirect_at(
+                &mut bytes,
+                argument.snapshot,
+                frame_pointer,
+                homes.argument_offset(),
+                argument.extent,
+                true,
+            )?;
+            continue;
+        }
+        let (input_array, input_pointer) = input_table.ok_or(Error::IncompatiblePlan)?;
         let offset = u32::try_from(ordinal)
             .ok()
             .and_then(|n| n.checked_mul(8))
@@ -308,25 +344,33 @@ pub fn plan_native_foreign_bridge(
         }
     }
     bytes.push(AdapterOperation::Call);
-    if let (Some(ValueStorage::Direct(pieces)), Some(snapshot), Some(output), Some(value)) =
-        (&result, result_snapshot, output_pointer, &foreign.result)
+    if let (Some(ValueStorage::Direct(pieces)), Some(snapshot), Some(value)) =
+        (&result, result_snapshot, &foreign.result)
     {
         encoding.capture_registers(&mut bytes, pieces, snapshot)?;
-        encoding.copy_indirect(&mut bytes, snapshot, output, extent(value.shape), false)?;
+        let (pointer, member) = match retained {
+            Some(homes) => (frame_pointer, homes.result_offset()),
+            None => (output_pointer.ok_or(Error::IncompatiblePlan)?, 0),
+        };
+        encoding.copy_indirect_at(
+            &mut bytes,
+            snapshot,
+            pointer,
+            member,
+            extent(value.shape),
+            false,
+        )?;
     }
     if let Some(offset) = continuation {
         encoding.memory(&mut bytes, MachineRegister::Aarch64X(30), offset, 8, true)?;
     }
     bytes.frame(frame_bytes, interval, touches, false);
     bytes.push(AdapterOperation::Return);
-    Ok(NativeForeignBridgePlan::from_planner(
-        crate::PhysicalRecipeOrigin(()),
-        NativeForeignInstructions {
+    Ok(NativeForeignInstructions {
             request,
             instructions: bytes,
             frame_bytes,
-        },
-    ))
+    })
 }
 
 fn extend_signed_scalar(
