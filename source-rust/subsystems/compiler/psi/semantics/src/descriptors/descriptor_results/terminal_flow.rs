@@ -66,16 +66,7 @@ fn record_owned_consumption(
             return Some(false);
         }
         if let Some(source) = crate::structural_argument_source(machine, argument.place, 0) {
-            // The ownership walk transfers the owned home of a value containing
-            // references, even when it permits a separate, explicit copy.
-            return Some(
-                source.multiplicity != StructuralMultiplicity::Unrestricted
-                    || (source.access == StructuralAccess::Owned
-                        && terminal_psi::structural_type_contains_reference_by(
-                            |id| module.structural_type(id),
-                            source.structural_type,
-                        )),
-            );
+            return Some(source.multiplicity != StructuralMultiplicity::Unrestricted);
         }
         match &exactly_one(machine.structural_places.iter(), |place| {
             place.id == argument.place

@@ -3885,11 +3885,8 @@ impl<'a> Analysis<'a> {
                 self.vacate(state, *source, &region)?;
             }
             kind if kind.constructor_arguments().next().is_some() => {
-                // Every constructor transfers its actual owned children. The
-                // same roster covers records, cases and fixed/stored arrays;
-                // their moved homes must not also receive edge cleanup.
                 for argument in kind.constructor_arguments() {
-                    self.argument(state, argument, site, true)?;
+                    self.stored_argument(state, argument, site)?;
                 }
             }
             Op::StoreStructuralField {
@@ -3909,7 +3906,7 @@ impl<'a> Analysis<'a> {
                         disposition, value, ..
                     } = &operation.kind
                     {
-                        self.argument(state, value, site, true)?;
+                        self.stored_argument(state, value, site)?;
                         Some(*disposition)
                     } else {
                         // Storing a shared byte view copies its descriptor.
@@ -5006,6 +5003,20 @@ impl<'a> Analysis<'a> {
             }
         }
         Ok(())
+    }
+
+    /// An unrestricted child remains available after construction or field
+    /// replacement. Track its home until cleanup retires its own references.
+    fn stored_argument(
+        &mut self,
+        state: &mut State,
+        argument: &StructuralArgument,
+        site: Site,
+    ) -> Result<(), Error> {
+        let transfer = self.root(argument.place)?.is_some_and(|root| {
+            root.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        });
+        self.argument(state, argument, site, transfer)
     }
 
     fn argument(
