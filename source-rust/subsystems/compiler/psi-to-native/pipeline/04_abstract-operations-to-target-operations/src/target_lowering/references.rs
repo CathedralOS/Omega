@@ -2086,7 +2086,9 @@ pub(crate) fn establish_trusted(
             let mut origins = Vec::new();
             for source in sources {
                 let root = normalized_source(function, live, types, source)?;
-                let extent = if *exact_origin {
+                let extent = if *exact_origin
+                    && reference_source_type(function, live, types, source) == Some(referent)
+                {
                     semantic_vocabulary::ReferenceOriginExtent::Projected
                 } else {
                     semantic_vocabulary::ReferenceOriginExtent::WithinRegion

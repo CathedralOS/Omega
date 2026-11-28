@@ -7,7 +7,7 @@ pub struct NativeAddressOrigin<S> {
     pub sources: Vec<S>,
     /// Scalar formals whose actual addresses must be resolved at a direct call.
     pub parameters: Vec<ValueId>,
-    /// Every route supplies the start of one and the same known place.
+    /// Every route supplies one unmodified storage address or scalar formal.
     pub exact: bool,
 }
 
@@ -55,7 +55,7 @@ pub fn trace_address<S: PartialEq>(
     }
     parameters.sort_unstable();
     NativeAddressOrigin {
-        exact: exact && parameters.is_empty() && sources.len() == 1,
+        exact: exact && sources.len() + parameters.len() == 1,
         sources,
         parameters,
     }
