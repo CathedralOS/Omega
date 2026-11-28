@@ -13,11 +13,11 @@ crashes Trap
     let mutable digits: [i32 in Wrapping; 19];
     transition value < 0 {
         true -> negative(@mutable digits, value),
-        false -> fill(@mutable digits, 0, value)
+        false -> fill(@mutable digits, 0 as i64 +Wrapping, value)
     }
     machine negative(digits: @mutable [i32 in Wrapping; 19], value: i64 in Wrapping) {
         |console|::Console::write_byte(45);
-        transition { _ -> fill(digits, 0, 0 - value) }
+        transition { _ -> fill(digits, 0 as i64 +Wrapping, 0 - value) }
     }
     machine fill(digits: @mutable [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping) {
         transition count >= 0 && count < 19 {
@@ -29,7 +29,7 @@ crashes Trap
     requires count >= 0 && count < 19
     {
         let digit: i64 in Wrapping = value % 10 + 48;
-        digits[count] = |numeric_conversion|::narrow_i64_to_i32_trapping(digit as i64) as i32 +Wrapping;
+        digits[count as -Wrapping] = |numeric_conversion|::narrow_i64_to_i32_trapping(digit as -Wrapping) as i32 +Wrapping;
         transition value >= 10 {
             true -> fill(digits, count + 1, value / 10),
             false -> drain(digits, count + 1)
@@ -44,7 +44,7 @@ crashes Trap
     machine emit(digits: @[i32 in Wrapping; 19], index: i64 in Wrapping)
     requires index >= 0 && index < 19
     {
-        |console|::Console::write_byte(digits[index] as i32);
+        |console|::Console::write_byte(digits[index as -Wrapping] as -Wrapping);
         transition { _ -> drain(digits, index) }
     }
     machine done() { }
@@ -54,7 +54,7 @@ crashes Trap
 public machine report(acquisition: @|model|::Acquisition) reaches |process_authority|::StandardOutput
 crashes Trap
 {
-    transition { _ -> row(acquisition, 0) }
+    transition { _ -> row(acquisition, 0 as i64 +Wrapping) }
     machine row(acquisition: @|model|::Acquisition, index: i64 in Wrapping) {
         transition index >= 0 && index < 16 && index < acquisition.count {
             true -> emit(acquisition, index),
@@ -64,11 +64,11 @@ crashes Trap
     machine emit(acquisition: @|model|::Acquisition, index: i64 in Wrapping)
     requires index >= 0 && index < 16
     {
-        |console|::Console::write("row "); number(acquisition.sequence[index]);
-        |console|::Console::write(" raw "); number(acquisition.raw[index]);
-        |console|::Console::write(" timestamp "); number(acquisition.timestamps[index]);
-        |console|::Console::write(" elapsed "); number(acquisition.elapsed[index]);
-        |console|::Console::write(" host "); number(acquisition.host[index]);
+        |console|::Console::write("row "); number(acquisition.sequence[index as -Wrapping]);
+        |console|::Console::write(" raw "); number(acquisition.raw[index as -Wrapping]);
+        |console|::Console::write(" timestamp "); number(acquisition.timestamps[index as -Wrapping]);
+        |console|::Console::write(" elapsed "); number(acquisition.elapsed[index as -Wrapping]);
+        |console|::Console::write(" host "); number(acquisition.host[index as -Wrapping]);
         |console|::Console::write_line("");
         transition { _ -> row(acquisition, index + 1) }
     }
