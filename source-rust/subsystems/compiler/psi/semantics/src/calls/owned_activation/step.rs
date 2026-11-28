@@ -66,6 +66,7 @@ pub fn step_shape(
         || boundary.service_reach_is_installation_bound
         || boundary.attachment.is_some()
         || boundary.numeric_intrinsic.is_some()
+        || !super::only_declared_inputs(boundary)
         || text(closed.template.identity())? != super::source_owner("step_fixed")
         || text(closed.template_entry.identity())? != super::source_owner("step_fixed::entry")
         || closed.capture.is_some()
@@ -100,6 +101,21 @@ pub fn step_shape(
             != Some(checked.method_arguments.as_slice())
     {
         return Err("step and preparation selected different applications");
+    }
+    let [owner] = source.parameter_types.as_slice() else {
+        return Err("step needs the declared ready owner");
+    };
+    let prepared_source = &prepare
+        .declaration
+        .as_ref()
+        .ok_or("step lost its preparation")?
+        .source;
+    let original =
+        super::declared_operands(module, prepared_source.result_type, "ActivationPreparation")?;
+    if super::declared_operands(module, *owner, "ReadyActivation")? != original
+        || super::declared_operands(module, source.result_type, "ActivationStep")? != original
+    {
+        return Err("step changed the declared worker or storage of its input or result");
     }
     let body = worker
         .checked_body(module, selected.entry_machine)

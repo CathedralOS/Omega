@@ -20,10 +20,11 @@ pub struct PreparationShape {
 
 /// This checks the source members and their physical carriers, not the size
 /// offered by a caller or whether a target can run on that backing.
-pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDeclaration,
-    selected: terminal_psi::TerminalPreparedActivationEntry)
-    -> Result<PreparationShape, &'static str>
-{
+pub(super) fn result_shape(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+    selected: terminal_psi::TerminalPreparedActivationEntry,
+) -> Result<PreparationShape, &'static str> {
     let BoundaryMachineResult::Structural(output) = &boundary.result else {
         return Err("prepare must return the ready or rejected outcome");
     };
@@ -33,7 +34,10 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
     };
     let name = |id| module.identities.text(id);
     if name(result.declaration_identity) != Some("toolchain::ActivationPreparation")
-        || cases.len() != 2 || result.multiplicity != output.multiplicity {
+        || cases.len() != 2
+        || result.multiplicity != output.multiplicity
+        || !output.qualifications.is_empty()
+    {
         return Err("prepare has a foreign or incomplete result");
     }
     let case = |identity| cases.iter().find(|c| name(c.declaration_identity) == Some(identity))
@@ -44,8 +48,13 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
     let StructuralFieldType::Structural(owner_type) = owner.field_type else {
         return Err("a ready owner must not be scalar");
     };
-    let token = module.structural_type(owner_type).ok_or("ready owner is absent")?;
-    if name(owner.declaration_identity) != Some("toolchain::ActivationPreparation::Ready::owner")
+    let token = module
+        .structural_type(owner_type)
+        .ok_or("ready owner is absent")?;
+    if owner.relevance.is_erased()
+        || owner.storage.is_some()
+        || name(owner.declaration_identity)
+            != Some("toolchain::ActivationPreparation::Ready::owner")
         || name(token.declaration_identity) != Some("toolchain::ReadyActivation")
         || !token.owns_linear_claim || token.multiplicity != StructuralMultiplicity::Linear
         || !matches!(token.shape, StructuralTypeShape::BorrowingOpaque { lifetime_count } if lifetime_count.get() == 1) {
@@ -66,6 +75,9 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
         .ok_or("rejection must return the original arguments and retained loan");
     let arguments = field("toolchain::ActivationPreparation::Rejected::arguments")?;
     let retained = field("toolchain::ActivationPreparation::Rejected::retained")?;
+    if retained.relevance.is_erased() || retained.storage.is_some() || arguments.storage.is_some() {
+        return Err("preparation changed the storage of a rejected input");
+    }
     let [argument_kind, BoundaryParameterKind::Structural] = boundary.parameter_order.as_slice()
         else { return Err("prepare needs arguments and one retained loan"); };
     let (backing, rest) = boundary.structural_parameters.split_last().ok_or("retained loan is absent")?;
@@ -98,6 +110,16 @@ pub(super) fn result_shape(module: &TerminalModule, boundary: &BoundaryMachineDe
     };
     if !arguments_match || !matches_type(&retained.field_type, backing.structural_type) {
         return Err("rejection changed an argument or the retained loan's carrier");
+    }
+    if !super::forwarded_qualifications(
+        &output.projected_qualifications,
+        rejected.id,
+        &[
+            (arguments.identity, rest.first()),
+            (retained.identity, Some(backing)),
+        ],
+    ) {
+        return Err("preparation asserted an unprovided result qualification");
     }
     Ok(PreparationShape { selected, result: result.id, ready: ready.id, owner: owner.id, owner_type,
         rejected: rejected.id, arguments: arguments.id, retained: retained.id })

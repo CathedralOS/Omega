@@ -2360,6 +2360,36 @@ fn scoped<T>(
 }
 
 #[cfg(test)]
+mod nominal_operand_tests {
+    use super::*;
+
+    #[test]
+    fn nested_operands_keep_their_boundaries_and_order() {
+        let family = compiler_type_name("Family");
+        let generic = |args: &[String]| {
+            encoding::compound(
+                vocabulary::TypeForm::Generic,
+                std::iter::once(encoding::atom(vocabulary::Label::Name, &family))
+                    .chain(args.iter().cloned()),
+            )
+        };
+        let byte = compiler_type_identity("u8");
+        let word = compiler_type_identity("u32");
+        let inside = generic(&[byte.clone(), word.clone()]);
+        let outer = generic(&[inside.clone(), word.clone(), byte.clone()]);
+        assert_eq!(
+            named_application_operands(&outer, &family),
+            Ok(Some(vec![inside.as_str(), word.as_str(), byte.as_str()]))
+        );
+        assert_eq!(
+            named_application_operands(&outer, &compiler_type_name("Other")),
+            Ok(None)
+        );
+        assert!(named_application_operands(&outer[..outer.len() - 1], &family).is_err());
+    }
+}
+
+#[cfg(test)]
 mod signature_region_tests {
     use super::*;
 

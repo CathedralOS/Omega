@@ -583,8 +583,8 @@ pub(crate) fn prepare_discharge<'l>(
     activity: &mut ProofSearchActivity,
 ) -> Checked<PreparedDischarge<'l>> {
     for boundary in &elaboration.module.interfaces.boundary_machines {
-        terminal_semantics::boundary_result_lifetimes(
-            &elaboration.module.types.structural_types,
+        terminal_semantics::closed_conformances::validate_boundary_result_lifetimes(
+            &elaboration.module,
             boundary,
         )
         .and_then(|_| {

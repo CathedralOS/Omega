@@ -256,6 +256,28 @@ pub fn hosted_primitive_requirement(
     Ok(Some(requirement))
 }
 
+/// Check either a general provider's declared result lifetimes or the exact
+/// sealed case transfer. A producer cannot claim both kinds of authority.
+pub fn validate_boundary_result_lifetimes(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> Result<(), &'static str> {
+    if boundary
+        .declaration
+        .as_ref()
+        .is_some_and(|d| super::owned_activation::transfers_owner(d.execution))
+    {
+        if boundary.result_lifetimes.is_some() || !boundary.result_reference_regions.is_empty() {
+            return Err(
+                "activation ownership cannot advertise independent result lifetimes or regions",
+            );
+        }
+        validate_boundary_callable(module, boundary)
+    } else {
+        crate::boundary_result_lifetimes(&module.types.structural_types, boundary).map(drop)
+    }
+}
+
 pub fn validate_boundary_callable(
     module: &TerminalModule,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
@@ -268,17 +290,36 @@ pub fn validate_boundary_callable(
     }
     hosted_primitive_requirement(module, boundary)?;
     if let terminal_psi::CheckedBoundaryExecution::OwnedActivation(operation) = checked.execution {
+        use super::owned_activation;
+        use language_core::sealed_intrinsics::ActivationOperation;
         match operation {
-            language_core::sealed_intrinsics::ActivationOperation::Park => super::owned_activation::validate_park(module, boundary)?,
-            language_core::sealed_intrinsics::ActivationOperation::Prepare => {
-                super::owned_activation::prepare_shape(module, boundary)?;
-                return Err("prepare needs its checked backing and custody contract");
+            ActivationOperation::Park => owned_activation::validate_park(module, boundary)?,
+            ActivationOperation::Prepare => {
+                let selected = owned_activation::prepare_shape(module, boundary)?.selected;
+                let mut reports = module
+                    .execution
+                    .task_activation_demands
+                    .iter()
+                    .filter_map(|d| {
+                        let terminal_psi::TerminalActivationOrigin::Caller(entry) = &d.origin
+                        else {
+                            return None;
+                        };
+                        (entry.preparation == boundary.id).then_some(entry)
+                    });
+                if reports.next() != Some(&selected) || reports.next().is_some() {
+                    return Err(
+                        "prepare must publish exactly its checked worker and storage demand",
+                    );
+                }
             }
-            language_core::sealed_intrinsics::ActivationOperation::StepFixed =>
-                return Err("stepping needs the closed worker's effects and fixed backing"),
-            language_core::sealed_intrinsics::ActivationOperation::Resume => {
-                super::owned_activation::resume_permit(module, boundary)?;
-                return Err("resuming needs the checked parked owner and its result custody");
+            ActivationOperation::StepFixed => {
+                let preparation = owned_activation::preparation_for(module, boundary)?;
+                owned_activation::step_shape(module, boundary, preparation)?;
+            }
+            ActivationOperation::Resume => {
+                let preparation = owned_activation::preparation_for(module, boundary)?;
+                owned_activation::resume_shape(module, boundary, preparation)?;
             }
         }
     }
