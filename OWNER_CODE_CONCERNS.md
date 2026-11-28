@@ -106,14 +106,6 @@ framework or a list of unimplemented features.
 - Cost: still a large share of checking time for std-using programs. Before #5807, `Replay::summary` was on the stack in 19.6% of all samples of a perf profile of the same check (`omega-linux`, 20,286 samples).
 - Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans; updated the same day after Psi 05 shared its walks' tables.
 
-<a id="the-checker-walks-each-machines-affine-ownership-twice"></a>
-### The checker walks each machine's affine ownership twice
-- Category: 4. Re-deriving
-- Where: [`affine_plan`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/verdict.rs#L1278) runs `MachineAffine::plan_reference_ends` and then `MachineAffine::verify_with_claims`
-- Saw: both walks share one borrowed-storage graph and, with every walk of the module, one table of callee summaries, over the `ModuleAnalyses` that `examine` builds after inference settles the module. `verify_with_claims` answers both the verified schedule and the claim rows `follow_the_lowered_form` reads, so the claim receiver walks nothing more (2026-11-27). The two walks still run the ownership walk ([`walk`](source-rust/subsystems/compiler/psi/semantics/src/plain_affine.rs#L1844)) from scratch in different modes: reference-end candidates change which roots it tracks and plan stores instead of checking them, and verification adds claims and checks the stored schedule. Before the graph and table were shared, the three walks then run were 2.7%, 2.3% and 2.6% of a popcount perf profile.
-- Cost: not profiled since the third walk was removed. A repair needs one walk that answers reference-end planning and verification at once, or a proof that a machine with no reference-end candidates needs no planning walk.
-- Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans; narrowed 2026-11-27 when the verification and claim walks became one.
-
 <a id="stage-03-rebuilds-the-whole-program-operand-owner-table-in-each-pass"></a>
 ### Stage 03 rebuilds the whole-program operand-owner table in each pass
 - Category: 4. Re-deriving
