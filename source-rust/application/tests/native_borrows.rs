@@ -436,7 +436,7 @@ public machine change(byte: @u8) {{
                 assert!(
                     message.contains(reason)
                         && message.contains("Unsafe + BorrowMutabilityUpgrade")
-                        && message.contains("dependency path: editor → renderer → memory")
+                        && message.contains("dependency path: editor -> renderer -> memory")
                         && message.contains(
                             "call path: main.omg::main -> main.omg::change -> main.omg::change"
                         )

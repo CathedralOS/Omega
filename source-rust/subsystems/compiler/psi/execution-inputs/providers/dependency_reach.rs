@@ -119,7 +119,7 @@ fn diagnostic_path(
     } else {
         Ok(format!(
             "\n  dependency path: {}\n  call path: {calls}",
-            packages.join(" → ")
+            packages.join(" -> ")
         ))
     }
 }
