@@ -106,6 +106,8 @@ pub enum CoreVocabulary {
     ExtentDomain(ExtentDomain),
     /// The `ProgramStorageEntry` arrival trait in `extent.omg`.
     ProgramStorageEntry,
+    /// Core `run.omg`'s dense storage carrier.
+    Run,
     /// Core `fixed_vec.omg`'s `FixedVec<T, N>` data.
     FixedVec,
     /// A primitive instruction-effect proposition in core `assembly_model.omg`.
@@ -799,6 +801,7 @@ const ROWS: &[CoreVocabularyRow] = &[
         BundledFile::CoreExtent,
         CoreVocabulary::ProgramStorageEntry,
     ),
+    row("run.omg", "Run", BundledFile::CoreRun, CoreVocabulary::Run),
     row(
         "fixed_vec.omg",
         "FixedVec",

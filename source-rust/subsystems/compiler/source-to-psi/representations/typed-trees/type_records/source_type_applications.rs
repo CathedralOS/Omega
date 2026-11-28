@@ -258,6 +258,20 @@ impl SourceTypeScope {
         })
     }
 
+    /// Resolve the argument in its supplying frame. A rigid parameter may
+    /// be in scope for a generic check while its actual type is still open.
+    pub fn argument_is_closed(&self, typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+        self.with_substitutions(|substitutions, starts, _| {
+            crate::source_state::domain::index_argument_is_in_scope(
+                typed,
+                reference,
+                substitutions,
+                starts,
+                &[],
+            )
+        })
+    }
+
     /// An open argument is usable only when its free parameters belong to
     /// this generic check. An actual argument is interpreted before the frame
     /// that binds it, so a parameter cannot justify its own substitution.
