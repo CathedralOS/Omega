@@ -353,7 +353,7 @@ fn reviewed_nested_dependencies_keep_their_own_build_sources() {
     let invalid = fixture.update(true);
     let message = report(&invalid);
     assert!(
-        !invalid.status.success() && message.contains("own.omg"),
+        !invalid.status.success() && message.contains("board_support::own"),
         "{message}"
     );
 }
