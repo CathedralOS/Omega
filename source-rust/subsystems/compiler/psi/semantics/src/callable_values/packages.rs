@@ -19,7 +19,7 @@ struct OpenedCall {
     operation: OperationId,
     contract: CallableContractId,
     admitted: Vec<CallableContractId>,
-    stored_referents: Vec<Option<StructuralTypeId>>,
+    stored_arguments: Vec<Option<StructuralTypeId>>,
 }
 
 impl PackageCallableSites {
@@ -67,21 +67,21 @@ impl PackageCallableSites {
         operation: OperationId,
         contract: CallableContractId,
         admitted: Vec<CallableContractId>,
-        referents: impl IntoIterator<Item = (usize, StructuralTypeId)>,
+        arguments: impl IntoIterator<Item = (usize, StructuralTypeId)>,
     ) -> CallableValueResult<()> {
         let interface = catalog
             .contract(contract)
             .ok_or("package call lacks its opened contract")?;
-        let mut stored_referents = vec![None; interface.structural_parameters.len()];
-        for (i, public) in referents {
+        let mut stored_arguments = vec![None; interface.structural_parameters.len()];
+        for (i, public) in arguments {
             let formal = interface
                 .structural_parameters
                 .get(i)
-                .ok_or("package call names an absent borrowed parameter")?;
-            if formal.access == StructuralAccess::Owned
-                || stored_referents[i].replace(public).is_some()
+                .ok_or("package call names an absent parameter")?;
+            if (formal.access == StructuralAccess::Owned && formal.structural_type != public)
+                || stored_arguments[i].replace(public).is_some()
             {
-                return Err("package call names an invalid borrowed parameter");
+                return Err("package call names an invalid opened argument");
             }
         }
         let Err(index) = self
@@ -96,7 +96,7 @@ impl PackageCallableSites {
                 operation,
                 contract,
                 admitted,
-                stored_referents,
+                stored_arguments,
             },
         );
         Ok(())
@@ -139,7 +139,7 @@ impl PackageCallableSites {
         index: usize,
     ) -> Option<StructuralTypeId> {
         self.call(invocation)?
-            .stored_referents
+            .stored_arguments
             .get(index)
             .copied()
             .flatten()
