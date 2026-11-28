@@ -1,2 +1,2 @@
-cannot prove automatic cleanup requires at selected edge
-drop_resource clause
+cannot prove requires contract for call drop_resource
+resource.valid == 1
