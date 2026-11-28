@@ -4160,11 +4160,12 @@ mod declaration_invocations {
         }
 
         /// Close the complete header of an imported boundary or a compiler-supplied
-        /// native borrow. Compiler-provided operations never become provider slots.
+        /// native borrow or run partition. These operations do not use provider slots.
         pub fn preparable_bodyless_declaration(
             &self,
             target: SymbolHandle,
         ) -> Result<Option<(SymbolHandle, StateSignature)>, &'static str> {
+            use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
             if let Some(source) = self.bodyless_declaration(target)? {
                 return Ok(Some(source));
             }
@@ -4178,12 +4179,9 @@ mod declaration_invocations {
                 || !matches!(
                     self.symbols
                         .sealed_declaration(machine.symbol, machine.name.as_str()),
-                    Some(
-                        language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
-                            language_core::sealed_intrinsics::CompilerPrimitive::NativeBorrow(_)
-                                | language_core::sealed_intrinsics::CompilerPrimitive::RunPartition(_)
-                        )
-                    )
+                    Some(SealedIntrinsic::CompilerPrimitive(
+                        CompilerPrimitive::NativeBorrow(_) | CompilerPrimitive::RunPartition(_)
+                    ))
                 )
             {
                 return Ok(None);
