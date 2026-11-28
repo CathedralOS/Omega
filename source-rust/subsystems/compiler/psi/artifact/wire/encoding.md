@@ -55,6 +55,31 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 311 records routed memberships on exact formal arguments in machine and
+boundary preconditions. A service method identifies each roster entry as
+normal result or input (with its ordered runtime formal ordinal), followed by the
+projection and canonical domain identity. The phases are committed separately.
+For each explicitly exported provider member, the receiver compares these
+rows with the checked boundary of the same requirement. Moving a premise to a
+different input changes the public contract even when both inputs have the same type.
+
+Marker 310 adds an optional requirement identity after the callable contract's
+identity. Structural contracts omit it. A descriptor for a nominal contract
+must retain its binding to that exact requirement.
+
+Marker 309 appends section 55 for per-value package evidence. Earlier saved
+programs must be rebuilt.
+
+Marker 308 records which callable field of a parameter may run. The callable
+envelope and service schema invocation lists use tag 1 for a whole parameter
+and tag 2 for a service. Tag 3 carries the zero-based parameter position
+(`u32`) and a counted nonempty path: 1 field identity (text), 2 fixed index
+(`u64`), 3 case identity (text), or 4 referent. The path must end at a callable.
+
+Marker 307 adds the terminal alignment observation to scalar-read paths. Readers
+check the marker before decoding the module. Rebuild earlier artifacts for this
+format.
+
 Marker 306 adds typed native address borrows (operation 145), mutability
 upgrades (146), and upgraded parameter origins (reference source tag 3).
 The reader rejects earlier markers before reading the payload.
@@ -817,6 +842,9 @@ spelling is noncanonical and rejects rather than selecting another dialect.
 Tag `6` is `Extent`, has no payload, and ends the path by observing the
 selected readable byte/element descriptor's current `u64` count. A scalar or
 fixed-array leaf cannot supply a live descriptor extent.
+Tag `7` is `Alignment`. It has no payload and ends a path at addressable storage.
+It returns the live location's guaranteed alignment as a `u64`. Indirection and
+the selection of the first element of a nonempty slice are explicit path steps.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.
@@ -1498,6 +1526,23 @@ Older markers are rejected before their payload is read.
 | 52 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
 | 53 | boundary application candidates | counted checked bodies for closed applications |
 | 54 | task activation demands | counted task activation demand rows |
+| 55 | per-value packages | counted schemas, counted openings, counted operation sites |
+
+A schema holds its public record storage ID and a counted list of abstract
+storage type IDs in hidden-parameter order. Schemas are sorted by record ID.
+An opening holds a machine ID, public record ID, structural argument for the
+subject, and counted fresh witness type IDs in the same parameter order.
+Opening indices are zero-based. A site holds a machine ID, operation ID and
+event. Sites are sorted by the machine and operation pair. The catalog forms
+part of the program fingerprint.
+
+<!-- package-event-tags -->
+| Tag | Package event | Fields after the tag |
+| --- | --- | --- |
+| 1 | Construct | Counted concrete witness type IDs in parameter order |
+| 2 | Project | Opening index (`u32`), structural field ID |
+| 3 | Invoke | Opening index (`u32`) |
+| 4 | Store | Opening index (`u32`), destination structural field ID |
 
 Marker 298 encodes each service method’s declared caller-stack bound as a
 little-endian `u64` after its blocking flag and before its termination flag.
@@ -2683,21 +2728,23 @@ contract `requires` rule) and strictly ordered service ceilings. Provider candid
 by boundary machine id, then provider identity, then selecting declaration, then candidate identity, then
 candidate machine id.
 
-Calls retain promised domain membership even when their declared result type
-does not display it. Machine proof contracts and boundary declarations encode
-these normal-result facts in a separate counted field. A row names either a scalar term and
-scalar domain, or a structural result root, canonical path, content version and
-structural domain. Rows are strictly increasing without duplicates. Every row
-must name the exact normal result or one of its typed projections. These facts
-change neither the declared result type nor its overload key. Predicates remain
-ordinary guarantees, and checked bodies must establish the facts after cleanup.
+Machine proof contracts and boundary declarations encode separate counted
+lists for input and normal-result domain memberships. An input row names one
+formal or a projection of it. A result row names the normal result or a
+projection of it. Both lists use the same row encoding: a scalar term and
+scalar domain, or a structural root, canonical path, content version and
+structural domain. Each list is strictly increasing. The declared types and
+overload keys stay the same. Predicates remain ordinary requirements or
+guarantees, and checked bodies must establish the promised facts after cleanup.
 
-The complete service method also retains each authored normal-result membership
-as a result path and canonical domain application identity. Field and case steps
-retain named or numbered member identities; fixed indices retain their exact
-integer. Native receiving checks compare the complete published roster with
-that selected service method, including missing rows. Updating a header digest
-cannot authorize a different guarantee.
+Each service method encodes its membership list in public parameter order,
+followed by normal-result memberships. A row starts with a one-byte subject tag:
+`1` for the normal result, or `2` followed by a little-endian `u32` input
+ordinal. Next come the counted path and the canonical domain application
+identity. Field and case steps retain named or numbered member identities;
+fixed indices retain their exact integer. Receivers validate the input ordinal
+or result presence against the signature. Native checks compare the complete
+roster with the selected service method, including the phase and projection.
 
 ### Runtime callable contracts and selections
 
@@ -3383,7 +3430,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 306 | yes |
+| semantic module | `PSITERM\0` | 311 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | published artifact | `PSIART\0\0` | 4 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |

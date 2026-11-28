@@ -421,8 +421,60 @@ fn a_storage_snapshot_requires_its_exact_establishing_call() {
             if shared_call {
                 "a returned storage snapshot is outside the call's established storage in machine `main`"
             } else {
-                "a storage snapshot is not after a declared call in machine `main`"
+                "a storage snapshot is not after a call in machine `main`"
             }
         );
     }
+}
+
+#[test]
+fn stored_callable_result_bound_reads_its_mutable_output_after_the_call() {
+    const SOURCE: &str = r#"
+        data ReadInto<S> = machine(state: @mutable S, output: @mutable [u8]) -> u64
+            ensures result <= output.length reaches none crashes none;
+        data File { byte: u8; }
+        machine read_one(read: ReadInto<File>, state: @mutable File, output: @mutable [u8]) -> u64
+        ensures result <= output.length { (read)(state, output) }
+    "#;
+    let accepted = judge(invocation(SOURCE, "read_one")).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let missing_bound = SOURCE.replacen("ensures result <= output.length", "", 1);
+    let rejected = judge(invocation(&missing_bound, "read_one")).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{rejected:?}"
+    );
+}
+
+#[test]
+fn a_stored_callable_may_change_an_exclusive_fields_entry_value() {
+    const SOURCE: &str = r#"
+        data Counter { count: u64; }
+        data ReadCount = machine(output: @mutable Counter) -> u64
+            ensures result <= output.count reaches none crashes none;
+        machine relay(read: ReadCount, output: @mutable Counter) -> u64
+            requires output.count == 0u64
+            ensures result <= output.count { (read)(output) }
+    "#;
+    let accepted = judge(invocation(SOURCE, "relay")).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let stale = SOURCE.replace(
+        "ensures result <= output.count {",
+        "ensures result == 0u64 {",
+    );
+    let rejected = judge(invocation(&stale, "relay")).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{rejected:?}"
+    );
 }

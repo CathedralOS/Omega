@@ -382,7 +382,8 @@ fn references_resolve(function: &SelectedFunction) -> Result<(), &'static str> {
                 register: VirtualRegisterId(spilled),
             } => exists(instruction) && (spilled as usize) < registers,
             VirtualRegisterOrigin::BlockParameter { block, .. } => (block.0 as usize) < blocks,
-            VirtualRegisterOrigin::EntryParameter { .. }
+            VirtualRegisterOrigin::ActivationOwner
+            | VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => true,
         };
         if !resolves {

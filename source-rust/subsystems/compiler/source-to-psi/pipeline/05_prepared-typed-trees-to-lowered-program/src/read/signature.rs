@@ -142,6 +142,7 @@ impl Program<'_> {
         if required.parameters != own.parameters
             || required.result != own.result
             || !required.requires.is_empty()
+            || !required.membership_requires.is_empty()
         {
             return Err(self.read_failure_at(
                 unserved("member signature differs from its requirement's"),
@@ -196,6 +197,7 @@ impl Program<'_> {
             bound_values: Vec::new(),
             generic_premises: Vec::new(),
             held: Vec::new(),
+            witness_functions: Vec::new(),
             pointwise_laws: Vec::new(),
             stating_premises: false,
             integers: None,
@@ -723,6 +725,13 @@ struct Defining<'d> {
     premises: &'d [TermHandle],
 }
 
+#[derive(Clone, Copy)]
+struct HeldPremise {
+    ty: TermHandle,
+    /// Present in a definition or theorem that can use the proof as a value.
+    proof: Option<TermHandle>,
+}
+
 struct Converter<'p, 't> {
     program: &'p Program<'t>,
     bodies: &'p IdTable<MachineId, Body>,
@@ -767,7 +776,8 @@ struct Converter<'p, 't> {
     generic_premises: Vec<(MachineId, Vec<TermHandle>)>,
     /// The premises of the machine being read that are read so far, as
     /// terms under its formals: what a clause of it may rest a call on.
-    held: Vec<TermHandle>,
+    held: Vec<HeldPremise>,
+    witness_functions: Vec<MachineId>,
     /// Each theorem law sealed as pointwise, with the entry of the statement
     /// it was sealed to (`pointwise`): the statement its users cite.
     pointwise_laws: Vec<(u32, u32)>,
@@ -864,6 +874,47 @@ impl<'p> Converter<'p, '_> {
         })
     }
 
+    fn variables(&mut self, count: usize) -> Vec<TermHandle> {
+        (0..count)
+            .rev()
+            .map(|index| self.variable(index as u32))
+            .collect()
+    }
+
+    /// While reading a term, keep its ordinary formals at their source
+    /// positions. Proof variables are outside them until the complete term
+    /// tells us which functions actually take proof arguments.
+    fn witness_variables(&mut self, values: usize, proofs: usize) -> Vec<TermHandle> {
+        (0..proofs)
+            .rev()
+            .map(|at| self.variable((values + at) as u32))
+            .collect()
+    }
+
+    fn uses_witness(&self, term: TermHandle, values: usize, proofs: usize) -> bool {
+        (0..proofs).any(|at| {
+            self.signature
+                .arena
+                .contains_free_variable(term, (values + at) as u32)
+        })
+    }
+
+    /// Put the proofs after the values, where their dependent types can
+    /// name all the operands. The resulting body is under both telescopes.
+    fn under_premises(&mut self, term: TermHandle, values: usize, proofs: usize) -> TermHandle {
+        let mut actuals = self.variables(proofs);
+        actuals.extend(self.witness_variables(proofs, values));
+        instantiate(&mut self.signature.arena, term, &actuals)
+    }
+
+    fn premise_witness(&self, id: MachineId, goal: TermHandle) -> Checked<TermHandle> {
+        self.held
+            .iter()
+            .find(|held| self.signature.arena.structurally_equal(held.ty, goal))
+            .and_then(|held| held.proof)
+            .ok_or_else(|| unserved(id, "record evidence requires a proof of this exact premise"))
+    }
+
     fn variable(&mut self, index: u32) -> TermHandle {
         self.signature.arena.insert(Term::Variable(index))
     }
@@ -894,7 +945,16 @@ impl<'p> Converter<'p, '_> {
             return self.quotient(id, quotient);
         }
         if program.self_containing.binary_search(&record).is_err() {
-            return self.product(id, record);
+            if self.declaring.contains(&record) {
+                return Err(unserved(
+                    id,
+                    "record depends on its own unfinished mathematical type",
+                ));
+            }
+            self.declaring.push(record);
+            let entry = self.product(id, record);
+            self.declaring.pop();
+            return entry;
         }
         let declared = program.record_type(id, record)?;
         let source = program.record_source(id, record)?;
@@ -1716,7 +1776,7 @@ impl<'p> Converter<'p, '_> {
             ..
         } = self.lift_shape(id, lifted)?;
         let private = program.machine_signature(operation)?;
-        if !private.requires.is_empty() {
+        if !private.requires.is_empty() || !private.membership_requires.is_empty() {
             return Err(unserved(
                 id,
                 "term that applies an operation lifted to a quotient whose operation on \
@@ -2428,7 +2488,10 @@ impl<'p> Converter<'p, '_> {
             for clause in &private.requires {
                 let premise = self.equality(operation, clause, side, None)?;
                 legal.push(premise);
-                self.held.push(premise);
+                self.held.push(HeldPremise {
+                    ty: premise,
+                    proof: None,
+                });
             }
         }
         // Congruence: related arguments, both calls legal, related results.
@@ -2487,7 +2550,10 @@ impl<'p> Converter<'p, '_> {
             for clause in &public.requires {
                 let premise = converter.equality(id, clause, values, None)?;
                 clauses.push(premise);
-                converter.held.push(premise);
+                converter.held.push(HeldPremise {
+                    ty: premise,
+                    proof: None,
+                });
             }
             Ok(clauses)
         };
@@ -2574,7 +2640,10 @@ impl<'p> Converter<'p, '_> {
         for clause in &private.requires {
             let premise = self.equality(operation, clause, &actuals, None)?;
             needed.push(premise);
-            self.held.push(premise);
+            self.held.push(HeldPremise {
+                ty: premise,
+                proof: None,
+            });
         }
         for &goal in &needed {
             self.owe(
@@ -3752,11 +3821,51 @@ impl<'p> Converter<'p, '_> {
             fields.push(entry);
         }
         let components: Vec<_> = fields.iter().map(|&field| self.constant(field)).collect();
-        let ty = self
+        let mut ty = self
             .signature
             .arena
             .product_type(&components)
             .expect("checked not empty");
+        // A strict predicate contributes its checked proof to the record,
+        // boxed into Type. Ordinary relevant fields retain their own identity.
+        let mut constraints = Vec::new();
+        if declared
+            .requires
+            .iter()
+            .any(|clause| matches!(clause, Proposition::Squash(_)))
+        {
+            let payload = self.variable(0);
+            let values: Vec<_> = (0..fields.len())
+                .map(|at| {
+                    self.signature
+                        .arena
+                        .tuple_component(payload, at, fields.len())
+                })
+                .collect();
+            let inputs = self.record_inputs(id, record, payload, &values)?;
+            let outer = (
+                std::mem::take(&mut self.held),
+                std::mem::take(&mut self.callable_scope),
+                std::mem::take(&mut self.bound_values),
+            );
+            let read: Checked<()> = (|| {
+                for clause in &declared.requires {
+                    if matches!(clause, Proposition::Squash(_)) {
+                        let condition = self.equality_at(id, clause, &[], None, &inputs)?;
+                        constraints.push(self.signature.arena.insert(Term::Box { ty: condition }));
+                    }
+                }
+                Ok(())
+            })();
+            (self.held, self.callable_scope, self.bound_values) = outer;
+            read?;
+        }
+        if let Some(codomain) = self.signature.arena.product_type(&constraints) {
+            ty = self.signature.arena.insert(Term::Sigma {
+                domain: ty,
+                codomain,
+            });
+        }
         index(id, self.signature.declarations.len() + 1)?;
         let universe = self
             .signature
@@ -3768,6 +3877,7 @@ impl<'p> Converter<'p, '_> {
             SignatureEntryKind::Record {
                 declaration: source.declaration,
                 fields,
+                strict_conditions: constraints.len(),
                 type_identity: declared.identity.clone(),
             },
             name,
@@ -3784,13 +3894,21 @@ impl<'p> Converter<'p, '_> {
         value: TermHandle,
         field: usize,
     ) -> Checked<(TermHandle, u32)> {
-        let SignatureEntryKind::Record { fields, .. } =
-            &self.signature.entries[entry as usize].kind
+        let SignatureEntryKind::Record {
+            fields,
+            strict_conditions,
+            ..
+        } = &self.signature.entries[entry as usize].kind
         else {
             return Err(unserved(
                 id,
                 "field of mathematical data that is not a record",
             ));
+        };
+        let value = if *strict_conditions == 0 {
+            value
+        } else {
+            self.signature.arena.insert(Term::Fst { pair: value })
         };
         let count = fields.len();
         let ty = *fields
@@ -3959,6 +4077,12 @@ impl<'p> Converter<'p, '_> {
 
     fn formals(&mut self, id: MachineId) -> Checked<Vec<(TermHandle, u32)>> {
         let signature = self.program.machine_signature(id)?;
+        if !signature.membership_requires.is_empty() {
+            return Err(unserved(
+                id,
+                "mathematical use needs a checked argument witness for a routed input membership",
+            ));
+        }
         if !signature.erased.is_empty() || !signature.borrowed.is_empty() {
             return Err(unserved(
                 id,
@@ -4176,10 +4300,14 @@ impl<'p> Converter<'p, '_> {
         let template = self.template(id);
         let callables = self.enter(id, count)?;
         let mut premises = Vec::with_capacity(signature.requires.len());
-        for premise in &signature.requires {
-            let premise = self.equality(id, premise, &open, None)?;
-            premises.push(premise);
-            self.held.push(premise);
+        let witnesses = self.witness_variables(callables.len() + count, signature.requires.len());
+        for (premise, proof) in signature.requires.iter().zip(witnesses) {
+            let ty = self.equality(id, premise, &open, None)?;
+            premises.push(ty);
+            self.held.push(HeldPremise {
+                ty,
+                proof: Some(proof),
+            });
         }
         if template.is_some() {
             self.generic_premises.push((id, premises.clone()));
@@ -4306,6 +4434,22 @@ impl<'p> Converter<'p, '_> {
             }
         };
         let mut ty = result;
+        let ordinary = callables.len() + count;
+        if self.uses_witness(term, ordinary, premises.len()) {
+            term = self.under_premises(term, ordinary, premises.len());
+            for (at, &premise) in premises.iter().enumerate().rev() {
+                let domain = shift(&mut self.signature.arena, premise, 0, at as u32);
+                term = self
+                    .signature
+                    .arena
+                    .insert(Term::Lambda { domain, body: term });
+                ty = self.signature.arena.insert(Term::Pi {
+                    domain,
+                    codomain: ty,
+                });
+            }
+            self.witness_functions.push(id);
+        }
         for &domain in formals
             .iter()
             .map(|(formal, _)| formal)
@@ -6333,6 +6477,12 @@ impl<'p> Converter<'p, '_> {
                 let constructor = shape.constructor_entry(entry, case);
                 Ok(self.constant(constructor))
             }
+            SignatureEntryKind::Record {
+                strict_conditions, ..
+            } if *strict_conditions != 0 => Err(unserved(
+                id,
+                "fuel recursion needs a checked initial value of its constrained result",
+            )),
             SignatureEntryKind::Record { fields, .. } => {
                 let mut values = Vec::with_capacity(fields.len());
                 for field in fields.clone() {
@@ -6661,11 +6811,17 @@ impl<'p> Converter<'p, '_> {
         callee: MachineId,
         operands: &[Bound],
         scope: &Scope<'_>,
-    ) -> Checked<()> {
+    ) -> Checked<Vec<TermHandle>> {
         let program = self.program;
         let called = program.machine_signature(callee)?;
+        if !called.membership_requires.is_empty() {
+            return Err(unserved(
+                id,
+                "mathematical call needs a checked argument witness for a routed input membership",
+            ));
+        }
         if called.requires.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let Some(valuing) = scope.value else {
             // The script of a recursive equation follows the body, whose
@@ -6673,7 +6829,7 @@ impl<'p> Converter<'p, '_> {
             // terms only name what a citation is at: the law is proved
             // whole by stage 06.
             if self.unfolding.is_some() {
-                return Ok(());
+                return Ok(Vec::new());
             }
             return Err(unserved(
                 id,
@@ -6686,6 +6842,8 @@ impl<'p> Converter<'p, '_> {
             .map(|symbol| self.name(*symbol))
             .unwrap_or_default();
         let actuals: Vec<_> = operands.iter().map(|operand| operand.term).collect();
+        let mut proofs = Vec::new();
+        let retained = self.witness_functions.contains(&callee);
         for premise in &called.requires {
             let goal = self.equality(callee, premise, &actuals, None)?;
             if valuing
@@ -6693,21 +6851,27 @@ impl<'p> Converter<'p, '_> {
                 .iter()
                 .any(|&held| self.signature.arena.structurally_equal(held, goal))
             {
+                if retained {
+                    proofs.push(self.premise_witness(id, goal)?);
+                }
                 continue;
             }
             let source = program
                 .machine_context(valuing.owner)
                 .map(|row| &row.names)
                 .and_then(|names| names.declared);
-            self.owe_statement(
+            let statement = self.obligation(
                 id,
                 valuing,
                 goal,
                 format!("the premise of `{callee_name}` at its call"),
                 source,
             )?;
+            if retained {
+                proofs.push(self.obligation_at(id, valuing, statement)?);
+            }
         }
-        Ok(())
+        Ok(proofs)
     }
 
     /// What a call of `callee` at `actuals` owes: each of `premises`, terms
@@ -6852,6 +7016,17 @@ impl<'p> Converter<'p, '_> {
         text: String,
         source: Option<source_text::SourceSpan>,
     ) -> Checked<()> {
+        self.obligation(id, valuing, goal, text, source).map(|_| ())
+    }
+
+    fn obligation(
+        &mut self,
+        id: MachineId,
+        valuing: &Valuing<'_>,
+        goal: TermHandle,
+        text: String,
+        source: Option<source_text::SourceSpan>,
+    ) -> Checked<u32> {
         let mut hypotheses = valuing.premises.to_vec();
         hypotheses.extend_from_slice(valuing.facts);
         let mut statement = self.implication(&hypotheses, goal);
@@ -6862,14 +7037,14 @@ impl<'p> Converter<'p, '_> {
             });
         }
         let owner = self.program.machine_symbol(valuing.owner)?;
-        if self.signature.laws.iter().any(|law| {
+        if let Some(known) = self.signature.laws.iter().find(|law| {
             law.machine == owner
                 && self.signature.arena.structurally_equal(
                     self.signature.declarations[law.statement as usize].ty,
                     statement,
                 )
         }) {
-            return Ok(());
+            return Ok(known.statement);
         }
         let law = index(id, self.signature.laws.len())?;
         index(id, self.signature.declarations.len() + 1)?;
@@ -6896,7 +7071,7 @@ impl<'p> Converter<'p, '_> {
             text,
             source,
         });
-        Ok(())
+        Ok(entry)
     }
 
     /// A recursive machine must rank on the formal it dispatches on: the
@@ -6926,21 +7101,30 @@ impl<'p> Converter<'p, '_> {
         }
     }
 
-    /// Check a mathematical record constructor's default domain on the values
-    /// it actually stores. A condition on a bare field denotes that field of
-    /// this record, including under a quantified index.
-    fn record_domain(
+    /// Apply a separately judged obligation to this definition's variables
+    /// and to the actual evidence available at the construction or call.
+    fn obligation_at(
         &mut self,
+        id: MachineId,
+        valuing: &Valuing<'_>,
+        statement: u32,
+    ) -> Checked<TermHandle> {
+        let mut arguments = self.variables(valuing.context.len());
+        for &premise in valuing.premises.iter().chain(valuing.facts) {
+            arguments.push(self.premise_witness(id, premise)?);
+        }
+        let head = self.constant(statement);
+        Ok(self.signature.arena.apply_arguments(head, &arguments))
+    }
+
+    fn record_inputs(
+        &self,
         id: MachineId,
         record: StructuralTypeId,
         term: TermHandle,
         operands: &[TermHandle],
-        scope: &Scope<'_>,
-    ) -> Checked<()> {
+    ) -> Checked<Vec<(StructuralCaseSubject, TermHandle)>> {
         let declared = self.program.record_type(id, record)?;
-        if declared.requires.is_empty() {
-            return Ok(());
-        }
         let root = crate::body::self_place().ok_or_else(|| unserved(id, "self place identity"))?;
         let mut inputs = vec![(StructuralCaseSubject::new(root, Vec::new()), term)];
         inputs.extend(
@@ -6953,6 +7137,26 @@ impl<'p> Converter<'p, '_> {
                     (StructuralCaseSubject::new(root, path), value)
                 }),
         );
+        Ok(inputs)
+    }
+
+    /// Check a mathematical record constructor's default domain on the values
+    /// it actually stores. A condition on a bare field denotes that field of
+    /// this record, including under a quantified index.
+    fn record_domain(
+        &mut self,
+        id: MachineId,
+        record: StructuralTypeId,
+        term: TermHandle,
+        operands: &[TermHandle],
+        scope: &Scope<'_>,
+    ) -> Checked<TermHandle> {
+        let declared = self.program.record_type(id, record)?;
+        if declared.requires.is_empty() {
+            return Ok(term);
+        }
+        let inputs = self.record_inputs(id, record, term, operands)?;
+        let mut evidence = Vec::new();
         let name = self.name(self.program.record_source(id, record)?.declaration);
         for clause in &declared.requires {
             let goal = self.equality_at(id, clause, &[], None, &inputs)?;
@@ -6963,15 +7167,32 @@ impl<'p> Converter<'p, '_> {
                 .program
                 .machine_context(valuing.owner)
                 .and_then(|row| row.names.declared);
-            self.owe_statement(
+            let statement = self.obligation(
                 id,
                 valuing,
                 goal,
                 format!("the declared domain of `{name}` at construction"),
                 source,
             )?;
+            if matches!(clause, Proposition::Squash(_)) {
+                let value = match self.premise_witness(id, goal) {
+                    Ok(held) => held,
+                    Err(_) => self.obligation_at(id, valuing, statement)?,
+                };
+                evidence.push(
+                    self.signature
+                        .arena
+                        .insert(Term::BoxIntro { ty: goal, value }),
+                );
+            }
         }
-        Ok(())
+        Ok(match self.signature.arena.tuple(&evidence) {
+            Some(second) => self.signature.arena.insert(Term::Pair {
+                first: term,
+                second,
+            }),
+            None => term,
+        })
     }
 
     /// A value expression of a mathematical body as a term.
@@ -7065,7 +7286,7 @@ impl<'p> Converter<'p, '_> {
                         "mathematical record constructor lost its data",
                     ));
                 };
-                self.record_domain(id, record, term, &operands, scope)?;
+                let term = self.record_domain(id, record, term, &operands, scope)?;
                 Ok(plain(term))
             }
             ExpressionKind::Case { case, fields, .. } => {
@@ -7360,9 +7581,10 @@ impl<'p> Converter<'p, '_> {
                     return self.expression(*callee, value, &inner);
                 }
                 let function = self.function(*callee)?;
-                self.owed(id, *callee, &operands, scope)?;
+                let proofs = self.owed(id, *callee, &operands, scope)?;
                 let function = self.constant(function);
-                let operands: Vec<_> = operands.iter().map(|operand| operand.term).collect();
+                let mut operands: Vec<_> = operands.iter().map(|operand| operand.term).collect();
+                operands.extend(proofs);
                 Ok(plain(
                     self.signature.arena.apply_arguments(function, &operands),
                 ))
@@ -7449,10 +7671,14 @@ impl<'p> Converter<'p, '_> {
         // may call a machine that has a premise only where that premise is
         // one of this machine's own.
         let mut premises = Vec::with_capacity(signature.requires.len());
-        for premise in &signature.requires {
-            let premise = self.equality(id, premise, &open, None)?;
-            premises.push(premise);
-            self.held.push(premise);
+        let witnesses = self.witness_variables(callables.len() + count, signature.requires.len());
+        for (premise, proof) in signature.requires.iter().zip(witnesses) {
+            let ty = self.equality(id, premise, &open, None)?;
+            premises.push(ty);
+            self.held.push(HeldPremise {
+                ty,
+                proof: Some(proof),
+            });
         }
         let satisfaction = self
             .satisfactions
@@ -7639,7 +7865,35 @@ impl<'p> Converter<'p, '_> {
             let law = index(id, self.signature.laws.len())?;
             index(id, self.signature.declarations.len() + 1)?;
             // For all formals, given a proof of each premise, the equality.
-            let mut statement = self.implication(&premises, goal);
+            let ordinary = callables.len() + count;
+            let dependent = self.uses_witness(goal, ordinary, premises.len());
+            let (mut statement, goal, clause_proof) = if dependent {
+                let LawProof::Direct(script) = clause_proof else {
+                    return Err(unserved(id, "inductive law with proof-dependent operands"));
+                };
+                if declared.is_some() {
+                    return Err(unserved(
+                        id,
+                        "selected requirement with proof-dependent operands",
+                    ));
+                }
+                let body = self.under_premises(goal, ordinary, premises.len());
+                let mut statement = body;
+                for (at, &premise) in premises.iter().enumerate().rev() {
+                    let domain = shift(&mut self.signature.arena, premise, 0, at as u32);
+                    statement = self.signature.arena.insert(Term::Pi {
+                        domain,
+                        codomain: statement,
+                    });
+                }
+                (
+                    statement,
+                    statement,
+                    LawProof::UnderPremises { body, script },
+                )
+            } else {
+                (self.implication(&premises, goal), goal, clause_proof)
+            };
             for &domain in formals
                 .iter()
                 .map(|(formal, _)| formal)
@@ -7764,7 +8018,14 @@ impl<'p> Converter<'p, '_> {
                 .iter()
                 .map(|&(place, term)| (place, lift(term)))
                 .collect();
-            let held: Vec<_> = self.held.iter().map(|&premise| lift(premise)).collect();
+            let held: Vec<_> = self
+                .held
+                .iter()
+                .map(|premise| HeldPremise {
+                    ty: lift(premise.ty),
+                    proof: premise.proof.map(&mut lift),
+                })
+                .collect();
             let result_as = self
                 .result_as
                 .map(|(machine, result)| (machine, lift(result)));
@@ -7902,17 +8163,17 @@ impl<'p> Converter<'p, '_> {
         id: MachineId,
         member: SymbolHandle,
         operands: &[TermHandle],
-    ) -> Checked<()> {
+    ) -> Checked<Vec<TermHandle>> {
         if self.stating_premises {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let program = self.program;
         let Some((machine, _)) = program.symbols.iter().find(|(_, known)| **known == member) else {
-            return Ok(());
+            return Ok(Vec::new());
         };
         let called = program.machine_signature(machine)?;
         if called.requires.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
         // The called machine's own machine parameters stand for the
         // functions passed for them, which come first.
@@ -7939,11 +8200,15 @@ impl<'p> Converter<'p, '_> {
             .collect();
         self.stating_premises = false;
         self.callable_scope = outer;
+        let mut witnesses = Vec::new();
         for premise in stated? {
+            if self.witness_functions.contains(&machine) {
+                witnesses.push(self.premise_witness(id, premise)?);
+            }
             if !self
                 .held
                 .iter()
-                .any(|&held| self.signature.arena.structurally_equal(held, premise))
+                .any(|held| self.signature.arena.structurally_equal(held.ty, premise))
             {
                 return Err(unserved(
                     id,
@@ -7951,7 +8216,7 @@ impl<'p> Converter<'p, '_> {
                 ));
             }
         }
-        Ok(())
+        Ok(witnesses)
     }
 
     /// Each operand of a clause as a term under `formals`, and the entry of
@@ -8044,6 +8309,11 @@ impl<'p> Converter<'p, '_> {
                                 Vec::new()
                             };
                             arguments.extend(formals.iter().copied());
+                            if self.witness_functions.contains(&id) {
+                                let member = self.program.machine_symbol(id)?;
+                                let witnesses = self.owed_in_clause(id, member, &arguments)?;
+                                arguments.extend(witnesses);
+                            }
                             self.signature.arena.apply_arguments(function, &arguments)
                         }
                     }
@@ -8124,9 +8394,11 @@ impl<'p> Converter<'p, '_> {
                                 _ => None,
                             };
                             let head = self.declaration(id, member, constructed, satisfaction)?;
-                            self.owed_in_clause(id, member, &operands)?;
+                            let mut arguments = operands;
+                            let witnesses = self.owed_in_clause(id, member, &arguments)?;
+                            arguments.extend(witnesses);
                             let head = self.constant(head);
-                            self.signature.arena.apply_arguments(head, &operands)
+                            self.signature.arena.apply_arguments(head, &arguments)
                         }
                     }
                 }

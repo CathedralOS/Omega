@@ -9,7 +9,7 @@ execution authority.
 
 use ::wire::digest_encoder::content_identity;
 use service_surface::{
-    ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
+    ServiceDomainMembership, ServiceMembershipProjection, ServiceSynchronousInvocation,
 };
 
 const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v8\0";
@@ -87,7 +87,7 @@ impl<'a> ProviderPlanInput<'a> {
                 reader.tag(0)?;
             }
             reader.tag(1)?;
-            reader.tag(1)?;
+            let has_result = reader.tag(1)? == 1;
             if reader.tag(1)? == 1 {
                 reader.nonempty_string()?;
             }
@@ -100,7 +100,7 @@ impl<'a> ProviderPlanInput<'a> {
                 previous_domain = Some(domain);
                 reader.carry()?;
             }
-            reader.normal_result_memberships()?;
+            reader.domain_memberships(parameter_count, has_result)?;
             reader.strings()?;
             reader.synchronous_invocations(parameter_count)?;
             reader.tag(1)?;
@@ -323,24 +323,42 @@ impl<'a> Reader<'a> {
         Ok(())
     }
 
-    fn normal_result_memberships(&mut self) -> Result<(), &'static str> {
+    fn domain_memberships(
+        &mut self,
+        parameter_count: usize,
+        has_result: bool,
+    ) -> Result<(), &'static str> {
         let mut previous = None;
         for _ in 0..self.count()? {
+            let mut subject = service_surface::ServiceMembershipSubject::NormalResult;
             let mut path = Vec::new();
-            for _ in 0..self.count()? {
-                path.push(match self.tag(3)? {
-                    1 => ServiceResultProjection::Field(self.nonempty_string()?.to_owned()),
-                    2 => ServiceResultProjection::Case(self.nonempty_string()?.to_owned()),
-                    3 => ServiceResultProjection::FixedIndex(self.number()?),
-                    _ => return Err("unknown provider plan result membership projection"),
+            for ordinal in 0..self.count()? {
+                path.push(match self.tag(4)? {
+                    1 => ServiceMembershipProjection::Field(self.nonempty_string()?.to_owned()),
+                    2 => ServiceMembershipProjection::Case(self.nonempty_string()?.to_owned()),
+                    3 => ServiceMembershipProjection::FixedIndex(self.number()?),
+                    4 if ordinal == 0 => {
+                        let index = u32::from_le_bytes(
+                            self.take(4)?
+                                .try_into()
+                                .map_err(|_| "membership parameter width")?,
+                        );
+                        subject = service_surface::ServiceMembershipSubject::Input(index);
+                        continue;
+                    }
+                    _ => return Err("invalid provider membership selector"),
                 });
             }
-            let row = ServiceNormalResultMembership {
+            let row = ServiceDomainMembership {
+                subject,
                 path,
                 domain: self.nonempty_string()?.to_owned(),
             };
+            if !row.has_subject(parameter_count, has_result) {
+                return Err("membership outside method signature");
+            }
             if previous.as_ref().is_some_and(|prior| prior >= &row) {
-                return Err("provider plan result memberships repeat or reorder");
+                return Err("provider plan domain memberships repeat or reorder");
             }
             previous = Some(row);
         }
@@ -350,13 +368,36 @@ impl<'a> Reader<'a> {
     fn synchronous_invocations(&mut self, parameter_count: usize) -> Result<(), &'static str> {
         let mut entries = Vec::new();
         for _ in 0..self.count()? {
-            entries.push(match self.tag(2)? {
+            entries.push(match self.tag(3)? {
                 1 => ServiceSynchronousInvocation::Parameter(u32::from_le_bytes(
                     self.take(4)?
                         .try_into()
                         .map_err(|_| "provider invocation position width")?,
                 )),
                 2 => ServiceSynchronousInvocation::Service(self.nonempty_string()?.to_owned()),
+                3 => {
+                    use semantic_vocabulary::InvocationPathSegment as Step;
+                    let parameter = u32::from_le_bytes(
+                        self.take(4)?
+                            .try_into()
+                            .map_err(|_| "provider invocation position width")?,
+                    );
+                    let mut path = Vec::new();
+                    for _ in 0..self.count()? {
+                        path.push(match self.tag(4)? {
+                            1 => Step::Field(self.nonempty_string()?.to_owned()),
+                            2 => Step::FixedIndex(u64::from_le_bytes(
+                                self.take(8)?
+                                    .try_into()
+                                    .map_err(|_| "provider invocation index width")?,
+                            )),
+                            3 => Step::Case(self.nonempty_string()?.to_owned()),
+                            4 => Step::Referent,
+                            _ => return Err("unknown synchronous invocation path segment"),
+                        });
+                    }
+                    ServiceSynchronousInvocation::ProjectedParameter { parameter, path }
+                }
                 _ => return Err("unknown provider plan synchronous invocation"),
             });
         }

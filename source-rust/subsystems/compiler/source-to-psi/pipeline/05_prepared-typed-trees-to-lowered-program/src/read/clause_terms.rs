@@ -699,7 +699,7 @@ impl Program<'_> {
                                         )))) =>
                     {
                         let Some((root, path, value_type)) =
-                            self.read_projection(id, scope, read)?
+                            self.read_projection(id, scope, read, None)?
                         else {
                             return Err(unavailable(
                                 "name other than the clause's subject, a field of it or a literal",
@@ -1341,6 +1341,19 @@ impl Program<'_> {
                     }
                     ExpressionNode::Call(call) if call.layout_query.is_some() => {
                         let query = call.layout_query.as_ref().expect("matched a layout query");
+                        if matches!(query, crate::source_state::expression::DataLayoutQueryRequest::LocationAlignment) {
+                            let [operand] = table.expression_handles(call.arguments) else {
+                                return Err(unavailable("location alignment needs one operand"));
+                            };
+                            let (root, path) = self.alignment_observation(id, scope, *operand)?;
+                            let scalar = ScalarType::Integer(
+                                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                                    .expect("u64 is valid"),
+                            );
+                            let term = ScalarTerm::structural_read(root, path, scalar)
+                                .map_err(|_| unavailable("invalid alignment observation"))?;
+                            break 'read (term, ValueType::plain(scalar));
+                        }
                         let source = SourceOrigin::of(table.source_span(read));
                         let measured = self.layout_query(id, call, query, source)?;
                         let (

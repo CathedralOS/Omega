@@ -26,8 +26,24 @@ pub struct RestrictedBuildSite {
 pub enum RestrictedBuildOperation {
     ProgramLaunch(Box<RestrictedProgramLaunch>),
     SendDatagram { peer: BuildNetworkPeer },
+    ReceiveDatagram { peer: BuildNetworkPeer },
     ScopedFilesystemExecution, // Execute against scoped real filesystem read/write roots.
     UnscopedFilesystemExecution, // Execute against the real filesystem without path grants.
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DatagramAccess {
+    Send,
+    ReceiveReply,
+}
+
+impl RestrictedBuildOperation {
+    pub const fn datagram_peer(&self) -> Option<BuildNetworkPeer> {
+        match self {
+            Self::SendDatagram { peer } | Self::ReceiveDatagram { peer } => Some(*peer),
+            _ => None,
+        }
+    }
 }
 
 /// The complete scope of a fixed-peer UDP installation. The reviewed endpoint
@@ -61,6 +77,19 @@ impl BuildNetworkPeer {
 
     pub const fn address(self) -> std::net::SocketAddr {
         self.address
+    }
+
+    /// A fixed UDP socket always uses the host stack. Only a destination confined
+    /// to loopback proves that this provider cannot transmit off the machine.
+    pub fn physical_authority(self) -> &'static [semantic_vocabulary::TerminalAuthorityClass] {
+        use semantic_vocabulary::TerminalAuthorityClass::{
+            HostNetworkStack, OffMachineNetworkTransmit,
+        };
+        if self.address.ip().to_canonical().is_loopback() {
+            &[HostNetworkStack]
+        } else {
+            &[HostNetworkStack, OffMachineNetworkTransmit]
+        }
     }
 
     pub const fn max_datagram_bytes(self) -> u16 {
@@ -209,9 +238,23 @@ impl RestrictedBuildRequest {
         bounds: RestrictedBuildBounds,
         profile: Option<target::TargetProfile>,
     ) -> Self {
+        Self::for_udp(DatagramAccess::Send, peer, call_path, bounds, profile)
+    }
+
+    pub fn for_udp(
+        access: DatagramAccess,
+        peer: BuildNetworkPeer,
+        call_path: String,
+        bounds: RestrictedBuildBounds,
+        profile: Option<target::TargetProfile>,
+    ) -> Self {
+        let operation = match access {
+            DatagramAccess::Send => RestrictedBuildOperation::SendDatagram { peer },
+            DatagramAccess::ReceiveReply => RestrictedBuildOperation::ReceiveDatagram { peer },
+        };
         Self {
             call_path: Some(call_path),
-            operation: RestrictedBuildOperation::SendDatagram { peer },
+            operation,
             read_grants: Vec::new(),
             write_grants: Vec::new(),
             bounds,

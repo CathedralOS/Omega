@@ -347,6 +347,8 @@ impl ProviderPlan {
                     .map(|entry| match entry {
                         ServiceSynchronousInvocation::Parameter(position) =>
                             format!("parameter {position}"),
+                        ServiceSynchronousInvocation::ProjectedParameter { parameter, path } =>
+                            format!("parameter {parameter}{}", semantic_vocabulary::display_invocation_path(path)),
                         ServiceSynchronousInvocation::Service(name) => name.clone(),
                     })
                     .collect::<Vec<_>>()
@@ -423,8 +425,21 @@ impl ProviderPlan {
                         .text(method.result_type_identity),
                 );
             }
-            for membership in &method.normal_result_memberships {
-                rendered.push_str(&format!("\nnormal-membership:{membership:?}"));
+            for membership in &method.domain_memberships {
+                let path = &membership.path;
+                let domain = &membership.domain;
+                match membership.subject {
+                    service_surface::ServiceMembershipSubject::Input(index) => {
+                        rendered
+                            .push_str(&format!("\ninput-membership:{index}:{path:?}:{domain:?}"));
+                    }
+                    service_surface::ServiceMembershipSubject::NormalResult => {
+                        // Existing provider reports committed the original record's Debug spelling.
+                        rendered.push_str(&format!(
+                            "\nnormal-membership:ServiceNormalResultMembership {{ path: {path:?}, domain: {domain:?} }}"
+                        ));
+                    }
+                }
             }
             let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
             result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
@@ -782,20 +797,12 @@ impl ProviderPlan {
                     context()
                 ));
             }
-            if (!method.normal_result_memberships.is_empty() && !method.has_result)
-                || method
-                    .normal_result_memberships
-                    .iter()
-                    .any(|row| !row.has_exact_identity())
-                || method
-                    .normal_result_memberships
-                    .windows(2)
-                    .any(|pair| pair[0] >= pair[1])
-            {
-                errors.push(format!(
-                    "{} normal-result membership roster has no exact canonical meaning",
-                    context()
-                ));
+            if let Err(reason) = service_surface::ServiceDomainMembership::validate_entries(
+                &method.domain_memberships,
+                method.parameter_count,
+                method.has_result,
+            ) {
+                errors.push(format!("{} {reason}", context()));
             }
             for claim in &method.result_claims {
                 if !method.has_result || !method.result_type_identity.is_valid() {

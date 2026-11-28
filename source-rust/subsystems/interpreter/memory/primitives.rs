@@ -1447,7 +1447,7 @@ pub(crate) mod primitive_storage {
                             span_end = Some(end);
                             use crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorageHome;
                             requested_frame = match array.home {
-                                ArrayStorageHome::Runtime => None,
+                                ArrayStorageHome::Component | ArrayStorageHome::Runtime => None,
                                 ArrayStorageHome::Frame {
                                     depth,
                                     place,
@@ -2453,6 +2453,7 @@ pub(crate) mod primitive_storage {
                             place,
                             structural_type,
                         } => (depth, place, structural_type),
+                        ArrayStorageHome::Component => return Ok(None),
                         ArrayStorageHome::Runtime => {
                             let payload = self.structural_byte_storage.require(&array.referent)?;
                             if *index >= payload.len() {
@@ -2855,11 +2856,8 @@ pub(crate) mod primitive_storage {
                     offset,
                     ..
                 } => {
-                    let extent =
-                        crate::boundary::structural_inputs::byte_arrays::byte_array_length(
-                            &self.structural_types(),
-                            *array_type,
-                        )
+                    let extent = self
+                        .checked_byte_array_extent(array, *array_type)
                         .ok_or(malformed())?;
                     if self.stored_byte_array_length(array)? as u128 != u128::from(extent) {
                         return Err(malformed());
@@ -5938,6 +5936,11 @@ pub(crate) mod storage_addresses {
         TerminalInterpretError::StructuralIdentityExhausted
     }
 
+    enum LocationEndpoint {
+        Primitive(PrimitiveStorageEndpoint),
+        Frame(crate::storage::element_views::ElementViewHome),
+    }
+
     type Coordinate = (u64, u64);
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -5951,6 +5954,65 @@ pub(crate) mod storage_addresses {
         namespace: u64,
         root: u64,
         path: Vec<Coordinate>,
+    }
+
+    /// An interval in one original packed array, in the issuing instance's coordinates.
+    #[derive(Clone, PartialEq, Eq)]
+    pub(crate) struct ByteAddressRange<'a> {
+        namespace: u64,
+        root: u64,
+        path: &'a [Coordinate],
+        start: u64,
+        end: u64,
+    }
+
+    impl ByteAddressRange<'_> {
+        pub(crate) fn overlaps(&self, other: &Self) -> bool {
+            self.namespace == other.namespace
+                && self.root == other.root
+                && self.path == other.path
+                && self.start < other.end
+                && other.start < self.end
+        }
+    }
+
+    impl ScalarStorageAddress {
+        pub(crate) fn byte_range(
+            &self,
+            offset: usize,
+            count: usize,
+        ) -> Result<ByteAddressRange<'_>, TerminalInterpretError> {
+            let Some(((0, first), path)) = self.path.split_last() else {
+                return Err(malformed());
+            };
+            let start = first
+                .checked_add(u64::try_from(offset).map_err(|_| exhausted())?)
+                .ok_or_else(exhausted)?;
+            let end = start
+                .checked_add(u64::try_from(count).map_err(|_| exhausted())?)
+                .ok_or_else(exhausted)?;
+            Ok(ByteAddressRange {
+                namespace: self.namespace,
+                root: self.root,
+                path,
+                start,
+                end,
+            })
+        }
+
+        fn byte_offset(
+            &self,
+            offset: usize,
+        ) -> Result<(Option<u64>, u64, Vec<Coordinate>), TerminalInterpretError> {
+            let mut path = self.path.clone();
+            let Some((0, first)) = path.last_mut() else {
+                return Err(malformed());
+            };
+            *first = first
+                .checked_add(u64::try_from(offset).map_err(|_| exhausted())?)
+                .ok_or_else(exhausted)?;
+            Ok((Some(self.namespace), self.root, path))
+        }
     }
 
     fn encode(
@@ -6031,11 +6093,11 @@ pub(crate) mod storage_addresses {
             })
         }
 
-        fn storage_address_endpoint(
-            &mut self,
+        fn storage_location_endpoint(
+            &self,
             source: &StructuralArgument,
             scalar_type: Option<ScalarType>,
-        ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {
+        ) -> Result<LocationEndpoint, TerminalInterpretError> {
             let Some(scalar_type) = scalar_type else {
                 let selected = self.element_collection_storage(source)?;
                 if let Some(crate::storage::reference::AggregateViewTip::Aggregate {
@@ -6053,20 +6115,15 @@ pub(crate) mod storage_addresses {
                                 .into(),
                     });
                 }
-                let place = match selected.home {
-                    Some(home) => {
-                        self.owned_array_home(&home.storage)?;
-                        let (depth, place, _) = home.storage.scalar_array_frame();
-                        StructuralRuntimePlace {
-                            opaque_identity: self.array_storage_identity(depth, place)?,
-                            path: home.path,
-                        }
-                    }
-                    None => StructuralRuntimePlace::from(
-                        selected.collection.as_ref().ok_or(malformed())?,
-                    ),
-                };
-                return Ok(PrimitiveStorageEndpoint::Scalar(place));
+                if let Some(home) = selected.home {
+                    self.owned_array_home(&home.storage)?;
+                    return Ok(LocationEndpoint::Frame(home));
+                }
+                let place =
+                    StructuralRuntimePlace::from(selected.collection.as_ref().ok_or(malformed())?);
+                return Ok(LocationEndpoint::Primitive(
+                    PrimitiveStorageEndpoint::Scalar(place),
+                ));
             };
             if let Some((prefix, field_path)) = scalar_field_projection(&source.path) {
                 let (carrier, view) = self.resolve_live_view_projection(
@@ -6085,19 +6142,20 @@ pub(crate) mod storage_addresses {
                                 .and_then(|backing| backing.collection_home.as_ref()),
                             false,
                         )
-                        .map(|(storage, _, _)| storage.endpoint);
+                        .map(|(storage, _, _)| LocationEndpoint::Primitive(storage.endpoint));
                 }
                 if let Some(observed) =
                     self.scalar_field_at_carrier(carrier, view, field_path, scalar_type)?
                 {
-                    return Ok(self
-                        .reference_byte_region_access(&observed.carrier, &observed.leaf)?
-                        .map(|(storage, _)| storage.endpoint)
-                        .unwrap_or(PrimitiveStorageEndpoint::ScalarField(observed.cell)));
+                    return Ok(LocationEndpoint::Primitive(
+                        self.reference_byte_region_access(&observed.carrier, &observed.leaf)?
+                            .map(|(storage, _)| storage.endpoint)
+                            .unwrap_or(PrimitiveStorageEndpoint::ScalarField(observed.cell)),
+                    ));
                 }
             }
             self.primitive_access(source.place, false, &source.path)
-                .map(|(storage, _, _)| storage.endpoint)
+                .map(|(storage, _, _)| LocationEndpoint::Primitive(storage.endpoint))
         }
 
         fn array_storage_identity(
@@ -6209,6 +6267,17 @@ pub(crate) mod storage_addresses {
                 }
                 PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                     let (mut place, index) = match array.home {
+                        ArrayStorageHome::Component => {
+                            let original = self.component_byte_arrays.require(&array.referent)?;
+                            if index >= original.cells.cells().len() {
+                                return Err(malformed());
+                            }
+                            return original
+                                .first
+                                .as_ref()
+                                .ok_or(malformed())?
+                                .byte_offset(index);
+                        }
                         ArrayStorageHome::Runtime => (array.referent, index),
                         ArrayStorageHome::Frame { depth, place, .. } => {
                             // Nested frame arrays share packed storage, so include the
@@ -6234,14 +6303,7 @@ pub(crate) mod storage_addresses {
                 }
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                     if let Some((original, offset)) = bytes.component_array_address(index) {
-                        let mut path = original.path.clone();
-                        let Some((0, first)) = path.last_mut() else {
-                            return Err(malformed());
-                        };
-                        *first = first
-                            .checked_add(u64::try_from(offset).map_err(|_| exhausted())?)
-                            .ok_or_else(exhausted)?;
-                        return Ok((Some(original.namespace), original.root, path));
+                        return original.byte_offset(offset);
                     }
                     if bytes.original_array().is_some() {
                         let original =
@@ -6272,7 +6334,7 @@ pub(crate) mod storage_addresses {
         /// address is an identity token in Psi and carries no alignment bits.
         fn location_alignment(
             &self,
-            endpoint: PrimitiveStorageEndpoint,
+            endpoint: LocationEndpoint,
         ) -> Result<u64, TerminalInterpretError> {
             use crate::boundary::values::StructuralFieldNamespace;
             use crate::storage::provider_storage::value_image::geometry::ImageGeometry;
@@ -6347,6 +6409,12 @@ pub(crate) mod storage_addresses {
                     }
                     alignment(allocation.structural_type, &path)
                 };
+            let endpoint = match endpoint {
+                LocationEndpoint::Frame(home) => {
+                    return alignment(home.storage.scalar_array_frame().2, &home.path);
+                }
+                LocationEndpoint::Primitive(endpoint) => endpoint,
+            };
             match endpoint {
                 PrimitiveStorageEndpoint::Scalar(place) => scalar_location(&place, None),
                 PrimitiveStorageEndpoint::ScalarField(field) => {
@@ -6356,6 +6424,7 @@ pub(crate) mod storage_addresses {
                     array_element(home.scalar_array_frame().2, index)
                 }
                 PrimitiveStorageEndpoint::ArrayElement { array, index } => match array.home {
+                    ArrayStorageHome::Component => Ok(1),
                     ArrayStorageHome::Runtime => {
                         let mut place = array.referent;
                         place.path.push(Step::FixedIndex(
@@ -6386,11 +6455,11 @@ pub(crate) mod storage_addresses {
                     let [fragment] = fragments.as_slice() else {
                         return Err(missing());
                     };
-                    self.location_alignment(
+                    self.location_alignment(LocationEndpoint::Primitive(
                         fragment
                             .contiguous_address_endpoint(stored)
                             .ok_or_else(missing)?,
-                    )
+                    ))
                 }
                 PrimitiveStorageEndpoint::ViewByte { .. }
                 | PrimitiveStorageEndpoint::RepresentationByte(_) => Err(missing()),
@@ -6411,17 +6480,11 @@ pub(crate) mod storage_addresses {
             {
                 return Err(malformed());
             }
-            let scalar = terminal_semantics::primitive_read_projection_type(
-                self.structural_types().values(),
+            let alignment = self.observed_location_alignment(
+                source,
                 self.live_structural_type(source.place)?,
                 &source.path,
-            );
-            let endpoint = self.storage_address_endpoint(source, scalar)?;
-            let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
-            let limit = geometry
-                .location_alignment_limit(self.live_structural_type(source.place)?, &source.path)
-                .ok_or(malformed())?;
-            let alignment = self.location_alignment(endpoint)?.min(limit);
+            )?;
             self.values.insert(
                 result.id,
                 TerminalScalarValue::Integer {
@@ -6430,6 +6493,25 @@ pub(crate) mod storage_addresses {
                 },
             )?;
             Ok(())
+        }
+
+        pub(crate) fn observed_location_alignment(
+            &self,
+            source: &StructuralArgument,
+            observed_type: semantic_vocabulary::StructuralTypeId,
+            observed_path: &[StructuralPathSegment],
+        ) -> Result<u64, TerminalInterpretError> {
+            let scalar = terminal_semantics::primitive_read_projection_type(
+                self.structural_types().values(),
+                self.live_structural_type(source.place)?,
+                &source.path,
+            );
+            let endpoint = self.storage_location_endpoint(source, scalar)?;
+            let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
+            let limit = geometry
+                .location_alignment_limit(observed_type, observed_path)
+                .ok_or(malformed())?;
+            Ok(self.location_alignment(endpoint)?.min(limit))
         }
 
         pub(crate) fn execute_storage_address(
@@ -6451,7 +6533,16 @@ pub(crate) mod storage_addresses {
                 self.live_structural_type(source.place)?,
                 &source.path,
             );
-            let endpoint = self.storage_address_endpoint(source, scalar_type)?;
+            let endpoint = match self.storage_location_endpoint(source, scalar_type)? {
+                LocationEndpoint::Primitive(endpoint) => endpoint,
+                LocationEndpoint::Frame(home) => {
+                    let (depth, place, _) = home.storage.scalar_array_frame();
+                    PrimitiveStorageEndpoint::Scalar(StructuralRuntimePlace {
+                        opaque_identity: self.array_storage_identity(depth, place)?,
+                        path: home.path,
+                    })
+                }
+            };
             let (namespace, root, path) = self.endpoint_identity(endpoint)?;
             let namespace = namespace
                 .or(self.local_structural_identities.exposure_namespace)
@@ -6880,6 +6971,42 @@ pub(crate) mod storage_addresses {
         }
 
         #[test]
+        fn component_alias_checks_compare_intervals_in_the_original_array() {
+            let mut owner = execution();
+            let first = array(&mut owner, 17);
+            let other = array(&mut owner, 18);
+            let mut address = |array: ArrayStorage, offset, length| {
+                owner
+                    .lent_array_window_address(&OriginalByteArrayWindow {
+                        array,
+                        array_type: StructuralTypeId::new(2).unwrap(),
+                        offset,
+                        length,
+                    })
+                    .unwrap()
+                    .unwrap()
+            };
+            let a = address(first.clone(), 0, 3);
+            let b = address(first, 1, 2);
+            let c = address(other, 1, 2);
+            assert!(
+                a.byte_range(1, 2)
+                    .unwrap()
+                    .overlaps(&b.byte_range(0, 2).unwrap())
+            );
+            assert!(
+                !a.byte_range(0, 1)
+                    .unwrap()
+                    .overlaps(&b.byte_range(0, 2).unwrap())
+            );
+            assert!(
+                !a.byte_range(1, 2)
+                    .unwrap()
+                    .overlaps(&c.byte_range(0, 2).unwrap())
+            );
+        }
+
+        #[test]
         fn a_shared_component_subslice_keeps_its_callers_element_address() {
             let mut caller = execution();
             let array = array(&mut caller, 17);
@@ -6897,6 +7024,75 @@ pub(crate) mod storage_addresses {
             assert_eq!(view_addr(&mut child, nested.clone(), 0), address);
             nested.lend_array_to_component(&mut child).unwrap();
             assert_eq!(view_addr(&mut execution(), nested, 0), address);
+        }
+
+        #[test]
+        fn mutable_component_windows_share_original_addresses_and_expire_with_the_parent_loan() {
+            use crate::storage::scalar_storage::ScalarLoanScope;
+            let mut caller = execution();
+            let original = array(&mut caller, 21);
+            let ty = StructuralTypeId::new(2).unwrap();
+            let descriptor = StructuralTypeId::new(3).unwrap();
+            let parent = ScalarLoanScope::new();
+            let mut child = execution();
+            let input = caller
+                .lend_component_byte_array(
+                    &OriginalByteArrayWindow {
+                        array: original.clone(),
+                        array_type: ty,
+                        offset: 1,
+                        length: 2,
+                    },
+                    &parent,
+                )
+                .unwrap();
+            let home = TerminalStructuralValue::minted(33, descriptor, Vec::new());
+            let ByteSequenceBinding::MutableArray { array: first, .. } =
+                input.bind(&mut child, home.clone()).unwrap()
+            else {
+                panic!("expected a mutable loan")
+            };
+            assert_eq!(child.stored_byte_array_read(&first, 0).unwrap(), 2);
+            assert!(child.stored_byte_array_write(&first, 2, 90).is_err());
+            let mut nested = execution();
+            let scope = ScalarLoanScope::new();
+            let input = child
+                .lend_component_byte_array(
+                    &OriginalByteArrayWindow {
+                        array: first.clone(),
+                        array_type: descriptor,
+                        offset: 1,
+                        length: 1,
+                    },
+                    &scope,
+                )
+                .unwrap();
+            let ByteSequenceBinding::MutableArray { array: second, .. } =
+                input.bind(&mut nested, home).unwrap()
+            else {
+                panic!("expected a nested loan")
+            };
+            let (namespace, root, path) = array_addr(&mut caller, &original, 2);
+            assert_eq!(
+                array_addr(&mut nested, &second, 0),
+                (
+                    namespace.or(caller.local_structural_identities.exposure_namespace),
+                    root,
+                    path
+                )
+            );
+            nested.stored_byte_array_write(&second, 0, 89).unwrap();
+            assert_eq!(
+                caller
+                    .stored_byte_array_snapshot(&original, 0, 4)
+                    .unwrap()
+                    .bytes(),
+                &[1, 2, 89, 4]
+            );
+            drop(parent);
+            assert!(child.stored_byte_array_read(&first, 0).is_err());
+            assert!(nested.stored_byte_array_write(&second, 0, 90).is_err());
+            assert_eq!(caller.stored_byte_array_read(&original, 2).unwrap(), 89);
         }
 
         #[test]

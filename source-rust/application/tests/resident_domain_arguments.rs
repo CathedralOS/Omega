@@ -42,7 +42,14 @@ fn a_resident_forward_preserves_its_exact_domain_argument() {
 
     let (output, report) = inspect(&change_result(RESIDENT_RETURN));
     assert!(!output.status.success(), "{report}");
-    assert!(report.contains("changes its referent type"), "{report}");
+    let (carried, expected) = report
+        .lines()
+        .find_map(|line| line.split_once("the borrow's referent type declares"))
+        .expect(&report);
+    assert!(
+        carried.contains("Word::Placed") && expected.contains("Word::Other"),
+        "{report}"
+    );
 }
 
 #[test]

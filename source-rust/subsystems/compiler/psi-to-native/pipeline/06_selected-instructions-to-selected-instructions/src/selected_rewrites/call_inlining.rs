@@ -569,6 +569,9 @@ fn check_inline_eligibility(
     let mut arg_copies = Vec::new();
     let mut used_param_views = BTreeSet::new();
     for reg in &callee.virtual_registers {
+        if matches!(reg.origin, VirtualRegisterOrigin::ActivationOwner) {
+            return None;
+        }
         let is_entry_origin = matches!(
             reg.origin,
             VirtualRegisterOrigin::EntryParameter { .. }
@@ -986,7 +989,8 @@ fn apply_inline(
                 instruction: inst_map[&instruction],
                 source_value,
             },
-            VirtualRegisterOrigin::EntryParameter { .. }
+            VirtualRegisterOrigin::ActivationOwner
+            | VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => {
                 return Err(StructuralRewriteError::custody_because(
                     "unmatched callee entry parameter escaped eligibility check",
@@ -1036,7 +1040,8 @@ fn remap_origin_instruction(origin: &mut VirtualRegisterOrigin, new_inst: Select
         | VirtualRegisterOrigin::InstructionResult { instruction, .. } => {
             *instruction = new_inst;
         }
-        VirtualRegisterOrigin::EntryParameter { .. }
+        VirtualRegisterOrigin::ActivationOwner
+        | VirtualRegisterOrigin::EntryParameter { .. }
         | VirtualRegisterOrigin::StructuralParameter { .. }
         | VirtualRegisterOrigin::BlockParameter { .. } => {}
     }
@@ -1851,7 +1856,7 @@ pub(crate) mod tests {
         assert_ne!(ordinary, caller.calls[0].call.canonical_bytes());
         let expected = caller.calls[0].clone();
         let mut functions = [caller, callee];
-        inline_and_simplify(&mut functions, &environment).unwrap();
+        inline_and_simplify(&mut functions, &environment, |_| false).unwrap();
         assert_eq!(functions[0].calls.as_slice(), &[expected]);
     }
 

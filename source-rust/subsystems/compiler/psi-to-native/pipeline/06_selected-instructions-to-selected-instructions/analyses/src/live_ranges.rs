@@ -1800,3 +1800,9 @@ pub enum LiveRangeError {
 }
 
 failed_display!(LiveRangeError, "Terminal live-range derivation failed");
+
+impl ValidatedLiveRanges {
+    pub fn shared_plan(&self) -> std::sync::Arc<LiveRangePlan> {
+        std::sync::Arc::clone(&self.plan)
+    }
+}

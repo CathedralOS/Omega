@@ -1080,6 +1080,31 @@ impl<'t> Program<'t> {
         self.retain_static_reach(id, read, static_reach_binding)
     }
 
+    /// A borrowed slice's location query selects its first live element.
+    pub(super) fn alignment_view_element(
+        &mut self,
+        id: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<Option<semantic_vocabulary::StructuralTypeId>> {
+        use crate::body::StorageShape;
+        use semantic_vocabulary::ScalarType;
+        use terminal_psi::ByteSequenceCarrier;
+        Ok(match self.data_type(id, record)?.shape {
+            StorageShape::ElementView { element, .. } => Some(element),
+            StorageShape::ByteSequence(
+                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+            ) => {
+                let byte = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .expect("u8 is valid");
+                Some(self.plain_scalar_storage(id, ScalarType::Integer(byte))?)
+            }
+            _ => None,
+        })
+    }
+
     /// Capture a live location once. Borrowed slices keep the first-element
     /// obligation even when no scalar value is loaded from the element.
     fn storage_location(
@@ -1090,9 +1115,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         query: terminal_psi::StorageLocationQuery,
     ) -> Checked<Expression> {
-        use crate::body::StorageShape;
         use semantic_vocabulary::ScalarType;
-        use terminal_psi::ByteSequenceCarrier;
         use terminal_psi::StorageLocationQuery;
         let invalid = || {
             crate::reject(
@@ -1137,21 +1160,7 @@ impl<'t> Program<'t> {
                     kind: ExpressionKind::Referent(Box::new(place)),
                 };
             } else if query == StorageLocationQuery::Alignment {
-                first_element = match self.data_type(id, record)?.shape {
-                    StorageShape::ElementView { element, .. } => Some(element),
-                    StorageShape::ByteSequence(
-                        ByteSequenceCarrier::BorrowedView { .. }
-                        | ByteSequenceCarrier::BoundedView { .. },
-                    ) => {
-                        let byte = semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            8,
-                        )
-                        .expect("u8 is valid");
-                        Some(self.plain_scalar_storage(id, ScalarType::Integer(byte))?)
-                    }
-                    _ => None,
-                };
+                first_element = self.alignment_view_element(id, record)?;
             }
         }
         if query == StorageLocationQuery::Address && !reference {
@@ -3886,7 +3895,10 @@ impl<'t> Program<'t> {
         let mut lenders = Vec::new();
         for (argument, (declared, erased, borrowed)) in arguments.iter().zip(&formals) {
             let formal = self.substitute(*declared, &bound);
-            let formal = &self.argument_context(formal, &free, &bound);
+            let context = self
+                .instantiated_call_type(id, &callee, formal, const_sources)?
+                .unwrap_or(formal);
+            let formal = &self.argument_context(context, &free, &bound);
             // The argument for an erased formal is a term, not a
             // computation; the argument for a borrowed formal is a loan of
             // a place.
@@ -4027,7 +4039,7 @@ impl<'t> Program<'t> {
         let mut result = declared_result.map(|result| self.substitute(result, &bound));
         if let Some(declared) = result
             && let Some(instantiated) =
-                self.instantiated_nominal_result(id, &callee, declared, const_sources)?
+                self.instantiated_call_type(id, &callee, declared, const_sources)?
         {
             let correspondence = self
                 .nominal_call_type(

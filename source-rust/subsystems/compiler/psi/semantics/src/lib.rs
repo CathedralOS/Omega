@@ -30,14 +30,15 @@ pub mod inhabitation;
 mod membership_facts;
 pub mod module_analyses;
 pub use membership_facts::{
-    BodyMemberships, MembershipTest, TestedMembership, test_memberships_in,
-    validate_boundary_normal_memberships,
+    BodyMemberships, MembershipTest, TestedMembership, same_boundary_memberships,
+    test_memberships_in, validate_boundary_memberships,
 };
 pub use module_analyses::{
     DescriptorRowFamily, DescriptorRowView, DescriptorRows, MachineSlots, ModuleAnalyses,
 };
 pub mod normal_completion;
 pub mod numeric_primitives;
+pub mod packages;
 pub mod plain_affine;
 pub mod reference_ends;
 pub mod references;
@@ -311,8 +312,9 @@ pub use structural::structural_claims::{
 };
 
 pub use scalars::scalar_observations::{
-    scalar_application_read_equation, storage_alignment_fact, structural_read_scalar_type,
-    structural_read_type_with_crossings, structural_read_type_with_extents,
+    known_storage_alignment, scalar_application_read_equation, storage_alignment_fact,
+    structural_observation_bound, structural_read_scalar_type, structural_read_type_with_crossings,
+    structural_read_type_with_extents,
 };
 
 pub use access::access_ram_origins::{

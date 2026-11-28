@@ -8,12 +8,14 @@ From this directory, publish the selected Build with the bundled library.
 omega --emit-psi /tmp/linux_x86_64.psi --target linux_x86_64 --build-input build.omg --build-input main.omg build.omg
 ```
 
-The Build compiled 51 source files and published this fixture under semantic format marker 306 and proof-system marker 10. Format 306 records typed native address borrows, mutability upgrades and upgraded parameter origins. Two independent publications produced identical bytes. The compiler executable SHA-256 was `6e07d483d399ba2abfe11d6269e7de0b2661c9266a16d6b4be3acbfe1765c834`. The bundled `source/library` tree is Git object `855dbf4bcc19e3b26f6d722bb4d1f0e3c911cee1`.
+At `95e62212fce7dbdd4020c25710524265108dba4f`, the compiler read 51 source files and published this fixture under semantic format marker 311 and proof-system marker 10. Two independent compilations produced identical bytes. The compiler executable SHA-256 was `4732b36adf93907aa74dd3827f2c9e4d8981f28cf24a8829b6697c70d8c73f7f`. The bundled `source/library` tree was `34b4795691e1d311b1b195f4fca6d946e2ea0649`.
+
+Format 311 records routed domain membership on each exact machine input. It preserves independently exported supplier records (305), typed native borrows (306), borrowed alignment (307), callable-field invocation paths (308), per-value package evidence (309) and named callable requirement identities (310).
 
 | Input or receipt | Digest |
 | --- | --- |
-| Canonical artifact manifest | `b48b7abccbf342c913ae8980200c9935a08fb28e8ffea4099822cece439926f5` |
-| Saved file SHA-256, 227062 bytes | `ce6f4fc470b9f26d05015c51bf59619570d7d3208f0c5afd9ed9c9fae0536365` |
+| Canonical artifact manifest | `2ae0c032b054ffd4e92b6d799016225b7597240f9902121a046840d01428f2cc` |
+| Saved file SHA-256, 227206 bytes | `2ae89e64275b3edd94f8adadde11207b565310e56a6f6168d809ae938d9dfa4a` |
 | main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
 | build.omg SHA-256 | `95e9fe2fa4d640385511dfecef410202674234e1fd9181a02caaea77cc862e54` |
 | `source/library/system/targets/linux_x86_64/entry.omg` SHA-256 | `da744cd48323520484545a412be9d6334b81d3b55806e056dcf920cda444ac2b` |

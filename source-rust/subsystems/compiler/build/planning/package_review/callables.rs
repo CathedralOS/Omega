@@ -734,17 +734,10 @@ pub(super) fn reviewed_invocations(
     identities: &[ReviewedService],
     envelope: &terminal_psi::TerminalCallableEnvelope,
 ) -> Result<Vec<PackageReviewSynchronousInvocation>, Vec<Diagnostic>> {
-    use terminal_psi::TerminalCallableInvocation;
     let mut invocations = envelope
         .invocations
         .iter()
-        .map(|entry| match entry {
-            TerminalCallableInvocation::Parameter(position) => {
-                Ok(PackageReviewSynchronousInvocation::Parameter(*position))
-            }
-            TerminalCallableInvocation::Service(service) => reviewed_service(identities, *service)
-                .map(PackageReviewSynchronousInvocation::Service),
-        })
+        .map(|entry| entry.try_map_service(|service| reviewed_service(identities, *service)))
         .collect::<Result<Vec<_>, _>>()?;
     invocations.sort_unstable();
     Ok(invocations)

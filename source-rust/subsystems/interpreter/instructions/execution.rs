@@ -3099,6 +3099,8 @@ pub(crate) mod execution {
         pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
         pub(crate) structural_host_atoms:
             RuntimeRows<StructuralRuntimePlace, HostStructuralPayload>,
+        pub(crate) component_byte_arrays:
+            RuntimeRows<StructuralRuntimePlace, crate::component_byte_loans::ComponentByteArray>,
         pub(crate) component_lent_host_atoms: RuntimeRows<StructuralRuntimePlace, ()>,
         pub(crate) component_borrowed_addresses: RuntimeRows<
             crate::storage::storage_addresses::ScalarStorageAddressKey,
@@ -3566,6 +3568,7 @@ pub(crate) mod execution {
                 array_initialization: ArrayInitialization::new(account.as_ref()),
                 structural_cases: RuntimeRows::new(account.as_ref()),
                 structural_host_atoms: RuntimeRows::new(account.as_ref()),
+                component_byte_arrays: RuntimeRows::new(account.as_ref()),
                 component_lent_host_atoms: RuntimeRows::new(account.as_ref()),
                 component_borrowed_addresses: RuntimeRows::new(account.as_ref()),
                 next_host_atom_collection_size: 1024,

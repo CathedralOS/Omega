@@ -408,16 +408,15 @@ mod tests {
             }
             text
         };
-        // Frozen output of the original declaration and target-schema writers.
-        // Both include membership rosters and tagged synchronous invocations.
-        let declaration_digest = "3929c5e580268b9147a3401c3082b6d18cee8c72df8208b90b920408a1953a7b";
-        let calling_digest = "35e4895258a53784acaf36d6ff7f3dcd22377b73dd56c16cc22c2c7f42d8d048";
+        // Both writers commit the caller-stack bound, membership roster and synchronous invocations.
+        let declaration_digest = "6bcd030b4294b2335f42575368c5f34da0230492ce6671a49a978b6875226b05";
+        let calling_digest = "b05427b6f28e95c0cb9d90be7e3c422566a13bf05b0eeb813e63ad94486d6f7a";
         let mut bytes = Vec::new();
         schema.declaration.encode_contract(&mut bytes, |_, output| {
             output.extend_from_slice(&0u64.to_le_bytes())
         });
         let trailer = [vec![32; 32], vec![31; 32]].concat();
-        assert_eq!(bytes.len(), 900);
+        assert_eq!(bytes.len(), 916);
         assert!(bytes.ends_with(&trailer));
         let mut digest = Sha256::new();
         digest.update(b"omega.service-schema.sha256.v9\0");

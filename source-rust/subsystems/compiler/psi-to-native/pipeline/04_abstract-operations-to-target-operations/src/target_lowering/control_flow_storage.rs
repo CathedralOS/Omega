@@ -872,7 +872,7 @@ pub(crate) mod borrowed_windows {
                     full
                 },
                 disposition.required_access(),
-                None,
+                crate::target_lowering::structural_layout::ReferenceEndpoint::Storage(None),
                 types,
             )?;
         let indices = super::scalar_sources::runtime_indices(
@@ -3255,6 +3255,7 @@ pub(crate) mod primitive_storage {
                 )
             }
             AbstractOperation::PrimitiveScalarRead {
+                storage_scalar,
                 psi_operation,
                 result,
                 source,
@@ -3282,7 +3283,7 @@ pub(crate) mod primitive_storage {
                 };
                 let projection = primitive_read_projection(identity, path, types)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if projection.scalar != result.scalar_type {
+                if projection.scalar != *storage_scalar {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let runs = projection.selector_runs();
@@ -3296,6 +3297,7 @@ pub(crate) mod primitive_storage {
                 (
                     *psi_operation,
                     TargetUnitOperation::PrimitiveScalarRead {
+                        storage_scalar: *storage_scalar,
                         psi_operation: *psi_operation,
                         result: *result,
                         source: *source,
@@ -3331,12 +3333,20 @@ pub(crate) mod records {
         site: &mut RowSite<'_>,
     ) -> Result<(), LoweringError> {
         let (function, types, live, operations, provenance) = site.parts();
-        let (psi_operation, result, fields, result_case, elements) = match operation {
+        let (psi_operation, result, fields, instantiated, result_case, elements) = match operation {
             AbstractOperation::EstablishRecord {
                 psi_operation,
                 result,
                 fields,
-            } => (psi_operation, result, fields.as_slice(), None, None),
+                instantiated,
+            } => (
+                psi_operation,
+                result,
+                fields.as_slice(),
+                Some(instantiated),
+                None,
+                None,
+            ),
             AbstractOperation::EstablishCase {
                 psi_operation,
                 result,
@@ -3346,6 +3356,7 @@ pub(crate) mod records {
                 psi_operation,
                 result,
                 fields.as_slice(),
+                None,
                 Some(*result_case),
                 None,
             ),
@@ -3353,7 +3364,7 @@ pub(crate) mod records {
                 psi_operation,
                 result,
                 elements,
-            } => (psi_operation, result, &[][..], None, Some(elements)),
+            } => (psi_operation, result, &[][..], None, None, Some(elements)),
             _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
         let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
@@ -3455,7 +3466,9 @@ pub(crate) mod records {
                 }
                 destination.push(StructuralPathSegment::Field(declaration.identity));
                 Ok((
-                    &declaration.field_type,
+                    instantiated
+                        .and_then(|types| types.get(field.field))
+                        .unwrap_or(&declaration.field_type),
                     Some(declaration),
                     destination,
                     Input::Field(&field.value),
@@ -3635,6 +3648,7 @@ pub(crate) mod records {
                 None => TargetUnitOperation::EstablishRecord {
                     psi_operation: *psi_operation,
                     result_home,
+                    instantiated: instantiated.cloned().unwrap_or_default(),
                     fields: fields.to_vec(),
                 },
             }

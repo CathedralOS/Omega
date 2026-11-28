@@ -521,6 +521,9 @@ fn formal_storage_shape(
     let declaration = declarations
         .get(root)
         .ok_or(TerminalLayoutError::UnknownStructuralType(root))?;
+    if let Some(pointer) = opaque_borrow_transport(&declaration.shape, access) {
+        return Ok(pointer);
+    }
     if let Some(element) = borrowed_slice_element(&declaration.shape, access) {
         declarations
             .get(element)

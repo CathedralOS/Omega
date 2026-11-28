@@ -44,6 +44,11 @@ impl PackagePolicyBaseline {
             return Err("this package policy version cannot record provider application grants");
         }
         self.terminal_permissions.validate_canonical_structure()?;
+        if self.schema_version < crate::encoding::BASELINE_WITH_NETWORK_AUTHORITY
+            && self.terminal_permissions.has_network_authority()
+        {
+            return Err("this package policy version cannot record physical network authority");
+        }
         self.representation.validate_canonical_structure()?;
         self.boundary_applications.validate_canonical_structure(
             self.package,
@@ -145,6 +150,14 @@ impl PackagePolicyBaseline {
             }
         }
         for request in &self.restricted_build_requests {
+            if self.schema_version < crate::encoding::BASELINE_WITH_DATAGRAM_REPLIES
+                && matches!(
+                    request.operation,
+                    build_consent::RestrictedBuildOperation::ReceiveDatagram { .. }
+                )
+            {
+                return Err("this package policy version cannot record datagram receives");
+            }
             if self.schema_version < crate::encoding::BASELINE_WITH_NETWORK_REQUESTS
                 && matches!(
                     request.operation,

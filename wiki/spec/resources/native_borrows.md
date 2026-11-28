@@ -68,6 +68,13 @@ a mutable slice with the same start and element count. If `part` covered
 elements 1 and 2 of an array, writing through the result can change those
 two elements.
 
+If an issuer returned a `Token in Token::Issued`, upgrading a shared borrow of
+that value keeps the qualification on the same token. The same rule applies to
+a qualified field inside a borrowed record. The domain's policy still governs
+who can change the issued value. An address on its own supplies no evidence of
+issuance. Read its ordinary carrier and pass the value through an authorized
+issuer to obtain the qualification. [Domain access policies](../language/domains.md#domain-owned-read-and-write-authority)
+
 Writes invalidate value facts about the affected place for the checker and
 optimizer. Disjoint places retain their facts. Ordinary obligations apply
 when the loan ends or the machine returns. For example, a machine entering

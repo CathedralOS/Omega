@@ -384,9 +384,14 @@ pub(crate) mod boundary_predicates {
                     scalar_type,
                 } => {
                     let mut selected = Vec::with_capacity(path.len());
-                    let path_length = path.len();
-                    let mut extent = false;
-                    for (position, segment) in path.iter_mut().enumerate() {
+                    let selectors = match path.as_slice() {
+                        [
+                            prefix @ ..,
+                            ScalarReadProjection::Extent | ScalarReadProjection::Alignment,
+                        ] => prefix,
+                        path => path,
+                    };
+                    for segment in selectors {
                         selected.push(match segment {
                             ScalarReadProjection::Static(segment) => *segment,
                             ScalarReadProjection::Referent => {
@@ -401,22 +406,22 @@ pub(crate) mod boundary_predicates {
                                 .map_err(|_| malformed())?;
                                 CanonicalStructuralPathSegment::FixedIndex(index)
                             }
-                            ScalarReadProjection::Extent => {
-                                if position + 1 != path_length {
-                                    return Err(malformed());
-                                }
-                                extent = true;
-                                continue;
+                            ScalarReadProjection::Extent | ScalarReadProjection::Alignment => {
+                                return Err(malformed());
                             }
                         });
                     }
-                    if extent {
-                        let ScalarType::Integer(carrier) = scalar_type else {
-                            return Err(malformed());
-                        };
-                        self.read_extent(*root, &selected, *carrier)?
-                    } else {
-                        self.read(*root, &selected, *scalar_type)?
+                    match path.last() {
+                        Some(ScalarReadProjection::Extent) => {
+                            let ScalarType::Integer(carrier) = scalar_type else {
+                                return Err(malformed());
+                            };
+                            self.read_extent(*root, &selected, *carrier)?
+                        }
+                        Some(ScalarReadProjection::Alignment) => {
+                            self.read_alignment(*root, &selected, *scalar_type)?
+                        }
+                        _ => self.read(*root, &selected, *scalar_type)?,
                     }
                 }
                 ScalarTerm::ByteSequencePredicate { predicate, root, path } => {
@@ -465,6 +470,44 @@ pub(crate) mod boundary_predicates {
                 *term = scalar_literal(value)?;
             }
             Ok(())
+        }
+
+        fn read_alignment(
+            &self,
+            root: PlaceId,
+            path: &[CanonicalStructuralPathSegment],
+            scalar_type: ScalarType,
+        ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
+            let Some(position) = self.observed_argument(root)? else {
+                return Ok(None);
+            };
+            let parameter = &self.boundary.structural_parameters[position];
+            let ScalarType::Integer(carrier) = scalar_type else {
+                return Err(malformed());
+            };
+            if !terminal_psi::StorageLocationQuery::Alignment.admits_result(scalar_type)
+                || parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+            {
+                return Err(malformed());
+            }
+            let mut source = self.arguments.get(position).ok_or(malformed())?.clone();
+            let relative = terminal_semantics::canonical_structural_storage_path(
+                self.execution.program.structural_types().values(),
+                parameter.structural_type,
+                path,
+            )
+            .ok_or(malformed())?;
+            source.path.extend_from_slice(&relative);
+            source.access = terminal_psi::StructuralAccess::SharedBorrow;
+            let alignment = self.execution.observed_location_alignment(
+                &source,
+                parameter.structural_type,
+                &relative,
+            )?;
+            Ok(Some(TerminalScalarValue::Integer {
+                scalar_type: carrier,
+                value: IntegerValue::Unsigned(u128::from(alignment)),
+            }))
         }
 
         fn read_extent(
@@ -956,6 +999,7 @@ pub(crate) mod boundary_predicates {
             let identity = terminal_psi::TerminalIdentityIndex(0);
             terminal_psi::BoundaryMachineDeclaration {
                 numeric_intrinsic: None,
+                membership_requires: Vec::new(),
                 membership_ensures: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -1249,12 +1293,12 @@ pub(crate) mod byte_buffers {
     }
 
     impl BoundaryArguments {
-        /// Extract immutable byte descriptors with self-contained shared backing.
+        /// Extract byte descriptors whose checked backing can be lent across instances.
         /// Every other companion needs its own checked cross-instance carrier.
         pub(crate) fn take_component_byte_views(
             &mut self,
             original_identity_cursor: Option<u64>,
-        ) -> Result<std::collections::BTreeMap<usize, ByteSequenceView>, TerminalInterpretError>
+        ) -> Result<std::collections::BTreeMap<usize, ByteSequenceBinding>, TerminalInterpretError>
         {
             if self.local_identity_cursor != original_identity_cursor
                 || self.aggregate_backings.iter().any(Option::is_some)
@@ -1273,7 +1317,10 @@ pub(crate) mod byte_buffers {
             for (index, binding) in self.byte_sequences.iter_mut().enumerate() {
                 match binding.take() {
                     None => {}
-                    Some(ByteSequenceBinding::Immutable(view)) => {
+                    Some(
+                        view @ (ByteSequenceBinding::Immutable(_)
+                        | ByteSequenceBinding::MutableArray { .. }),
+                    ) => {
                         views.insert(index, view);
                     }
                     Some(_) => {

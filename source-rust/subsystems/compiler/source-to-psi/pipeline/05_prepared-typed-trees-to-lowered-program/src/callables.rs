@@ -33,6 +33,7 @@ pub(crate) struct CallableNamespace {
 pub(crate) struct CallableContract {
     pub lifetimes: Vec<crate::source_state::type_identity::LifetimeParameterIdentity>,
     pub identity: String,
+    pub requirement: Option<String>,
     pub signature: Signature,
     pub envelope: crate::publication::reach::SourceEnvelope,
 }
@@ -200,6 +201,10 @@ impl CallableNamespace {
             catalog.contracts.push(TerminalCallableContract {
                 id,
                 identity: qualifications.identities.intern(&contract.identity),
+                requirement: contract
+                    .requirement
+                    .as_ref()
+                    .map(|requirement| qualifications.identities.intern(requirement)),
                 scalar_parameters: header.scalar_parameters,
                 parameter_order: header.parameter_order,
                 structural_parameters: header.structural_parameters,

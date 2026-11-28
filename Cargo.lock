@@ -120,6 +120,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocated-body"
+version = "0.1.0"
+dependencies = [
+ "allocated-body-issuer",
+ "physical-program",
+ "register-environment",
+ "register-homes",
+ "selected-instructions",
+]
+
+[[package]]
+name = "allocated-body-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -220,6 +235,7 @@ dependencies = [
  "build-model",
  "build-output",
  "filesystem-authority",
+ "semantic-vocabulary",
  "target",
 ]
 
@@ -567,6 +583,7 @@ dependencies = [
  "build-providers",
  "component-description",
  "diagnostics",
+ "language-core",
  "native-compiler",
  "package-compilation",
  "product-publication",
@@ -575,9 +592,13 @@ dependencies = [
  "psi-entry-memory",
  "review-evidence",
  "semantic-vocabulary",
+ "source-admission",
  "source-compiler",
+ "source-provenance",
+ "symbols",
  "target",
  "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2579,13 +2600,13 @@ dependencies = [
 name = "register-homes-to-post-allocation-machine"
 version = "0.1.0"
 dependencies = [
+ "allocated-body",
  "optimization-core",
  "physical-program",
  "post-allocation-machine",
  "register-homes",
  "register-model",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
  "target-x86_64",
@@ -2775,6 +2796,8 @@ dependencies = [
 name = "selected-instructions-to-register-homes"
 version = "0.1.0"
 dependencies = [
+ "allocated-body",
+ "allocated-body-issuer",
  "operation-evidence",
  "optimization-core",
  "physical-program",

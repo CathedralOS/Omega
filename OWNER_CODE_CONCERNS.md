@@ -75,6 +75,28 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Register allocation obtains its input from the preceding implementation crate
+- Category: 2. Knowledge crossing a boundary
+- Where: [stage 07 allocation](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/register_allocation.rs#L39), [stage 06 output](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs), and [allocation input](source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses/src/allocation_input.rs)
+- Saw: stage 07 imports stage 06's `SelectedInstructionOptimizationOutput` and extracts allocation input and optional replay evidence. `SelectedAllocationInput` belongs to stage 06's analysis crate and its `into_legality` method can run analysis; it is not just a representation of completed facts. These are production dependencies, not just test or validator dependencies.
+- Cost: allocation links producer machinery to receive its input, so the representation directory does not define the full handoff. Publish issued selected-program facts in the owning representation, separate optional replay evidence in the driver, and keep analysis execution in its owning transformation. Moving the analysis crate unchanged into `representations/` would preserve the hidden pipeline. Preserve admission and the allocator's ability to derive legality for its required register availability.
+- Reported: 2026-11-27, Codex, while auditing pipeline ownership on `0c2c612084c53`; narrowed after separating the stage 07-to-08 product. No performance measurement.
+
+### Typed-tree storage also orchestrates preparation of whole-program applications
+- Category: 2. Knowledge crossing a boundary
+- Where: [stage 04 entry](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/src/lib.rs#L49), [conformance header preparation](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/callables/callable_applications.rs#L7714), and [constant settlement](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/type_records/data_applications.rs#L171)
+- Saw: the representation crate contains passes, not just records and local substitution operations. `prepare_conformance_requirement_headers` walks conformances and machines, selects requirements, materializes arguments and creates applications. `settle_const_argument` scans the type table, discovers dependent domains, extents and applications, mutates nodes, discards old views and prepares replacements. Stages 03 and 04 and the compile-time invocation driver invoke preparation through this shared crate. The callable file hides namespace, domain, signature, selection and requirement subsystems as inline modules among its `TypedTrees` implementations; the folder and root entry do not expose that sequence.
+- Cost: callers must know which representation methods constitute a pass and which tables they invalidate. This ownership problem is separate from the existing operand-owner-table timing concern. Give preparation an explicit stage-owned request and result, keep reusable substitution primitives below it, and publish completed application records in the representation. Expose those responsibilities in the directory and entry point; merely splitting the large file leaves the hidden preparation path intact.
+- Reported: 2026-11-27, Codex, while tracing stage and driver callers on `0c2c612084c53`; shared substitution itself is not the defect.
+
+### Evaluated type arguments return to identifier text before becoming values again
+- Category: 4. Re-deriving
+- Where: [invocation result settlement](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/constants/arguments.rs#L421), [type-node replacement](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/type_records/data_applications.rs#L221), and [literal recovery](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/callables/callable_applications.rs#L5743)
+- Saw: the invocation driver decodes a canonical integer or Boolean, calls `to_string`, and passes that spelling to `settle_const_argument`. Settlement replaces the argument with `TypeReferenceNode::Named` containing an invalid symbol and generated identifier; an array extent parses the spelling as `usize`. `static_const_literal_from_type_reference` later recognizes an invalid-symbol name, parses its sign and radix, and constructs an integer literal. Stage 04 specialization also sends decimal text through this settlement API.
+- Cost: a known value becomes a name-shaped node, so consumers recover its meaning and obtain its carrier from surrounding context. Use an explicit settled constant operand carrying the canonical value and carrier, with names reserved for declarations; preserve exactness and range refusals. Coordinate with `EARLY-TERMINAL-JOBS` and `OPERATION-ARITHMETIC-POLICY` in `TASKS.md`: those own additional evaluation and policy behavior; this entry concerns the existing successful result's storage and handoff. No incorrect acceptance or measured speedup is asserted.
+- Reported: 2026-11-27, Codex, while following a decoded value into and back out of typed source on `0c2c612084c53`.
+
+
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh
 - Category: 4. Re-deriving
@@ -105,14 +127,6 @@ framework or a list of unimplemented features.
 - Not shareable this way: `write_frames.rs::derive_write_frames` (4,265) and `membership_facts.rs` (2,072) each run one analysis over the whole module per call, so each callee already replays once per call. Psi 06's scalar and structural qualification checks now share one membership analysis (`BodyMemberships`); write frames still run once in Psi 05 and once in Psi 06, over different modules. Write frames drop scalar premises from their rows, and membership uses reference slots, so neither can use a `ModuleSummaries` table, which serves only unedited borrowed-storage rows.
 - Cost: still a large share of checking time for std-using programs. Before #5807, `Replay::summary` was on the stack in 19.6% of all samples of a perf profile of the same check (`omega-linux`, 20,286 samples).
 - Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans; updated the same day after Psi 05 shared its walks' tables.
-
-<a id="the-checker-walks-each-machines-affine-ownership-twice"></a>
-### The checker walks each machine's affine ownership twice
-- Category: 4. Re-deriving
-- Where: [`affine_plan`](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/verdict.rs#L1278) runs `MachineAffine::plan_reference_ends` and then `MachineAffine::verify_with_claims`
-- Saw: both walks share one borrowed-storage graph and, with every walk of the module, one table of callee summaries, over the `ModuleAnalyses` that `examine` builds after inference settles the module. `verify_with_claims` answers both the verified schedule and the claim rows `follow_the_lowered_form` reads, so the claim receiver walks nothing more (2026-11-27). The two walks still run the ownership walk ([`walk`](source-rust/subsystems/compiler/psi/semantics/src/plain_affine.rs#L1844)) from scratch in different modes: reference-end candidates change which roots it tracks and plan stores instead of checking them, and verification adds claims and checks the stored schedule. Before the graph and table were shared, the three walks then run were 2.7%, 2.3% and 2.6% of a popcount perf profile.
-- Cost: not profiled since the third walk was removed. A repair needs one walk that answers reference-end planning and verification at once, or a proof that a machine with no reference-end candidates needs no planning walk.
-- Reported: 2026-11-25, Claude Code, while profiling Psi 06 places and loans; narrowed 2026-11-27 when the verification and claim walks became one.
 
 <a id="stage-03-rebuilds-the-whole-program-operand-owner-table-in-each-pass"></a>
 ### Stage 03 rebuilds the whole-program operand-owner table in each pass

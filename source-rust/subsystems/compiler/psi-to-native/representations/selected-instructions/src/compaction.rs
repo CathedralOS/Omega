@@ -111,6 +111,7 @@ pub fn prune_dead_metadata(function: &mut SelectedFunction) {
     live_vregs.extend(extra_vregs);
 
     function.virtual_registers.retain(|reg| match reg.origin {
+        VirtualRegisterOrigin::ActivationOwner => live_vregs.contains(&reg.id),
         VirtualRegisterOrigin::EntryParameter { .. }
         | VirtualRegisterOrigin::StructuralParameter { .. }
         | VirtualRegisterOrigin::BlockParameter { .. } => true,
@@ -322,7 +323,8 @@ pub fn renumber_function(function: &mut SelectedFunction) {
             VirtualRegisterOrigin::BlockParameter { block, .. } => {
                 *block = block_map(block);
             }
-            VirtualRegisterOrigin::EntryParameter { .. }
+            VirtualRegisterOrigin::ActivationOwner
+            | VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. } => {}
         }
     }

@@ -67,6 +67,7 @@ fn call(id: u64, callee: AbstractCallTarget, arguments: Vec<ValueId>) -> Abstrac
         callee,
         arguments,
         structural_arguments: Vec::new(),
+        opened_referents: Default::default(),
         claim_transfers: Vec::new(),
         result: AbstractStructuralCallResult::Unit,
         requirement_obligations: Vec::new(),
@@ -78,6 +79,7 @@ fn catalog() -> TerminalCallableCatalog {
         contracts: vec![TerminalCallableContract {
             id: contract(),
             identity: TerminalIdentityIndex(1),
+            requirement: None,
             scalar_parameters: Vec::new(),
             parameter_order: Vec::new(),
             structural_parameters: Vec::new(),

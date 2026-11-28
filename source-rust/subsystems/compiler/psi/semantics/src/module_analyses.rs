@@ -470,6 +470,8 @@ pub struct ModuleAnalyses<'m> {
     /// The callable values of every machine with no boundary body selected.
     /// Each binding set reads them through `bound_callable_values`.
     callable_values: OnceLock<Result<CallableValueRows, CallableValuePreparationError>>,
+    /// The instantiated field and call types for each verified package use.
+    package_sites: OnceLock<Result<crate::packages::CheckedPackageSites, &'static str>>,
 }
 
 impl<'m> ModuleAnalyses<'m> {
@@ -495,7 +497,16 @@ impl<'m> ModuleAnalyses<'m> {
             fences: crate::plain_affine::CallFences::new(module),
             type_permissions: crate::plain_affine::TypePermissions::new(),
             callable_values: OnceLock::new(),
+            package_sites: OnceLock::new(),
         })
+    }
+
+    /// Replay the package sites once for all consumers of this module's analyses.
+    pub fn package_sites(&self) -> Result<&crate::packages::CheckedPackageSites, &'static str> {
+        self.package_sites
+            .get_or_init(|| crate::packages::check_package_sites(self.module))
+            .as_ref()
+            .map_err(|reason| *reason)
     }
 
     pub fn module(&self) -> &'m TerminalModule {

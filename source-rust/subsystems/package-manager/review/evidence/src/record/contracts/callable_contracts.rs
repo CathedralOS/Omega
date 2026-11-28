@@ -58,24 +58,5 @@ impl PackageReviewCallableContract {
     field_projection_accessors!(borrowed fact: &PackageReviewContractFact);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewSynchronousInvocation {
-    Parameter(u32),
-    Service(PackageReviewServiceIdentity),
-}
-
-impl PackageReviewSynchronousInvocation {
-    pub const fn parameter(&self) -> Option<u32> {
-        match self {
-            Self::Parameter(position) => Some(*position),
-            Self::Service(_) => None,
-        }
-    }
-
-    pub const fn service(&self) -> Option<&PackageReviewServiceIdentity> {
-        match self {
-            Self::Parameter(_) => None,
-            Self::Service(service) => Some(service),
-        }
-    }
-}
+pub type PackageReviewSynchronousInvocation =
+    semantic_vocabulary::SynchronousInvocation<PackageReviewServiceIdentity>;

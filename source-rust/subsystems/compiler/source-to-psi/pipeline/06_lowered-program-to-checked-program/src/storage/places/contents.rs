@@ -58,14 +58,38 @@ impl<'a> Storage<'a> {
     /// exclusively. A caller's enclosing record is outside that guarantee.
     pub(super) fn call_content_boundary(
         &self,
+        tables: &MachineTables,
         call: OperationId,
         leaf: &Lineage,
         concerns: Construct,
     ) -> Checked<Lineage> {
         let operation = self.operation(call, concerns)?;
-        let callee = operation.kind.declared_invocation().ok_or_else(|| {
-            self.foreign(concerns, "a storage snapshot is not after a declared call")
-        })?;
+        let inputs = crate::call_contracts::operation_inputs(operation)
+            .ok_or_else(|| self.foreign(concerns, "a storage snapshot is not after a call"))?;
+        let formals = match inputs.callee {
+            terminal_check_tables::edges::Callee::Declared(callee) => self
+                .module
+                .invocation_structural_parameters(callee, inputs.required_contract)
+                .ok_or_else(|| {
+                    self.foreign(
+                        concerns,
+                        "a storage snapshot's callee has no structural telescope",
+                    )
+                })?,
+            terminal_check_tables::edges::Callee::Selected { callable } => {
+                &inputs
+                    .selected_contract(self.module, tables, callable)
+                    .map_err(|detail| self.foreign(concerns, detail))?
+                    .structural_parameters
+            }
+        };
+        let arguments = inputs.structural_arguments;
+        if formals.len() != arguments.len() {
+            return Err(self.foreign(
+                concerns,
+                "a storage snapshot's call has another structural arity",
+            ));
+        }
         if let Some(result) = operation.result.as_structural()
             && result.place == leaf.root
             && matches!(self.root_kind(leaf.root, concerns)?, StructuralPlaceKind::OperationResult { producer, structural_type }
@@ -75,22 +99,6 @@ impl<'a> Storage<'a> {
                 root: leaf.root,
                 segments: Vec::new(),
             });
-        }
-        let formals = self
-            .module
-            .callable_structural_parameters(callee.callee)
-            .ok_or_else(|| {
-                self.foreign(
-                    concerns,
-                    "a storage snapshot's callee has no structural telescope",
-                )
-            })?;
-        let arguments = operation.kind.structural_arguments();
-        if formals.len() != arguments.len() {
-            return Err(self.foreign(
-                concerns,
-                "a storage snapshot's call has another structural arity",
-            ));
         }
         let mut found = None;
         for (formal, actual) in formals.iter().zip(arguments) {
@@ -195,7 +203,7 @@ impl<'a> Storage<'a> {
                     _ => (false, None),
                 },
                 Some(call) => {
-                    self.call_content_boundary(call, &leaf, concerns)?;
+                    self.call_content_boundary(tables, call, &leaf, concerns)?;
                     (true, None)
                 }
             };
@@ -245,7 +253,7 @@ impl<'a> Storage<'a> {
                     })
             }
             Some(call) => {
-                self.call_content_boundary(call, &sum, concerns)?;
+                self.call_content_boundary(tables, call, &sum, concerns)?;
                 true
             }
         };
@@ -310,7 +318,7 @@ impl<'a> Storage<'a> {
         let mut owners = Vec::new();
         for (place, _) in values {
             let leaf = lineage(self.machine, &tables.places, *place)?;
-            let captured = self.call_content_boundary(operation.id, &leaf, concerns)?;
+            let captured = self.call_content_boundary(tables, operation.id, &leaf, concerns)?;
             for length in captured.segments.len()..leaf.segments.len() {
                 owners.push(Lineage {
                     root: leaf.root,

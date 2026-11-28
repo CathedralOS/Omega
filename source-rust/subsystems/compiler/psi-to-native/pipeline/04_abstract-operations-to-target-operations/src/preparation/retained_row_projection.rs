@@ -650,6 +650,7 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
             1,
             vec![
                 AbstractOperation::CallStructural {
+                    opened_referents: Vec::new(),
                     psi_operation: op(1),
                     suspension_crossing: None,
                     callee: callee.into(),
@@ -2066,6 +2067,7 @@ fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
         result_reference_regions: vec![],
         result_lifetimes: Some(vec![]),
         requires: vec![],
+        membership_requires: Vec::new(),
         membership_ensures: Vec::new(),
         normal_qualifications: vec![],
         scalar_domain_requirements: vec![],

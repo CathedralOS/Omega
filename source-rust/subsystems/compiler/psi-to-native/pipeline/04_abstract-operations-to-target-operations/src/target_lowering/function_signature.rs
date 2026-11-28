@@ -364,6 +364,11 @@ pub(crate) mod structural_signature {
             access: StructuralAccess,
             declarations: &StructuralLayouts<'_>,
         ) -> ValueShape {
+            if let Some(pointer) = declarations.get(structural_type).and_then(|ty| {
+                calling_conventions::terminal_layout::opaque_borrow_transport(&ty.shape, access)
+            }) {
+                return pointer;
+            }
             match access {
                 StructuralAccess::Owned => referent,
                 StructuralAccess::SharedBorrow
@@ -388,12 +393,6 @@ pub(crate) mod structural_signature {
         ) -> Result<Self, LoweringError> {
             let mut shapes = scalar_shapes.to_vec();
             for (structural_type, access) in formals {
-                if let Some(pointer) = declarations.get(structural_type).and_then(|ty| {
-                    calling_conventions::terminal_layout::opaque_borrow_transport(&ty.shape, access)
-                }) {
-                    shapes.push(pointer);
-                    continue;
-                }
                 let referent = declarations
                     .formal_storage_shape(structural_type, access)
                     .map_err(crate::target_lowering::structural_layout::geometry_error)?;
@@ -1171,6 +1170,7 @@ mod native_region_geometry_tests {
             }]),
             requires: Vec::new(),
             normal_qualifications: Vec::new(),
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             scalar_domain_requirements: Vec::new(),
             scalar_requires: Vec::new(),

@@ -1756,6 +1756,32 @@ pub(crate) mod statement {
 #[cfg(test)]
 mod initializer_type_tests {
     #[test]
+    fn a_dispatch_field_uses_the_data_parameters_declared_implementation() {
+        let source = r#"
+            trait Tag<T> { machine mark(); }
+            Selected satisfies Tag<bool> { machine mark() {} }
+            data Holder<T, Policy satisfies Tag<T>> [copy] { flag: T; }
+            machine project(holder: Holder<bool, Selected>) -> bool {
+                transition holder.flag { true -> yes(), false -> no() }
+                machine yes() -> bool { true }
+                machine no() -> bool { false }
+            }
+        "#;
+        let check = |text| crate::qualified_operator_home_tests::checked(&[("main.omg", text)]);
+        check(source).unwrap();
+
+        let wrong = source.replace(
+            "Selected satisfies Tag<bool>",
+            "Selected satisfies Tag<u64>",
+        );
+        let error = check(&wrong).unwrap_err();
+        assert!(
+            error.contains("does not supply the declared `Tag` application of `Holder`"),
+            "{error}"
+        );
+    }
+
+    #[test]
     fn a_dispatch_subject_uses_the_lifetimes_of_its_declared_return_type() {
         let source = r#"
             data Outcome<View, Backing> {

@@ -24,7 +24,9 @@ use service_surface::ServiceReceiverApplication;
 use service_surface::ServiceResultClaim;
 use service_surface::identities::ProviderIdentityId;
 use service_surface::identities::ProviderIdentityTable;
-use service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
+use service_surface::{
+    ServiceDomainMembership, ServiceMembershipProjection, ServiceMembershipSubject,
+};
 use service_surface::{ServiceSurface, ServiceSynchronousInvocation};
 use std::sync::Arc;
 use terminal_psi::{
@@ -122,7 +124,7 @@ wire_enum! {
         1 => CheckedRequirement,
         2 => BoundaryRequirement,
     }
-    ResultProjection: ServiceResultProjection, "ServiceResultProjection" {
+    MembershipProjection: ServiceMembershipProjection, "ServiceMembershipProjection" {
         1 => Field(name: Text),
         2 => Case(name: Text),
         3 => FixedIndex(index: crate::wire_fields::U64),
@@ -130,7 +132,9 @@ wire_enum! {
     SynchronousInvocation: ServiceSynchronousInvocation, "ServiceSynchronousInvocation" {
         1 => Parameter(position: crate::wire_fields::U32),
         2 => Service(name: Text),
+        3 => ProjectedParameter { parameter: crate::wire_fields::U32, path: List<psi_declaration_encoding::dispatch::InvocationPathSegment> },
     }
+    MembershipSubject: ServiceMembershipSubject, "ServiceMembershipSubject" { 1 => NormalResult, 2 => Input(index: crate::wire_fields::U32) }
     ProgressSubject: ServiceProgressSubject, "ServiceProgressSubject" {
         1 => Parameter(index: Count),
     }
@@ -153,7 +157,7 @@ wire_record! {
         effective_carry: Carry,
         authority_flow: AuthorityFlow,
     }
-    NormalMembership: ServiceNormalResultMembership { path: List<ResultProjection>, domain: Text }
+    DomainMembership: ServiceDomainMembership { subject: MembershipSubject, path: List<MembershipProjection>, domain: Text }
     ResultClaim: ServiceResultClaim {
         domain: Text,
         effective_carry: Carry,
@@ -181,7 +185,7 @@ wire_record! {
         has_result: Flag,
         result_type_identity: ProviderIdentity,
         result_claims: List<ResultClaim>,
-        normal_result_memberships: List<NormalMembership>,
+        domain_memberships: List<DomainMembership>,
         service_reach: List<Text>,
         synchronous_invocations: List<SynchronousInvocation>,
         may_suspend: Flag,
@@ -295,7 +299,18 @@ mod tests {
                 }],
                 has_result: true,
                 result_type_identity: scalar,
-                normal_result_memberships: Vec::new(),
+                domain_memberships: vec![
+                    ServiceDomainMembership {
+                        subject: ServiceMembershipSubject::Input(0),
+                        path: Vec::new(),
+                        domain: "InputDomain".into(),
+                    },
+                    ServiceDomainMembership {
+                        subject: ServiceMembershipSubject::NormalResult,
+                        path: Vec::new(),
+                        domain: "ResultDomain".into(),
+                    },
+                ],
                 result_claims: vec![ServiceResultClaim {
                     domain: "ResultDomain".into(),
                     effective_carry: CarryPolicy::STRICT,
@@ -395,7 +410,31 @@ mod tests {
             )
             .unwrap();
         module.interfaces.service_schemas = vec![no_result];
+        assert!(
+            module
+                .service_schema(declaration, application)
+                .unwrap_err()
+                .contains("domain membership names a subject outside the signature")
+        );
+        let input_only = &mut Arc::make_mut(&mut module.interfaces.service_schemas[0].surface)
+            .methods[0]
+            .domain_memberships;
+        input_only.retain(|row| matches!(row.subject, ServiceMembershipSubject::Input(_)));
         assert!(module.service_schema(declaration, application).is_ok());
+
+        let mut bad_ordinal = module.clone();
+        Arc::make_mut(&mut bad_ordinal.interfaces.service_schemas[0].surface).methods[0]
+            .domain_memberships[0]
+            .subject = ServiceMembershipSubject::Input(1);
+        let wire = crate::module_wire::encode_raw(&bad_ordinal).unwrap();
+        let error = crate::decode_module(&wire).unwrap_err();
+        assert!(
+            matches!(
+                error,
+                CodecError::MalformedStructuralFoundation("invalid canonical service schema")
+            ),
+            "{error}"
+        );
         Arc::make_mut(&mut module.interfaces.service_schemas[0].surface).methods[0].has_result = true;
         assert!(module.service_schema(declaration, application).is_err());
     }

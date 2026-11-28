@@ -278,6 +278,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> crate::lowering::Elaborat
             statements: machine.statements,
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -596,6 +597,7 @@ fn rigid_result_transport(
     let mut signatures = IdTable::default();
     for (position, output) in [result_type, input_type].into_iter().enumerate() {
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),
@@ -932,6 +934,7 @@ fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
             },
         });
         signatures.push(Signature {
+            membership_requires: Vec::new(),
             membership_ensures: Vec::new(),
             content_ensures: Vec::new(),
             operational: Default::default(),

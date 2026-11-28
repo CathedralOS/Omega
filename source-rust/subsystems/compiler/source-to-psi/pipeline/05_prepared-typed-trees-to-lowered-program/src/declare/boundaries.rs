@@ -308,6 +308,7 @@ impl BoundaryNamespace {
                 requires,
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements,
+                membership_requires: header.proof.membership_requires,
                 membership_ensures: header.proof.membership_ensures,
                 scalar_requires: header.proof.requires,
                 scalar_ensures: header.proof.ensures.into_iter().map(|clause| clause.proposition)
@@ -319,7 +320,7 @@ impl BoundaryNamespace {
                 fixed_service_reach: if installation_bound { Vec::new() } else { envelope.service_reach.clone() },
                 owning_service: source.owning_service,
                 published_service_ceiling: envelope.service_reach,
-                published_synchronous_entries: envelope.invocations.iter().filter_map(|entry| match entry { terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service), terminal_psi::TerminalCallableInvocation::Parameter(_) => None }).collect(),
+                published_synchronous_entries: envelope.invocations.iter().filter_map(|entry| entry.service().copied()).collect(),
             });
         }
         module.identities = std::mem::take(&mut qualifications.identities).build();

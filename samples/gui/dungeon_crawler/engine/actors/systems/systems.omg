@@ -4,6 +4,7 @@ use actors/travel/travel.omg;
 use configuration/configuration.omg;
 use control/state/state.omg as state_state;
 use world/rooms/rooms.omg;
+use {omega}/language/core/nat.omg;
 
 public machine advance_actors(actors: @mutable |actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, intents: @|state_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, dungeon: @|rooms|::Dungeon<|configuration|::ROOM_COUNT>, key: bool)
 terminates {
@@ -13,7 +14,7 @@ terminates {
 
 machine advance_index(actors: @mutable |actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, intents: @|state_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, dungeon: @|rooms|::Dungeon<|configuration|::ROOM_COUNT>, key: bool, index: u64, remaining: u64)
 terminates
-terminates by remaining -> Nat::Descending {
+terminates by remaining -> |nat|::Nat::Descending {
     transition remaining > 0 && index < |configuration|::ACTOR_CAPACITY { true -> head(actors, intents, dungeon, key, index, remaining), _ -> done() }
     machine head(actors: @mutable |actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, intents: @|state_state|::IntentSet<|configuration|::ACTOR_CAPACITY>, dungeon: @|rooms|::Dungeon<|configuration|::ROOM_COUNT>, key: bool, index: u64, remaining: u64)
     requires remaining > 0 && index < |configuration|::ACTOR_CAPACITY {
@@ -35,7 +36,7 @@ terminates {
 
 machine resolve_sources(actors: @mutable |actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, source: u64, remaining: u64)
 terminates
-terminates by remaining -> Nat::Descending {
+terminates by remaining -> |nat|::Nat::Descending {
     transition remaining > 0 && source < |configuration|::ACTOR_CAPACITY { true -> head(actors, source, remaining), _ -> done() }
     machine head(actors: @mutable |actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, source: u64, remaining: u64)
     requires source < |configuration|::ACTOR_CAPACITY && remaining > 0 {
@@ -49,7 +50,7 @@ terminates by remaining -> Nat::Descending {
 
 machine resolve_targets(attacker: |actor_state|::Actor<|configuration|::ROOM_COUNT>, actors: @mutable |actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, target: u64, remaining: u64)
 terminates
-terminates by remaining -> Nat::Descending {
+terminates by remaining -> |nat|::Nat::Descending {
     transition remaining > 0 && target < |configuration|::ACTOR_CAPACITY { true -> head(attacker, actors, target, remaining), _ -> done() }
     machine head(attacker: |actor_state|::Actor<|configuration|::ROOM_COUNT>, actors: @mutable |actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, target: u64, remaining: u64)
     requires target < |configuration|::ACTOR_CAPACITY && remaining > 0 {
@@ -70,7 +71,7 @@ requires room < |configuration|::ROOM_COUNT {
 
 machine room_has_hostiles_at(actors: @|actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, room: u64, faction: u32, index: u64, remaining: u64) -> bool
 terminates
-terminates by remaining -> Nat::Descending
+terminates by remaining -> |nat|::Nat::Descending
 requires room < |configuration|::ROOM_COUNT {
     transition remaining > 0 && index < |configuration|::ACTOR_CAPACITY { true -> head(actors, room, faction, index, remaining), _ -> (false) }
     machine head(actors: @|actor_state|::ActorSet<|configuration|::ACTOR_CAPACITY, |configuration|::ROOM_COUNT>, room: u64, faction: u32, index: u64, remaining: u64) -> bool

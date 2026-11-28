@@ -12,8 +12,7 @@ use review_evidence::record::{
     PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewContractOperatorMeaning, PackageReviewDataField, PackageReviewDataKind,
     PackageReviewDataMember, PackageReviewDataProperties, PackageReviewNominalIdentity,
-    PackageReviewNominalOwner, PackageReviewSemanticDependencyExposure,
-    PackageReviewToolchainSourceIdentity, PackageReviewTypeIdentity,
+    PackageReviewSemanticDependencyExposure, PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::TypedTrees;
@@ -58,34 +57,12 @@ pub(super) fn nominal_identity(
     toolchain_sources: &[(source_text::SourceId, [u8; 32])],
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-    let symbols = &typed.symbols;
-    if !symbols.symbols().nodes().is_valid(symbol) {
-        return Err(unavailable("a stale nominal declaration"));
-    }
-    let owner = if let Some(package) = symbols.symbol_package_identity(symbol) {
-        PackageReviewNominalOwner::Package(package)
-    } else {
-        let file = symbols
-            .symbol_provenance_source_span(symbol)
-            .and_then(|span| symbols.source_file(span))
-            .filter(|file| file.origin.is_toolchain())
-            .ok_or_else(|| unavailable("a declaration without package or toolchain custody"))?;
-        // Source custody already prepared this roster once. Nominal
-        // projection borrows it rather than hashing source per row.
+    compiler::reviewed_nominal_identity(typed, symbol, |file| {
         let position = toolchain_sources
             .binary_search_by_key(&file.source_id.0, |(source, _)| source.0)
-            .map_err(|_| unavailable("a toolchain declaration without its exact source"))?;
-        PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
-            digest: toolchain_sources[position].1,
-        })
-    };
-    let path = typed
-        .authored_declaration_path(symbol)
-        .map_err(|reason| unavailable(&reason))?;
-    if path.is_empty() {
-        return Err(unavailable("a declaration without a stable path"));
-    }
-    Ok(PackageReviewNominalIdentity { owner, path })
+            .map_err(|_| "toolchain declaration without its exact source".to_string())?;
+        Ok(toolchain_sources[position].1)
+    })
 }
 
 impl<'a> PolicySource<'a> {

@@ -9,6 +9,75 @@ use terminal_psi::{
     TerminalCallableInvocation, TerminalCallableTermination, TerminalModule, ValueDeclaration,
 };
 
+type NamedStep = semantic_vocabulary::CanonicalStructuralPathSegment<String, String>;
+type LocalStep = semantic_vocabulary::CanonicalStructuralPathSegment;
+
+/// Resolve an exported invocation path in the receiving signature. Numeric
+/// field and case IDs are local to a program and cannot identify a supplier's
+/// callback once the description has crossed a package boundary.
+pub fn projected_callable(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[NamedStep],
+) -> Option<(semantic_vocabulary::CallableContractId, Vec<LocalStep>)> {
+    use terminal_psi::StructuralPathSegment as Step;
+    if path.is_empty() {
+        return None;
+    }
+    let types = &module.types.structural_types;
+    let mut runtime = Vec::with_capacity(path.len());
+    for part in path {
+        runtime.push(match part {
+            NamedStep::Field(name) => Step::Field(module.identities.index_of(name)?),
+            NamedStep::FixedIndex(index) => Step::FixedIndex(*index),
+            NamedStep::Referent => Step::Referent,
+            NamedStep::Case(name) => {
+                let sum = crate::runtime_structural_path_tip(types.iter(), root, &runtime)?;
+                let case = terminal_psi::structural_case_by_identity(
+                    sum.shape.sum_cases()?,
+                    module.identities.index_of(name)?,
+                )?;
+                Step::Case(case.id)
+            }
+        });
+    }
+    let local = crate::canonical_primitive_read_path(types.iter(), root, &runtime)?;
+    let ScalarType::Callable(contract) =
+        crate::canonical_primitive_read_type(types.iter(), root, &local)?
+    else {
+        return None;
+    };
+    Some((contract, local))
+}
+
+pub fn named_invocation_path(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+) -> Option<Vec<NamedStep>> {
+    use terminal_psi::StructuralPathSegment as Step;
+    let types = &module.types.structural_types;
+    let runtime = crate::descriptor_lifetimes::descriptor_path(types, root, path)?;
+    runtime
+        .iter()
+        .enumerate()
+        .map(|(i, part)| {
+            Some(match part {
+                Step::Field(id) => NamedStep::Field(module.identities.text(*id)?.to_owned()),
+                Step::FixedIndex(index) => NamedStep::FixedIndex(*index),
+                Step::Referent => NamedStep::Referent,
+                Step::Case(id) => {
+                    let sum =
+                        crate::runtime_structural_path_tip(types.iter(), root, &runtime[..i])?;
+                    let case = sum.shape.sum_cases()?.iter().find(|case| case.id == *id)?;
+                    NamedStep::Case(module.identities.text(case.identity)?.to_owned())
+                }
+                _ => return None,
+            })
+        })
+        .collect()
+}
+
 fn validate_envelope(
     module: &TerminalModule,
     services: &[ServiceId],
@@ -95,6 +164,20 @@ fn validate_bounds(
                     && !matches!(scalar_type, Some(ScalarType::Callable(_)))
                 {
                     return Err("callable invocation ceiling names a non-callable scalar formal");
+                }
+            }
+            TerminalCallableInvocation::ProjectedParameter { parameter, path } => {
+                let position = *parameter as usize;
+                if order.get(position) != Some(&BoundaryParameterKind::Structural) {
+                    return Err("projected invocation does not name a structural parameter");
+                }
+                let lane = order[..position]
+                    .iter()
+                    .filter(|kind| **kind == BoundaryParameterKind::Structural)
+                    .count();
+                let root = structures[lane].structural_type;
+                if projected_callable(module, root, path).is_none() {
+                    return Err("projected invocation does not name a callable field");
                 }
             }
             TerminalCallableInvocation::Service(_) => {}
@@ -191,7 +274,8 @@ pub fn validate_callable_operational_refinements(
             .iter()
             .filter_map(|entry| match entry {
                 TerminalCallableInvocation::Service(service) => Some(*service),
-                TerminalCallableInvocation::Parameter(_) => None,
+                TerminalCallableInvocation::Parameter(_)
+                | TerminalCallableInvocation::ProjectedParameter { .. } => None,
             })
             .collect();
         if entries != contract.published_synchronous_entries
@@ -227,7 +311,8 @@ pub fn validate_callable_operational_refinements(
             .iter()
             .filter_map(|entry| match entry {
                 TerminalCallableInvocation::Service(service) => Some(*service),
-                TerminalCallableInvocation::Parameter(_) => None,
+                TerminalCallableInvocation::Parameter(_)
+                | TerminalCallableInvocation::ProjectedParameter { .. } => None,
             })
             .collect();
         if entries != machine.published_synchronous_entries {

@@ -43,35 +43,8 @@ impl RuntimePermissionDeclarations {
         Ok(&self.root_grants)
     }
 
-    pub fn requirement_path(
-        &self,
-        package: semantic_vocabulary::PackageKeyIdentity,
-        service_path: &str,
-        callable: &str,
-    ) -> Result<String, Vec<Diagnostic>> {
-        let source = &self.source;
-        let symbols = &source.symbols;
-        let mut services = source.traits().iter().filter(|service| {
-            service.is_boundary
-                && symbols.symbol_package_identity(service.symbol) == Some(package)
-                && symbols.display_path(service.symbol, "::") == service_path
-        });
-        let (Some(service), None) = (services.next(), services.next()) else {
-            return Err(vec![Diagnostic::error(format!(
-                "runtime permission has no unique checked service declaration for `{service_path}`"
-            ))]);
-        };
-        let signatures = source.trait_machine_signatures(service);
-        let mut methods = signatures.iter().filter(|method| {
-            symbols.symbol_package_identity(method.symbol) == Some(package)
-                && source.trait_requirement_callable_identity_text(service, method) == callable
-        });
-        let (Some(method), None) = (methods.next(), methods.next()) else {
-            return Err(vec![Diagnostic::error(format!(
-                "runtime permission has no unique checked method `{callable}` on `{service_path}`"
-            ))]);
-        };
-        Ok(symbols.display_path(method.symbol, "::"))
+    pub fn checked_source(&self) -> &source_state::TypedTrees {
+        &self.source
     }
 }
 

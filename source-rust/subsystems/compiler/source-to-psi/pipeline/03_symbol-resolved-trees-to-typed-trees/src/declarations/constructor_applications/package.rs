@@ -156,26 +156,44 @@ fn callable_operands(
         return Vec::new();
     };
     let required = &program.runtime_callable_contracts.get(*contract).signature;
-    let inputs = program.state_signature_parameters(required);
-    let parameters = program.state_parameters(entry);
-    if inputs.len() != parameters.len() {
-        return Vec::new();
-    }
-    let mut pairs: Vec<_> = inputs
-        .iter()
-        .zip(parameters.iter())
-        .map(|(formal, actual)| (formal.type_reference, actual.type_reference))
-        .collect();
-    if required.return_type.is_valid() && entry.return_type.is_valid() {
-        pairs.push((required.return_type, entry.return_type));
-    }
-    pairs
+    super::operand_types::signature_operands(
+        program,
+        required,
+        program.state_parameters(entry),
+        entry.return_type,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::qualified_operator_home_tests::checked;
+
+    #[test]
+    fn projected_callbacks_can_supply_a_new_packages_only_witness() {
+        let source = r#"
+            data Read<S> = machine(state: @S) -> u8 reaches none crashes none;
+            data Pair<some S> { left: Read<S>; right: Read<S>; }
+            machine repack(p: @Pair, q: @Pair) -> Pair {
+                Pair { left: p.left, right: p.right }
+            }
+        "#;
+        let trees = checked(&[("main.omg", source)]).unwrap();
+        let package = trees
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, node)| match node {
+                ExpressionNode::StructLiteral(literal) => literal.package.as_deref(),
+                _ => None,
+            })
+            .unwrap();
+        let opening = trees.package_opening(trees.package_projections[0].opening);
+        assert_eq!(package.witnesses, vec![opening.witnesses[0].1]);
+
+        let crossed = source.replace("right: p.right", "right: q.right");
+        let error = checked(&[("main.omg", &crossed)]).unwrap_err();
+        assert!(error.contains("conflicting generic arguments"), "{error}");
+    }
 
     #[test]
     fn one_public_type_retains_different_witnesses_on_its_values() {
