@@ -4,7 +4,8 @@ has no layout, so no value of it is stored and no machine over it runs: such a
 machine is a definition or a law, read into the compilation's mathematical
 signature (`crate::mathematics`) and never lowered to operations.
 Data with a field of such a type has no layout either, so it is mathematical
-too, however many declarations lie between. An erased field is not one of
+too, however many declarations lie between, and so is data that takes a
+static machine parameter. An erased field is not one of
 those: it has no layout of its own, so it gives its record none either.
 
 The test reads the declaration as written. A field or payload field that
@@ -178,6 +179,27 @@ impl Program<'_> {
         })
     }
 
+    /// Whether the declaration of `data` takes a static machine parameter,
+    /// as `Sequence<S, const At: Sampler<S>>` does. Finite-layout data
+    /// rejects such a binder (generics.md: "Recursive proof-only data may
+    /// use machine binders as family indices; finite-layout data rejects
+    /// those binders"), so every application of it is proof-only.
+    fn has_machine_binder(&self, data: &DataDefinition) -> bool {
+        self.typed
+            .unique_data_definition_by_symbol(data.symbol)
+            .is_some_and(|template| {
+                self.typed
+                    .data_type_parameters(template)
+                    .iter()
+                    .any(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::source_state::data::TypeParameterKind::Machine { .. }
+                        )
+                    })
+            })
+    }
+
     /// Whether the data contains itself, or has a field or payload field of
     /// data that is mathematical.
     pub(crate) fn is_mathematical_data(&self, data: &DataDefinition) -> bool {
@@ -185,7 +207,7 @@ impl Program<'_> {
     }
 
     fn mathematical_within(&self, data: &DataDefinition, visiting: &mut Vec<SymbolHandle>) -> bool {
-        if self.contains_itself(data) {
+        if self.contains_itself(data) || self.has_machine_binder(data) {
             return true;
         }
         // A quotient has the layout of what it is a quotient of: none, when
