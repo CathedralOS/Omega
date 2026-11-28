@@ -1131,8 +1131,20 @@ impl TerminalExecution<'_> {
         let types = self.structural_types();
         let member = observed_field_declaration(types.values(), declared_parent, &namespace, field)
             .ok_or(malformed())?;
+        let sites = self.program.package_sites()?;
+        let matches_field = if sites
+            .stored_field_type(self.current_machine, operation.id)
+            .is_some()
+        {
+            matches!((member.field_type.scalar_type(), source),
+                (Some(ScalarType::Callable(_)), TerminalScalarValue::Callable { contract, .. })
+                    if source.selected_machine(&module.execution.callables, contract).is_some()
+                        && sites.admits_descriptor(module, self.current_machine, operation.id, contract))
+        } else {
+            member.field_type.scalar_type() == Some(source.scalar_type())
+        };
         if member.relevance.is_erased()
-            || member.field_type.scalar_type() != Some(source.scalar_type())
+            || !matches_field
             || !terminal_scalar_belongs_to_type(source)
         {
             return Err(malformed());
