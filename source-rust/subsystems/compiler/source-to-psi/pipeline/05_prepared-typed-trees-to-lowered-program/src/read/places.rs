@@ -237,16 +237,7 @@ impl Program<'_> {
         }) {
             return self.occurrence_regions(id, data, semantic);
         }
-        if !data.lifetime_parameters.is_empty() {
-            // A reference-valued type argument adds another region to the
-            // named regions. Keep refusing until both are represented.
-            return Err(refuse_at(
-                id,
-                Unserved::Type(
-                    "record occurrence with both declared regions and a borrowed type argument",
-                ),
-            ));
-        }
+        let declared = self.occurrence_regions(id, data, semantic)?;
         // The stored application may have been shared by occurrences at
         // different lifetimes. Read this occurrence's actual arguments.
         let TypeReferenceNode::Generic {
@@ -269,7 +260,7 @@ impl Program<'_> {
                 Unserved::Type("record occurrence lost its borrowed argument tuple"),
             ));
         }
-        let mut tuple = Vec::new();
+        let mut tuple = self.region_tuple(declared).to_vec();
         for ((binder, original), supplied) in application.substitutions.iter().zip(supplied) {
             if typed.symbols.get(*binder).parent != *base_symbol
                 || application.scope.type_identity(typed, *original)
@@ -280,41 +271,29 @@ impl Program<'_> {
                     Unserved::Type("record occurrence changed its template binder"),
                 ));
             }
-            if application
-                .scope
-                .region_free_type_identity(typed, *original)
-                .is_some()
-            {
-                if application
-                    .scope
-                    .region_free_type_identity(typed, *supplied)
-                    .is_none()
-                {
-                    return Err(refuse_at(
-                        id,
-                        Unserved::Type("record occurrence introduced a borrowed argument"),
-                    ));
-                }
-                continue;
-            }
-            // One slot can be substituted simultaneously at every field.
-            // Several reference arguments need independent declaration-local
-            // slots even if their original concrete lifetimes coincide.
-            if !tuple.is_empty() {
-                return Err(refuse_at(
-                    id,
-                    Unserved::Type("record application with multiple borrowed type arguments"),
-                ));
-            }
-            let actual =
-                super::source_records::retained_borrow(typed, &application.scope, *supplied)
+            let regions =
+                super::source_records::retained_regions(typed, &application.scope, *supplied)
                     .ok_or_else(|| {
                         refuse_at(
                             id,
-                            Unserved::Type("record occurrence lost its borrow region"),
+                            Unserved::Type("record occurrence lost its borrow regions"),
                         )
                     })?;
-            tuple.push(super::regions::Region::Parameter(actual));
+            let original =
+                super::source_records::retained_regions(typed, &application.scope, *original)
+                    .ok_or_else(|| {
+                        refuse_at(
+                            id,
+                            Unserved::Type("record template lost its borrow regions"),
+                        )
+                    })?;
+            if regions.len() != original.len() {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Type("record occurrence changed its borrowed argument tuple"),
+                ));
+            }
+            tuple.extend(regions.into_iter().map(super::regions::Region::Parameter));
         }
         Ok(self.intern_regions(tuple))
     }
