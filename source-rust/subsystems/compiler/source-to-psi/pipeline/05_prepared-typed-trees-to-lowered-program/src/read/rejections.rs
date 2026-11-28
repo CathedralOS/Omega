@@ -71,6 +71,7 @@ pub(super) enum Destination {
     Assigned,
     /// The element type of the array an array literal constructs.
     ArrayElement,
+    Referent,
 }
 
 impl Destination {
@@ -82,6 +83,7 @@ impl Destination {
             Self::Field => "the field it initializes",
             Self::Local => "the local it initializes",
             Self::Assigned => "the place it is assigned to",
+            Self::Referent => "the borrow's referent type",
             Self::ArrayElement => "the array element it initializes",
         }
     }

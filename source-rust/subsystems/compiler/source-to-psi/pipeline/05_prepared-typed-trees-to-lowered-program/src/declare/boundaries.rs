@@ -158,7 +158,10 @@ impl BoundaryNamespace {
                 StructuralDomainRequirement::declared_roots(&header.structural_parameters)
                     .collect();
             let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
-            let execution = match reader.typed.symbols.sealed_intrinsic(source.source) {
+            let execution = match reader.typed.sealed_callable(source.source) {
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::OwnedActivation(
+                    operation,
+                )) => CheckedBoundaryExecution::OwnedActivation(operation),
                 Some(language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetFacts) => {
                     CheckedBoundaryExecution::LayoutTargetFacts
                 }
@@ -289,14 +292,14 @@ impl BoundaryNamespace {
                     .map_err(refusal)?;
             module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
+                identity: checked.source.callable,
+                owner: checked.source.machine.clone(),
                 declaration: Some(checked),
                 numeric_intrinsic: if execution == CheckedBoundaryExecution::NumericPrimitive { reader.typed.numeric_intrinsic_execution(source.source) } else { None },
                 role: BoundaryDeclarationRole::Callable,
                 kind: source.kind,
                 completion: source.completion,
                 unconditional_termination: matches!(source.envelope.termination, TerminalCallableTermination::Terminates { ref premises } if premises.is_empty()),
-                identity: qualifications.identities.intern(&source.declaration.callable),
-                owner: terminal_psi::NominalDeclarationIdentity::new(qualifications.identities.intern(&source.declaration.owner)),
                 attachment: None,
                 parameter_order: header.parameter_order,
                 scalar_parameters: header.scalar_parameters.iter().map(|parameter| parameter.scalar_type).collect(),
@@ -308,6 +311,7 @@ impl BoundaryNamespace {
                 requires,
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements,
+                membership_requires: header.proof.membership_requires,
                 membership_ensures: header.proof.membership_ensures,
                 scalar_requires: header.proof.requires,
                 scalar_ensures: header.proof.ensures.into_iter().map(|clause| clause.proposition)

@@ -213,6 +213,7 @@ pub fn hosted_primitive_requirement(
         || boundary.crash_routes != canonical.crash_routes
         || boundary.scalar_requires != canonical.scalar_requires
         || boundary.scalar_ensures != canonical.scalar_ensures
+        || boundary.membership_requires != canonical.membership_requires
         || boundary.membership_ensures != canonical.membership_ensures
         || boundary.requires != canonical.requires
         || boundary.normal_qualifications != canonical.normal_qualifications
@@ -229,6 +230,7 @@ pub fn hosted_primitive_requirement(
         || !boundary.crash_routes.is_empty()
         || !boundary.scalar_requires.is_empty()
         || !boundary.scalar_ensures.is_empty()
+        || !boundary.membership_requires.is_empty()
         || !boundary.membership_ensures.is_empty()
         || !boundary.requires.is_empty()
         || !boundary.normal_qualifications.is_empty()
@@ -265,6 +267,13 @@ pub fn validate_boundary_callable(
         return Err("contract evidence cannot carry an executable boundary declaration");
     }
     hosted_primitive_requirement(module, boundary)?;
+    if let terminal_psi::CheckedBoundaryExecution::OwnedActivation(operation) = checked.execution {
+        match operation {
+            language_core::sealed_intrinsics::ActivationOperation::Park => {
+                super::owned_activation::validate_park(module, boundary)?
+            }
+        }
+    }
     if checked.execution == terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts {
         super::layout_target::snapshot_fields(module, boundary)?;
     }

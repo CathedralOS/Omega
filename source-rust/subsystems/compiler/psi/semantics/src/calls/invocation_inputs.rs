@@ -15,6 +15,11 @@ pub fn validate_empty_erased_invocation_inputs(
     if targets.next().is_some() {
         return Err("empty erased invocation target is ambiguous");
     }
+    if !machine.contract.membership_requires.is_empty() {
+        return Err(
+            "external invocation supplied no evidence of the required input domain memberships",
+        );
+    }
     if module.proofs.evidence_contract_lanes.iter().any(|lane| {
         lane.owner == terminal_psi::EvidenceCallableOwner::Machine(target)
             && lane.kind == EvidenceContractLaneKind::Requires

@@ -15,6 +15,11 @@ use terminal_psi::{
 #[derive(Debug)]
 pub enum ScalarQualificationError {
     DeniedEstablishment(DeniedEstablishment),
+    UnmetInputMembership {
+        machine: MachineId,
+        site: terminal_psi::CallSite,
+        detail: &'static str,
+    },
     NormalResultMembership {
         machine: Option<MachineId>,
         detail: &'static str,
@@ -1126,9 +1131,21 @@ fn validate_bodies_into(
     }
     let membership_facts = &*kept.insert(
         crate::membership_facts::analyze_bodies(module, bodies).map_err(|error| {
-            ScalarQualificationError::NormalResultMembership {
-                machine: error.machine,
-                detail: error.detail,
+            use crate::membership_facts::MembershipFailure;
+            match error.failure {
+                MembershipFailure::UnmetInput { machine, site } => {
+                    ScalarQualificationError::UnmetInputMembership {
+                        machine,
+                        site,
+                        detail: error.detail,
+                    }
+                }
+                MembershipFailure::Unavailable(machine) => {
+                    ScalarQualificationError::NormalResultMembership {
+                        machine,
+                        detail: error.detail,
+                    }
+                }
             }
         })?,
     );

@@ -239,6 +239,117 @@ fn critical_authority(
     Ok(())
 }
 
+pub(super) fn unsafe_authority(
+    output: &mut Output,
+    authority: &project_build::ReviewedUnsafeAuthority,
+    source: &CanonicalSourceClosureSubject,
+) -> fmt::Result {
+    if authority.uses.is_empty()
+        && authority.enabled.is_empty()
+        && authority.dependencies.is_empty()
+    {
+        return Ok(());
+    }
+    let names = Names(source);
+    writeln!(output, "  Unsafe")?;
+    if !authority.uses.is_empty() {
+        writeln!(
+            output,
+            "    Treat any use of Unsafe in a library as malicious."
+        )?;
+    }
+    for enabled in &authority.enabled {
+        writeln!(output, "    Build enabled {}", enabled.name())?;
+    }
+    for edge in &authority.dependencies {
+        // A dependency alias is requester-local. Keep the selected package key
+        // so the report can be followed even when two versions have one name.
+        let Some(package) = source
+            .packages()
+            .iter()
+            .find(|p| p.key().identity() == edge.target)
+        else {
+            return output.fail("package audit lost the dependency selected by an Unsafe ceiling");
+        };
+        write!(
+            output,
+            "    dependency {:?} -> {:?} [{}] admits",
+            edge.alias,
+            package.key().name().as_str(),
+            crate::Hex(&edge.target.digest())
+        )?;
+        if edge.admits.is_empty() {
+            write!(output, " no Unsafe child")?;
+        }
+        for atom in &edge.admits {
+            write!(output, " {}", atom.name())?;
+        }
+        writeln!(output)?;
+    }
+    for finding in &authority.uses {
+        for origin in &finding.origins {
+            let atoms = match origin {
+                project_build::ReviewedUnsafeOrigin::NativeOperation { id, name, atoms } => {
+                    writeln!(
+                        output,
+                        "    operation |unsafe|::{name} in {} (Psi operation {})",
+                        names.name(&finding.callable),
+                        id.get()
+                    )?;
+                    *atoms
+                }
+                project_build::ReviewedUnsafeOrigin::BoundaryContract { atoms } => {
+                    writeln!(
+                        output,
+                        "    boundary operation {}",
+                        names.name(&finding.callable)
+                    )?;
+                    atoms.as_slice()
+                }
+            };
+            for atom in atoms {
+                let admission = if authority.enabled.contains(atom) {
+                    "enabled"
+                } else {
+                    "absent"
+                };
+                writeln!(
+                    output,
+                    "      requires Unsafe + {} (Product opt-in {admission})",
+                    atom.name()
+                )?;
+            }
+        }
+        for path in &finding.paths {
+            match &path.admission {
+                project_build::ReviewedUnsafeAdmission::Product => {
+                    write!(output, "      admitted by the root Product")?
+                }
+                project_build::ReviewedUnsafeAdmission::Dependency {
+                    requester,
+                    target,
+                    alias,
+                } => {
+                    write!(output, "      admitted by dependency {alias:?}")?;
+                    if let Some(requester) = requester {
+                        write!(output, " from {}", crate::Hex(&requester.digest()))?;
+                    }
+                    write!(output, " to {}", crate::Hex(&target.digest()))?;
+                }
+            }
+            write!(output, " along ")?;
+            for (i, call) in path.calls.iter().enumerate() {
+                if i != 0 {
+                    write!(output, " -> ")?;
+                }
+                write!(output, "{}", names.name(call))?;
+            }
+            writeln!(output)?;
+        }
+    }
+    Ok(())
+}
+
 struct Names<'a>(&'a CanonicalSourceClosureSubject);
 
 impl Names<'_> {

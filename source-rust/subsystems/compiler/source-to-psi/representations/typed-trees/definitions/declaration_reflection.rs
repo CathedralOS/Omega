@@ -675,25 +675,35 @@ pub mod reflection {
                 if selected.symbol != machine.symbol && selected.symbol != entry.symbol {
                     return Err("a callable description cannot select a continuation state".into());
                 }
-                if !selected.type_reference.is_valid()
-                    || !typed
-                        .type_reference_table
-                        .contains_type_reference(selected.type_reference)
+                // A bare generic name describes the family. All other
+                // selections must have the exact prepared application.
+                if !(selected.is_bare_declaration()
+                    && !typed.machine_type_parameters(machine).is_empty())
                 {
-                    return Err(
-                        "a callable description requires its prepared declaration application"
-                            .into(),
-                    );
-                }
-                let declaration = match typed.type_reference_node(selected.type_reference) {
-                    TypeReferenceNode::Named { symbol, .. } => *symbol,
-                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                    _ => return Err("a callable description lost its selected declaration".into()),
-                };
-                if declaration != machine.symbol {
-                    return Err(
-                        "a callable description has another declaration's application".into(),
-                    );
+                    if !selected.type_reference.is_valid()
+                        || !typed
+                            .type_reference_table
+                            .contains_type_reference(selected.type_reference)
+                    {
+                        return Err(
+                            "a callable description requires its prepared declaration application"
+                                .into(),
+                        );
+                    }
+                    let declaration = match typed.type_reference_node(selected.type_reference) {
+                        TypeReferenceNode::Named { symbol, .. } => *symbol,
+                        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                        _ => {
+                            return Err(
+                                "a callable description lost its selected declaration".into()
+                            );
+                        }
+                    };
+                    if declaration != machine.symbol {
+                        return Err(
+                            "a callable description has another declaration's application".into(),
+                        );
+                    }
                 }
                 let identity = crate::source_state::type_identity::portable_applied_index_identity(
                     typed,
