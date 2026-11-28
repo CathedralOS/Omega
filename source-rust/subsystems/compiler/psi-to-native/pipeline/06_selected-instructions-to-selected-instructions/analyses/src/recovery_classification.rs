@@ -151,7 +151,8 @@ pub mod compute {
                 | VirtualRegisterOrigin::AbiTransport { .. } => {
                     return no_recovery(NoAdmittedRecoveryReason::UnsupportedRangeShape);
                 }
-                VirtualRegisterOrigin::EntryParameter { .. }
+                VirtualRegisterOrigin::ActivationOwner
+                | VirtualRegisterOrigin::EntryParameter { .. }
                 | VirtualRegisterOrigin::StructuralParameter { .. } => {
                     return no_recovery(NoAdmittedRecoveryReason::EntryParameter);
                 }

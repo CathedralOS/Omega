@@ -347,6 +347,8 @@ impl ProviderPlan {
                     .map(|entry| match entry {
                         ServiceSynchronousInvocation::Parameter(position) =>
                             format!("parameter {position}"),
+                        ServiceSynchronousInvocation::ProjectedParameter { parameter, path } =>
+                            format!("parameter {parameter}{}", semantic_vocabulary::display_invocation_path(path)),
                         ServiceSynchronousInvocation::Service(name) => name.clone(),
                     })
                     .collect::<Vec<_>>()

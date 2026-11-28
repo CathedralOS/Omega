@@ -548,9 +548,9 @@ call. The ownership walk reconstructs those claims
 (`MachineAffine::verify_claims` in Psi semantics). In a judged closure it
 runs once per machine, after inference has finished editing the module.
 `examine` ([verdict.rs](src/verdict.rs)) builds one `ModuleAnalyses` over the
-settled module. The affine check (`affine_plan`) walks each machine once for
-its reference ends and once more with claims (`verify_with_claims`), and that
-second walk answers both the verified cleanup schedule and the claim rows. The machine checks share
+settled module. The affine check (`affine_plan`) plans reference ends only for
+machines with last-use candidates. It verifies every machine’s cleanup schedule
+and claim rows with `verify_with_claims`. The machine checks share
 the same analyses, and `follow_the_lowered_form` reads the claim rows the
 affine check received. Inference (result summaries, input conditions,
 crash routes) replays a machine on a copy of its tables while the module is
@@ -1719,19 +1719,18 @@ each do one part, and the fact travels in the module:
   containment judges the ordinary call in each prepared conformance witness
   on both axes; there is no separate callable-refinement checker.
 
-A call of a boundary requirement is "not itself an entry", and the route
-reads no operation that originates one (a call of a callable argument, of a
-stored callable, or an arrival at an inbound entry), so an entry row is
-non-empty only where a clause was written. `Build::application` writes
+A call of a boundary requirement is not itself an entry. Calling a callback
+received as an argument is: the checker follows the value to its formal and
+field, even through a helper that receives the containing record. Two fields
+of that record do not authorize each other's calls. `Build::application` writes
 `invokes BuildRequestOperations` over a requirement that enters nothing: a
 broader ceiling, which its callers are charged.
 
 Not served: a ceiling bound by an installation (`machine service reach bound
 by an installation`), a written ceiling over a requirement that defers its
 reach, a call through a selector value in a module that declares services,
-an `invokes` row that names a parameter path (`machine invokes naming a
-parameter path`: charging a caller needs the binding each call supplies,
-substituted at the call), and an `invokes` row that names a requirement that
+a source-authored `invokes` ceiling naming a nested field (as distinct from
+the inferred path above), and an `invokes` row that names a requirement that
 is not a boundary trait (the module's catalog has identities for boundary
 services only). The composition checks of the entry ceiling (every entry
 reachable through the selected providers fits the calling requirement, and

@@ -62,11 +62,7 @@ pub struct RequirementService {
     pub application: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RequirementInvocation {
-    Parameter(u32),
-    Service(RequirementService),
-}
+pub type RequirementInvocation = semantic_vocabulary::SynchronousInvocation<RequirementService>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequirementReviewMetadata {

@@ -389,16 +389,12 @@ impl PolicySource<'_> {
             service_reach,
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             synchronous_invocations: {
-                use review_evidence::record::PackageReviewSynchronousInvocation as Reviewed;
-                use source_compiler::publication::RequirementInvocation as Invocation;
                 let mut invocations = metadata
                     .synchronous_invocations
                     .iter()
-                    .map(|invocation| match invocation {
-                        Invocation::Parameter(position) => Ok(Reviewed::Parameter(*position)),
-                        Invocation::Service(service) => self
-                            .reviewed_requirement_service(service)
-                            .map(Reviewed::Service),
+                    .map(|invocation| {
+                        invocation
+                            .try_map_service(|service| self.reviewed_requirement_service(service))
                     })
                     .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
                 invocations.sort();

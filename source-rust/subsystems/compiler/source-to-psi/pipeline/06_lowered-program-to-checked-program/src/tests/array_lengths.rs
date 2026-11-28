@@ -6,6 +6,8 @@
 //! extents use their own constant input. The body and its guarantees must
 //! describe that same value, whichever fields lead to the array.
 
+mod nominal_elements;
+
 use super::build_purpose::judge_build;
 use super::*;
 

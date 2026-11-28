@@ -256,15 +256,12 @@ pub(in crate::record::package::callable_policy::validation) fn invocations(
 ) -> Result<(), &'static str> {
     ordered(values)?;
     for value in values {
-        match value {
-            PackageReviewSynchronousInvocation::Service(service) => service.validate_resolved()?,
-            PackageReviewSynchronousInvocation::Parameter(position)
-                if *position as usize >= count =>
-            {
-                return Err("callable invocation lies outside its parameter telescope");
-            }
-            PackageReviewSynchronousInvocation::Parameter(_) => {}
+        if let Some(service) = value.service() {
+            service.validate_resolved()?;
         }
+        value
+            .validate_parameter(count)
+            .map_err(|_| "callable invocation lies outside its parameter telescope")?;
     }
     Ok(())
 }
