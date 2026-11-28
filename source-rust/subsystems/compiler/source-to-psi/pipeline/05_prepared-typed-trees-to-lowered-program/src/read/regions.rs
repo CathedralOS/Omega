@@ -339,6 +339,33 @@ impl Program<'_> {
         self.intern_regions(tuple)
     }
 
+    /// Field types in a closed generic record can name the borrow that
+    /// was substituted for a type parameter in the original declaration.
+    pub(crate) fn record_region_parameters(
+        &self,
+        id: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<Vec<Region>> {
+        let source = self.record_source(id, record)?;
+        let mut own = self.own_regions(source.declaration);
+        if let Some(application) = &source.application {
+            own.extend(
+                application
+                    .substitutions
+                    .iter()
+                    .filter_map(|(_, argument)| {
+                        super::source_records::retained_borrow(
+                            self.typed,
+                            &application.scope,
+                            *argument,
+                        )
+                        .map(Region::Parameter)
+                    }),
+            );
+        }
+        Ok(own)
+    }
+
     /// The substitution a value of `record` at `regions` gives its row's
     /// field types: the record's declaration's own parameters, each at the
     /// region the value holds in its place. Empty for a row with no
@@ -351,10 +378,29 @@ impl Program<'_> {
         regions: Regions,
     ) -> Checked<Substitution> {
         let declaration = self.source_declaration(id, record)?;
-        if !declaration.is_valid() || regions == Regions::NONE {
+        if !declaration.is_valid() {
             return Ok(Vec::new());
         }
-        let own = self.own_regions(declaration);
+        if regions == Regions::NONE {
+            if self
+                .record_source(id, record)?
+                .application
+                .as_ref()
+                .is_some_and(|app| {
+                    app.substitutions.iter().any(|(_, arg)| {
+                        super::source_records::retained_borrow(self.typed, &app.scope, *arg)
+                            .is_some()
+                    })
+                })
+            {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Typing("record occurrence lost its borrowed argument regions"),
+                ));
+            }
+            return Ok(Vec::new());
+        }
+        let own = self.record_region_parameters(id, record)?;
         let applied = self.region_tuple(regions);
         if own.len() != applied.len() {
             return Err(refuse_at(

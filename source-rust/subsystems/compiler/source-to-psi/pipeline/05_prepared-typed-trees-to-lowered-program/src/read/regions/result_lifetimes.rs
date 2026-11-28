@@ -439,7 +439,10 @@ impl Frontier<'_, '_> {
             .source_declaration(self.machine, record)
             .map_err(|_| "declared reference frontier has no source declaration")?;
         if declaration.is_valid() {
-            let own = self.program.own_regions(declaration);
+            let own = self
+                .program
+                .record_region_parameters(self.machine, record)
+                .map_err(|_| "declared reference frontier lost its record source")?;
             if own.len() != regions.len() {
                 return Err("declared reference frontier has another region arity");
             }
