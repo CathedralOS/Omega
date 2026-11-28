@@ -658,7 +658,10 @@ pub fn opaque_borrow_transport(
     access: terminal_psi::StructuralAccess,
 ) -> Option<ValueShape> {
     (access != terminal_psi::StructuralAccess::Owned
-        && matches!(shape, StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }))
+        && matches!(
+            shape,
+            StructuralTypeShape::Opaque | StructuralTypeShape::BorrowingOpaque { .. }
+        ))
     .then_some(ValueShape::integer(8, 8))
 }
 

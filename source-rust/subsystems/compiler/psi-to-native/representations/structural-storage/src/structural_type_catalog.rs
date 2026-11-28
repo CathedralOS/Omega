@@ -33,7 +33,9 @@ struct LayoutFacts {
 
 impl LayoutFacts {
     fn is_empty(&self) -> bool {
-        self.owned_sequences.is_empty() && self.package_witnesses.is_empty() && self.execution_owners.is_empty()
+        self.owned_sequences.is_empty()
+            && self.package_witnesses.is_empty()
+            && self.execution_owners.is_empty()
     }
 }
 
