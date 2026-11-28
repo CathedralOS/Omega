@@ -2416,7 +2416,6 @@ dependencies = [
  "register-homes",
  "register-homes-to-post-allocation-machine",
  "register-model",
- "selected-form-encoding-to-resolved-layout",
  "selected-instruction-analyses",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",

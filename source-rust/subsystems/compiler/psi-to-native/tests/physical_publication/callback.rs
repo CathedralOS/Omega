@@ -724,6 +724,7 @@ fn check_callback_publication(retain_body_source: bool) {
     let mut planned_entry = None;
     let (body, _) = super::emit_body_inspecting_physical(
         admitted,
+        target::TargetProfile::WindowsX64,
         retain_body_source,
         |target| {
             assert!(

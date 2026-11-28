@@ -35,7 +35,7 @@ pub use machine_code::{
     WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence,
 };
-use placement::FunctionExitLayout;
+
 use register_environment::{FrameAbiPreservationConvention, TargetExitAbi};
 use register_model::{
     PreservationConvention, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
@@ -52,17 +52,6 @@ use frame_admission::frame_layout::{
     FunctionTargetFrameLayout, ReturnAddressFrameCustody, ValidatedTargetFrameLayout,
 };
 use machine_code::TargetFrameProtocolEncodingPlan;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedWholeFunctionExitContract {
-    contract: Arc<WholeFunctionExitContract>,
-}
-
-impl StagedWholeFunctionExitContract {
-    pub fn contract(&self) -> &WholeFunctionExitContract {
-        &self.contract
-    }
-}
 
 pub use machine_code::exit_requirements::WholeFunctionExitContractError;
 #[derive(Clone, Copy)]
@@ -92,13 +81,40 @@ struct ValidationContext {
     callee_saved: BTreeSet<RegisterUnitId>,
 }
 
-pub(crate) fn stage_whole_function_exit_contract_for_layout(
-    program: FunctionExitLayout<'_>,
-) -> Result<StagedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    let contract = compute_inner(&program)?;
-    Ok(StagedWholeFunctionExitContract {
-        contract: Arc::new(contract),
-    })
+/// The ABI exit checks read the admitted obligations, frame and resolved offsets.
+pub(super) struct FunctionExitLayout<'a> {
+    pub exit_requirements: &'a machine_code::exit_requirements::EncodedExitRequirements,
+    pub fragment_origins: &'a machine_code::fragment_origins::FragmentOrigins,
+    pub frame_demands: &'a machine_code::frame_demands::MachineFrameDemands,
+    pub physical: &'a register_model::ValidatedPhysicalRegisterModel,
+    pub layout: &'a std::sync::Arc<machine_code::ResolvedMachineLayout>,
+    pub frame: &'a std::sync::Arc<machine_code::TargetFrameLayoutPlan>,
+    pub protocol: &'a std::sync::Arc<machine_code::TargetFrameProtocolEncodingPlan>,
+    pub custody: machine_code::WholeFunctionExitLayoutCustody,
+}
+
+pub(super) fn function_exits(
+    layout: &machine_code::OptimizedMachineLayout,
+) -> FunctionExitLayout<'_> {
+    let program = &layout.program;
+    let custody = match layout.relaxation {
+        Some(relaxation) => {
+            machine_code::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                relaxation,
+            }
+        }
+        None => machine_code::WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
+    };
+    FunctionExitLayout {
+        exit_requirements: &program.exit_requirements,
+        fragment_origins: &program.fragment_origins,
+        frame_demands: &program.frame_demands,
+        physical: program.context.physical(),
+        layout: &program.layout,
+        frame: &program.frame,
+        protocol: &program.protocol,
+        custody,
+    }
 }
 
 pub(crate) fn validate_exit_record_for_current_layout(
@@ -107,7 +123,7 @@ pub(crate) fn validate_exit_record_for_current_layout(
         &ValidatedTargetFrameLayout,
         &Arc<TargetFrameProtocolEncodingPlan>,
     )>,
-    contract: &StagedWholeFunctionExitContract,
+    contract: &WholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
     let custody = program.custody;
     let inputs = ValidationInputs {
@@ -117,13 +133,13 @@ pub(crate) fn validate_exit_record_for_current_layout(
         physical: program.physical,
         layout: program.layout,
         frame,
-        contract: contract.contract(),
+        contract,
     };
     let context = check_validation_context(&inputs, custody)?;
     check_ordinary_exit_roster(&inputs, &context)
 }
 
-fn compute_inner(
+pub(crate) fn check_exits(
     program: &FunctionExitLayout<'_>,
 ) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
     let layout_custody = program.custody;

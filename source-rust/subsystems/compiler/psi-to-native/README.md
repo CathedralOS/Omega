@@ -48,6 +48,12 @@ the `BoundFunctionBody` and bound entry recipes that stage 11 encodes. Only that
 module links the [binding issuer](representations/bound-framed-machine/issuer/issuer.rs),
 so stage 11 cannot accept a body or entry that skipped the check.
 
+Stages 12 and 13 share the work of laying out a function. Stage 12 fixes the
+instruction order and records any selected branch relaxation. Stage 13 writes
+instructions directly at their framed offsets and places calls and relocations
+in the closed text section. An audit retains the original layout and unframed
+rows so it can independently check the placed bytes. [Placement](pipeline/13_resolved-layout-to-placed-functions/src/lib.rs)
+
 | Stage | Lines | Produces | Read by |
 | --- | --- | --- | --- |
 | 00 admitted inputs | 919 | `AdmittedProviderDemand` (checks the authorization matches the artifact) | 01 only |

@@ -274,6 +274,8 @@ pub struct OptimizedMachineLayout {
     pub selections: optimization_core::OptimizationPhaseSelections,
     pub budget: optimization_core::OptimizationWorkBudget,
     pub relaxation: Option<X86BranchRelaxationIdentity>,
+    /// The issued trace whose identity the exit contract binds. Replay checks both.
+    pub trace: Option<Arc<X86BranchRelaxationRecord>>,
 }
 
 impl OptimizedMachineLayout {

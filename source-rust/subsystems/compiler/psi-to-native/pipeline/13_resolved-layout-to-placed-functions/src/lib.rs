@@ -1,6 +1,8 @@
 //! Apply encoded frame fragments, place functions and resolve internal calls before object construction.
 #![forbid(unsafe_code)]
 
+use std::sync::Arc;
+
 pub mod code_layout;
 mod exit_contract;
 mod fragment_emission;
@@ -17,17 +19,13 @@ pub use exit_contract::{
     WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
     WholeFunctionReturnValueEvidence,
 };
-pub use fragment_emission::{
-    FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmissionSource,
-};
 pub use frame_application::{
     CheckedFunctionBranches, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
     FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationError, PlacedBodyEvidence,
     StagedFunctionFragmentFrameApplication,
 };
-pub use function_realization::{
-    FunctionRelativeOptimizationRealizationError, StagedFixedFrameFunctionRelativeRealization,
-};
+pub use function_realization::FunctionRelativeOptimizationRealizationError;
+pub use machine_code::fragment_origins::ResolvedFragmentEmissionError as FunctionFragmentEmissionError;
 
 pub use text_placement::{
     FunctionPlacement, RelocationFreeTextSectionPlacementError,
@@ -44,19 +42,46 @@ pub fn place_function_text<Contracts>(
     let (layout, contracts) = layout.into_placement().ok_or(Placement(
         RelocationFreeTextSectionPlacementError::ArtifactMismatch,
     ))?;
-    let realized =
-        function_realization::assemble_fixed_frame_realization(layout).map_err(Realization)?;
-    let source = StagedOptimizedFunctionFragmentEmissionSource::new(realized);
+    let exits = function_realization::checked_exits(&layout).map_err(Realization)?;
+    let program = &layout.program;
     fragments_entered.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let fragments =
-        fragment_emission::stage_optimized_function_fragment_emission(source).map_err(Fragment)?;
-    let framed = frame_application::stage_function_fragment_frame_application(
-        fragments,
-        contracts.check_installed_branches,
+    let selections = program.context.publication.selections().identity();
+    let fragment_emission::FramedFunctions {
+        application,
+        unframed,
+        branches,
+    } = fragment_emission::emit_functions(
+        program,
         contracts.retain_original,
-    )
-    .map_err(Frame)?;
-    text_placement::stage_optimized_fixed_frame_text_section(framed, contracts).map_err(Placement)
+        contracts.check_installed_branches,
+    )?;
+    let application = Arc::new(application);
+    let body = Arc::new(PlacedBodyEvidence::capture(
+        program,
+        &application,
+        &branches,
+        contracts.check_installed_branches,
+    ));
+    let section = text_placement::place_fixed_frame(&application.fragments).map_err(Placement)?;
+    let native_layouts =
+        code_layout::requested_native_code_layouts(&section, &application.functions);
+    let text = StagedOptimizedFixedFrameTextSection {
+        contracts: contracts.publication,
+        encoded: contracts.encoded,
+        body: Arc::clone(&body),
+        text_section: Arc::new(section),
+        native_layouts,
+        selections,
+    };
+    Ok(FunctionPlacement {
+        text,
+        frame_application: unframed.map(|unframed| StagedFunctionFragmentFrameApplication {
+            layout,
+            exits,
+            unframed,
+            placed_body: body,
+        }),
+    })
 }
 
 #[derive(Debug)]
