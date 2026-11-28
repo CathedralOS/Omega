@@ -8,11 +8,14 @@ impl TypedTrees {
         &self,
         operand: &crate::declaration_selection::ProductDeclarationOperand,
     ) -> Result<&crate::source_state::trait_definition::Conformance, &'static str> {
+        // A check-only Build retypes its file under a provisional owner. The
+        // retained syntax still names the original source, so the backing
+        // is resolved from the selected copy that rejoins it.
         self.symbols
             .find_top_level_by_name_and_kinds_from_source(
                 &operand.path,
                 &[symbols::SymbolKind::Conformance],
-                operand.source_span,
+                self.symbols.rejoin_product_occurrence(operand.source_span),
             )
             .and_then(|symbol| self.conformance_by_symbol(symbol))
             .filter(|row| row.is_public)
