@@ -102,58 +102,56 @@ fn applied_service_invocation_preserves_a_lexically_shadowing_parameter() {
 }
 
 #[test]
-fn a_requirement_family_and_its_closed_applications_have_distinct_descriptions() {
-    use crate::source_state::expression::StaticMachineArgument;
+fn a_requirement_family_description_names_its_owner_and_refuses_unprepared_arguments() {
+    use crate::source_state::expression::{ExpressionNode, StaticMachineArgument};
     use crate::source_state::reflection::construction::callable_description_identity;
 
-    let text = r#"
+    let source = r#"
         boundary trait Reader {
             machine read<T>(word: u32) -> u32 reaches none crashes none;
         }
-        machine main() reaches Reader invokes Reader {
+        boundary trait Peer {
+            machine read<T>(word: u32) -> u32 reaches none crashes none;
+        }
+        machine main() reaches Reader reaches Peer invokes Reader invokes Peer {
             let first: u32 = Reader::read::<u32>(1);
-            let second: u32 = Reader::read::<u64>(2);
+            let second: u32 = Peer::read::<u32>(1);
         }
         "#;
-    let typed = crate::qualified_operator_home_tests::checked(&[("main.omg", text)]).unwrap();
-    let author = typed
-        .machines()
-        .iter()
-        .find(|m| m.name.as_str() == "main")
-        .unwrap()
-        .symbol;
-    let instances: Vec<_> = typed.closed_requirement_applications().collect();
-    let [first, second] = instances.as_slice() else {
-        panic!("two applications")
-    };
-    let template = first.template;
-    assert_eq!(second.template, template);
-    let describe = |symbol| {
-        let selected = StaticMachineArgument {
-            symbol,
+    let typed = crate::qualified_operator_home_tests::checked(&[("main.omg", source)]).unwrap();
+    let requester = typed.realized_machine_named("main").unwrap().symbol;
+    let mut descriptions = Vec::new();
+    for (_, node) in typed.expression_table.iter_expressions() {
+        let ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let bare = StaticMachineArgument {
+            symbol: call.target_symbol,
             ..Default::default()
         };
         let (requirement, identity) =
-            callable_description_identity(&typed, &selected, author).unwrap();
+            callable_description_identity(&typed, &bare, requester).unwrap();
         assert!(requirement);
-        identity
-    };
+        descriptions.push(identity);
 
-    let [declaration, family, revision] = describe(template);
-    let mut applications = Vec::new();
-    for instance in &instances {
-        let [owner, callable, source] = describe(instance.signature.symbol);
-        assert_eq!(owner, declaration);
-        assert_eq!(source, revision);
-        assert_ne!(callable, family);
-        applications.push(callable);
+        assert!(call.authored_machine_application.is_valid());
+        let unprepared = StaticMachineArgument {
+            authored_machine_application: call.authored_machine_application,
+            ..bare
+        };
+        let refusal = callable_description_identity(&typed, &unprepared, requester).unwrap_err();
+        assert!(
+            refusal.contains("requires its complete requirement application"),
+            "{refusal}"
+        );
     }
-    assert_ne!(applications[0], applications[1]);
-
-    let unresolved = StaticMachineArgument {
-        symbol: template,
-        authored_machine_application: first.application,
-        ..Default::default()
+    let [reader, peer] = descriptions.as_slice() else {
+        panic!("expected both requirement descriptions");
     };
-    assert!(callable_description_identity(&typed, &unresolved, author).is_err());
+    assert_ne!(reader[0], peer[0], "the declaring traits differ");
+    assert_ne!(reader[1], peer[1], "the callable identities differ");
+    assert_eq!(
+        reader[2], peer[2],
+        "both declarations share a source revision"
+    );
 }
