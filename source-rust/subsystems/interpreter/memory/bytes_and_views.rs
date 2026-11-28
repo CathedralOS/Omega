@@ -4010,6 +4010,19 @@ pub(crate) mod element_views {
             }
         }
 
+        pub(crate) fn exclusive_reborrow(&self) -> Result<Self, TerminalInterpretError> {
+            if self.access != StructuralAccess::SharedBorrow
+                || !matches!(self.backing, ElementViewBacking::Structural { .. })
+            {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "upgrade_mutability requires an array with writable elements",
+                ));
+            }
+            let mut exclusive = self.clone();
+            exclusive.access = StructuralAccess::MutableBorrow;
+            Ok(exclusive)
+        }
+
         pub(crate) fn subslice(
             &self,
             start: usize,
