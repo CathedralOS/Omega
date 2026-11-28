@@ -3691,3 +3691,112 @@ fn branch_selected_storage_keeps_every_backing_origin() {
         assert!(!super::case_flow::established(&replay, &machine, &written, fact));
     }
 }
+
+#[test]
+fn stepping_an_owner_returns_its_original_stack_and_keeps_other_loans_private() {
+    use semantic_vocabulary::{BoundaryMachineId, OperationId};
+    let owner = location(1);
+    let mut hidden = owner.clone();
+    hidden.path.push(DescriptorPathSegment::UnknownContents);
+    let preparation = BoundaryMachineId::new(1).unwrap();
+    let other_preparation = BoundaryMachineId::new(2).unwrap();
+    let identity = MachineId::new(1).unwrap();
+    let ty = StructuralTypeDeclaration {
+        shape: StructuralTypeShape::BorrowingOpaque {
+            lifetime_count: 1.try_into().unwrap(),
+        },
+        ..scalar_type(1)
+    };
+    let id = ty.id;
+    let machine = bare_machine(
+        identity,
+        vec![DescriptorPlace {
+            producer: None,
+            place: owner.root,
+            definition: DescriptorDefinition::Parameter {
+                position: 0,
+                structural_type: id,
+                access: StructuralAccess::Owned,
+            },
+        }],
+        [(owner.root, id)].into(),
+        BTreeSet::new(),
+    );
+    let types = [ty];
+    let graph = [machine];
+    let machine = &graph[0];
+    let replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
+    let locations = [Some(owner.clone())];
+    let inputs = [Some(DescriptorContentsQuery::from_location(&owner))];
+    let actuals = DescriptorActualInputs {
+        arguments: &locations,
+        argument_contents: &inputs,
+        scalar_arguments: &[],
+        native_address_arguments: &[],
+    };
+    let query = |preparation, worker_result| {
+        DescriptorStoredOrigin::OwnerBacking(OwnerBacking {
+            preparation,
+            owner: Box::new(DescriptorStoredOrigin::IncomingSlot {
+                position: 0,
+                path: hidden.path.clone(),
+            }),
+            projection: Projection::new(&[]),
+            worker_result,
+        })
+    };
+    let mut state = State::default();
+    state.slots_mut().insert(
+        hidden.clone(),
+        Some([Origin::Incoming(hidden.clone())].into()),
+    );
+    let formal = replay
+        .substitute_actuals(machine, &state, actuals, &query(preparation, None))
+        .expect("a helper can retain the backing query for its incoming owner");
+    assert_eq!(formal.len(), 1);
+    let observed = replay.resolved(machine, formal.clone()).unwrap();
+    assert!(
+        matches!(observed.as_slice(), [DescriptorCallOrigin::Argument { source, projection }]
+        if *source == owner.root && projection.indirect && !projection.exact)
+    );
+    let summary = replay.exported(machine, formal.first().unwrap()).unwrap();
+    // Two activations of the same worker each return their own caller storage.
+    for stack_slot in [2, 4] {
+        let stack = Origin::Storage(location(stack_slot));
+        let argument_loan = Origin::Storage(location(3));
+        let packet = ProducedContents {
+            producer: DescriptorInvocationSite {
+                machine: identity,
+                owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+            },
+            path: hidden.path.clone(),
+            structural_type: id,
+            lifetime_dependencies: vec![DescriptorLifetimeDebt {
+                origin: argument_loan.clone(),
+                access: StructuralAccess::SharedBorrow,
+            }],
+            activation_backing: Some(ActivationBacking {
+                preparation,
+                sources: vec![stack.clone()],
+                worker_result: [(Vec::new(), vec![argument_loan.clone()])].into(),
+            }),
+        };
+        state.slots_mut().insert(
+            hidden.clone(),
+            Some([Origin::ProducedContents(packet)].into()),
+        );
+        assert_eq!(
+            replay.substitute_actuals(machine, &state, actuals, &summary),
+            Some([stack].into())
+        );
+        assert_eq!(replay.substitute_actuals(machine, &state, actuals, &query(preparation, Some(vec![]))),
+            Some([argument_loan].into()));
+        assert!(replay.substitute_actuals(machine, &state, actuals,
+            &query(preparation, Some(hidden.path.clone()))).is_none());
+        assert!(
+            replay
+                .substitute_actuals(machine, &state, actuals, &query(other_preparation, None))
+                .is_none()
+        );
+    }
+}

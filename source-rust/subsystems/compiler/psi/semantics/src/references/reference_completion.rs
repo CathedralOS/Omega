@@ -1101,6 +1101,10 @@ fn retain_result_dependencies(
     let mut inputs = Vec::new();
     while let Some(origin) = pending.pop() {
         let (position, stored) = match origin {
+            DescriptorStoredOrigin::OwnerBacking(query) => {
+                pending.push(&query.owner);
+                continue;
+            }
             DescriptorStoredOrigin::Provider(provider) => {
                 pending.extend(
                     provider

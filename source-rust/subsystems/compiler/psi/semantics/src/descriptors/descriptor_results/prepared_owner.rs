@@ -1,18 +1,70 @@
-//! Preparation has no producer body to replay: it either returns each
-//! input unchanged or moves its obligations into an opaque execution owner.
+//! An execution owner keeps both its input loan obligations and the identity
+//! of its caller-supplied stack. Only a returning step releases that stack.
 use super::*;
-use crate::calls::owned_activation::PreparationShape;
+use crate::calls::owned_activation::{self, PreparationShape, ResumeShape, StepShape};
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
-use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult};
+use language_core::sealed_intrinsics::ActivationOperation;
+use semantic_vocabulary::{BoundaryMachineId, StructuralCaseId, StructuralFieldId};
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult, TerminalMachineResult};
+
+enum Transfer {
+    Prepare(PreparationShape),
+    Step(StepShape),
+    Resume(ResumeShape),
+}
+
+fn field(case: StructuralCaseId, member: StructuralFieldId) -> Vec<DescriptorPathSegment> {
+    vec![
+        DescriptorPathSegment::Case(case),
+        DescriptorPathSegment::Field(member),
+    ]
+}
+
+fn backing_from_owner(
+    preparation: BoundaryMachineId,
+    worker_result: Option<Vec<DescriptorPathSegment>>,
+) -> DescriptorStoredOrigin {
+    DescriptorStoredOrigin::OwnerBacking(replay::OwnerBacking {
+        preparation,
+        worker_result,
+        owner: Box::new(DescriptorStoredOrigin::IncomingSlot {
+            position: 0,
+            path: vec![DescriptorPathSegment::UnknownContents],
+        }),
+        projection: Projection::new(&[]),
+    })
+}
 
 pub(super) fn invocation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
     boundary: &BoundaryMachineDeclaration,
-    shape: PreparationShape,
+    control: ActivationOperation,
     kind: DescriptorSlotKind,
 ) -> Option<DescriptorInvocation> {
+    let transfer = match control {
+        ActivationOperation::Prepare => {
+            Transfer::Prepare(owned_activation::prepare_shape(module, boundary).ok()?)
+        }
+        ActivationOperation::StepFixed => Transfer::Step(
+            owned_activation::step_shape(
+                module,
+                boundary,
+                owned_activation::preparation_for(module, boundary).ok()?,
+            )
+            .ok()?,
+        ),
+        ActivationOperation::Resume => Transfer::Resume(
+            owned_activation::resume_shape(
+                module,
+                boundary,
+                owned_activation::preparation_for(module, boundary).ok()?,
+            )
+            .ok()?,
+        ),
+        ActivationOperation::Park => return None,
+    };
     let terminal_psi::OperationResult::Structural(out) = &operation.result else {
         return None;
     };
@@ -27,7 +79,27 @@ pub(super) fn invocation(
         return None;
     };
     let formals = &boundary.structural_parameters;
-    if out.structural_type != shape.result
+    let (result, next, owner_type, preparation) = match &transfer {
+        Transfer::Prepare(s) => (
+            s.result,
+            field(s.ready, s.owner),
+            s.owner_type,
+            s.selected.preparation,
+        ),
+        Transfer::Step(s) => (
+            s.result,
+            field(s.parked, s.owner),
+            s.suspended_owner,
+            s.selected.preparation,
+        ),
+        Transfer::Resume(s) => (
+            s.result,
+            field(s.ready, s.ready_field),
+            s.ready_owner,
+            s.selected.preparation,
+        ),
+    };
+    if out.structural_type != result
         || out.multiplicity != expected.multiplicity
         || out.qualifications != expected.qualifications
         || out.projected_qualifications != expected.projected_qualifications
@@ -61,46 +133,120 @@ pub(super) fn invocation(
             &actual.path,
             None,
         )?));
-        let field = match formal.position {
-            0 => shape.arguments,
-            1 => shape.retained,
+        let path = match (&transfer, formal.position) {
+            (Transfer::Prepare(s), 0) => field(s.rejected, s.arguments),
+            (Transfer::Prepare(s), 1) => field(s.rejected, s.retained),
+            (Transfer::Resume(s), 0) => field(s.mismatch, s.mismatch_owner),
+            (Transfer::Resume(s), 1) => field(s.mismatch, s.mismatch_permit),
+            (Transfer::Resume(s), 2) => field(s.mismatch, s.mismatch_value),
+            (Transfer::Step(_), 0) => continue,
             _ => return None,
         };
-        let rejected = |path: Vec<DescriptorPathSegment>| {
-            let mut destination = vec![
-                DescriptorPathSegment::Case(shape.rejected),
-                DescriptorPathSegment::Field(field),
-            ];
-            destination.extend_from_slice(&path);
+        let forward = |tail: Vec<DescriptorPathSegment>| {
+            let mut destination = path.clone();
+            destination.extend_from_slice(&tail);
             DescriptorResultSlot {
                 path: destination,
-                origins: vec![DescriptorStoredOrigin::IncomingSlot { position, path }],
+                origins: vec![DescriptorStoredOrigin::IncomingSlot {
+                    position,
+                    path: tail,
+                }],
             }
         };
         let inputs = kind.owned_inventory(types, formal.place, formal.structural_type)?;
-        results.extend(inputs.slots.into_iter().map(|s| rejected(s.path)));
+        results.extend(inputs.slots.into_iter().map(|s| forward(s.path)));
         contents.extend(
             inputs
                 .unknown_contents
                 .into_iter()
-                .map(|s| rejected(s.location.path)),
+                .map(|s| forward(s.location.path)),
         );
     }
-    // The successful owner has an identity and loan dependencies, but its
-    // hidden contents are not an address through which a caller can write.
-    let hidden = vec![
-        DescriptorPathSegment::Case(shape.ready),
-        DescriptorPathSegment::Field(shape.owner),
-        DescriptorPathSegment::UnknownContents,
-    ];
+
+    let selected = match &transfer {
+        Transfer::Prepare(s) => s.selected,
+        Transfer::Step(s) => s.selected,
+        Transfer::Resume(s) => s.selected,
+    };
+    let worker = module.machine(selected.entry_machine)?;
+    let mut worker_result = BTreeMap::new();
+    if let TerminalMachineResult::Structural(value) = &worker.result {
+        let inventory = kind.owned_inventory(types, value.place, value.structural_type)?;
+        let paths = inventory.slots.into_iter().map(|slot| slot.path).chain(
+            inventory
+                .unknown_contents
+                .into_iter()
+                .map(|slot| slot.location.path),
+        );
+        for path in paths {
+            let origins = match transfer {
+                Transfer::Prepare(_) => Vec::new(),
+                _ => vec![backing_from_owner(preparation, Some(path.clone()))],
+            };
+            worker_result.insert(path, origins);
+        }
+    }
+    let bind_worker_result = matches!(transfer, Transfer::Prepare(_)) && !worker_result.is_empty();
+    if let Transfer::Step(s) = &transfer {
+        let returned_stack = field(s.returned, s.retained);
+        let returned_value = field(s.returned, s.value);
+        let inventory = kind.owned_inventory(types, out.place, result)?;
+        let result_slot = |path: Vec<DescriptorPathSegment>| -> Option<DescriptorResultSlot> {
+            let projected = path.strip_prefix(returned_value.as_slice())?;
+            let origins = worker_result.get(projected)?.clone();
+            Some(DescriptorResultSlot { path, origins })
+        };
+        for slot in inventory.slots {
+            if slot.path == returned_stack {
+                results.push(DescriptorResultSlot {
+                    path: slot.path,
+                    origins: vec![backing_from_owner(preparation, None)],
+                });
+            } else if slot.path.starts_with(&returned_value) {
+                results.push(result_slot(slot.path)?);
+            }
+        }
+        for slot in inventory.unknown_contents {
+            if slot.location.path.starts_with(&returned_value) {
+                contents.push(result_slot(slot.location.path)?);
+            }
+        }
+    }
+    let mut stack_sources = Vec::new();
+    if kind.tracks_views() {
+        stack_sources.push(match transfer {
+            Transfer::Prepare(_) => DescriptorStoredOrigin::IncomingSlot {
+                position: formals.iter().position(|formal| formal.position == 1)?,
+                path: Vec::new(),
+            },
+            _ => backing_from_owner(preparation, None),
+        });
+    }
+    let stack = (!stack_sources.is_empty() || !worker_result.is_empty()).then_some(
+        replay::ActivationBacking {
+            preparation,
+            sources: stack_sources,
+            worker_result,
+        },
+    );
+    let mut hidden = next;
+    hidden.push(DescriptorPathSegment::UnknownContents);
     let packet = replay::ProducedContents {
         producer: DescriptorInvocationSite {
             machine: machine.id,
             owner,
         },
         path: hidden.clone(),
-        structural_type: shape.owner_type,
-        lifetime_dependencies: replay::retained_input_debts(types, formals)?,
+        structural_type: owner_type,
+        activation_backing: stack,
+        lifetime_dependencies: replay::retained_parameter_debts(
+            types,
+            formals.iter().enumerate().filter(|(_, formal)| {
+                // A successful reply consumes the answer permit. Its slot's loan
+                // lives on mismatch, whose result above preserves that exact permit.
+                !matches!(transfer, Transfer::Resume(_)) || formal.position != 1
+            }),
+        )?,
     };
     contents.push(DescriptorResultSlot {
         path: hidden,
@@ -112,15 +258,21 @@ pub(super) fn invocation(
         argument_contents,
         native_address_arguments: Vec::new(),
         scalar_arguments: Vec::new(),
-        // Unlike a general requirement, rejection returns the original values,
-        // not other references somewhere within their declared lifetimes.
-        target: DescriptorInvocationTarget::Public {
-            effects_machine: None,
-            realizations: Vec::new(),
-            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-            results,
-            contents,
-            invalidates_contents: false,
+        target: if bind_worker_result {
+            DescriptorInvocationTarget::PrepareWorker {
+                worker: selected.entry_machine,
+                results,
+                contents,
+            }
+        } else {
+            DescriptorInvocationTarget::Public {
+                effects_machine: None,
+                realizations: Vec::new(),
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                results,
+                contents,
+                invalidates_contents: false,
+            }
         },
         result: Some(DescriptorLocation::whole(out.place)),
     })

@@ -810,6 +810,13 @@ pub struct DescriptorInvocation {
 
 pub enum DescriptorInvocationTarget {
     Machine(MachineId),
+    /// Preparing this owner snapshots the sources of the worker's eventual
+    /// structural result. The worker has not run or produced effects at prepare.
+    PrepareWorker {
+        worker: MachineId,
+        results: Vec<DescriptorResultSlot>,
+        contents: Vec<DescriptorResultSlot>,
+    },
     Provider {
         results: Vec<DescriptorResultSlot>,
         effects: Vec<DescriptorStoredEffect>,
@@ -909,6 +916,7 @@ impl DescriptorInvocation {
         match self.target {
             DescriptorInvocationTarget::Machine(machine) => Some(machine),
             DescriptorInvocationTarget::Public { .. }
+            | DescriptorInvocationTarget::PrepareWorker { .. }
             | DescriptorInvocationTarget::Provider { .. } => None,
         }
     }
