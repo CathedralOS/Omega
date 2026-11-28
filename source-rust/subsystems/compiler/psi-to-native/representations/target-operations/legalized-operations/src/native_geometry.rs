@@ -389,7 +389,11 @@ mod tests {
                 .byte_length,
             32
         );
-        assert!(prepared.get(&rows, &[]).is_none());
+        assert!(
+            prepared
+                .get(&rows, StorageLayoutInputs::default())
+                .is_none()
+        );
     }
 
     #[test]
