@@ -265,7 +265,14 @@ fn set_phase(bytes: &mut Vec<u8>, phase: Phase) {
 fn context(bytes: &mut Vec<u8>, offset: u32, load: bool) -> Result<(), AdapterEncodingError> {
     for (index, register) in SAVED_REGISTERS.iter().copied().enumerate() {
         let member = offset + 8 * index as u32;
-        pointer_word(bytes, register, MachineRegister::X86Rdi, member, load)?;
+        if register == MachineRegister::X86Rsp {
+            // The ordinary value encoder excludes RSP. Only this private
+            // context transfer saves or restores the live stack pointer.
+            bytes.extend_from_slice(&[0x48, if load { 0x8b } else { 0x89 }, 0xa7]);
+            bytes.extend_from_slice(&member.to_le_bytes());
+        } else {
+            pointer_word(bytes, register, MachineRegister::X86Rdi, member, load)?;
+        }
     }
     // Save or restore the two callee-preserved FP controls using the same job
     // base. The incoming FP environment is inherited on the first entry.
