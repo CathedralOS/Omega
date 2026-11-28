@@ -2,7 +2,7 @@
 //! The checker validates case selection, restoration, and ownership separately.
 
 use std::cell::OnceCell;
-use std::collections::HashSet;
+use arena::IdSet;
 
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, Proposition, ScalarTerm, StructuralTypeId,
@@ -17,7 +17,7 @@ impl Lowering<'_> {
         root: PlaceId,
         types: &[StructuralTypeDeclaration],
         machine: &TerminalMachine,
-        exposed: &OnceCell<HashSet<StructuralTypeId>>,
+        exposed: &OnceCell<IdSet<StructuralTypeId>>,
     ) -> bool {
         let Some((_, carrier)) = self.roots.get(root) else {
             return false;
@@ -39,7 +39,7 @@ impl Lowering<'_> {
                 .all(|field| field.field_type.scalar_type().is_some())
             && !exposed
                 .get_or_init(|| self.exposed_array_types(machine))
-                .contains(carrier)
+                .contains(*carrier)
     }
 
     /// A view or whole-value use can expose an index absent from this
@@ -49,7 +49,7 @@ impl Lowering<'_> {
     fn exposed_array_types(
         &self,
         machine: &terminal_psi::TerminalMachine,
-    ) -> HashSet<StructuralTypeId> {
+    ) -> IdSet<StructuralTypeId> {
         use terminal_psi::{StructuralPathSegment as Path, StructuralStorageUse as Use};
 
         // A proof-level storage expression can name elements without any
@@ -68,9 +68,13 @@ impl Lowering<'_> {
             || self.signature.has_structural_guarantees()
             || machine.ranked_scc.is_some()
         {
-            return self.roots.values().map(|(_, ty)| *ty).collect();
+            let mut all = IdSet::new();
+            for (_, ty) in self.roots.values() {
+                all.insert(*ty);
+            }
+            return all;
         }
-        let mut exposed = HashSet::new();
+        let mut exposed = IdSet::new();
         let mut expose = |root| {
             if let Some((_, ty)) = self.roots.get(root) {
                 exposed.insert(*ty);

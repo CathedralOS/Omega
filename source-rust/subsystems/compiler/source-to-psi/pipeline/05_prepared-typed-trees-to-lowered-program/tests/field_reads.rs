@@ -458,5 +458,11 @@ fn mutable_sum_array_snapshots_preserve_overlapping_writes() {
     assert_eq!(small, large);
     program(8, "1").judged(|_| {}).accepted();
     let rejection = program(8, "index").judged(|_| {}).rejected();
-    assert!(rejection.unproved.iter().any(|kind| kind.starts_with("NormalGuarantee")), "{rejection:?}");
+    assert!(
+        rejection
+            .unproved
+            .iter()
+            .any(|kind| kind.starts_with("NormalGuarantee")),
+        "{rejection:?}"
+    );
 }
