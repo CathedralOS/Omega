@@ -1792,7 +1792,7 @@ pub(crate) mod completion {
             }
         }
 
-        fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
+        pub(crate) fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
             self.retired_structural_homes = caller.retired_structural_homes;
             self.access_view_occurrences = caller.access_view_occurrences;
             self.values = caller.values;
@@ -1822,6 +1822,9 @@ pub(crate) mod completion {
                     _loan_completions: Vec::new(),
                 });
                 return Err(error);
+            }
+            if self.returning_owned_activation() {
+                return self.finish_owned_activation(completed);
             }
             let Some(mut caller) = self.call_stack.pop() else {
                 if completed.destination.is_some() {
@@ -2169,7 +2172,7 @@ pub(crate) mod structural_return {
             {
                 return Err(malformed());
             }
-            let destination = match self.call_stack.last() {
+            let destination = match self.call_stack.last().filter(|_| !self.returning_owned_activation()) {
                 Some(SuspendedCall {
                     structural_values,
                     scalar_array_values,
@@ -2264,7 +2267,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last()
+                }) = self.call_stack.last().filter(|_| !self.returning_owned_activation())
                 {
                     for row in preserved_projected_qualifications {
                         if crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
@@ -2284,7 +2287,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last()
+                }) = self.call_stack.last().filter(|_| !self.returning_owned_activation())
                 {
                     let mut receiving = Vec::new();
                     for row in &result.projected_qualifications {
@@ -2422,7 +2425,7 @@ pub(crate) mod structural_return {
                         },
                     );
                 }
-                let rebound_claims = match self.call_stack.last() {
+                let rebound_claims = match self.call_stack.last().filter(|_| !self.returning_owned_activation()) {
                     Some(SuspendedCall {
                         live_claims,
                         result:
@@ -2459,7 +2462,7 @@ pub(crate) mod structural_return {
                             ..
                         },
                     ..
-                }) = self.call_stack.last()
+                }) = self.call_stack.last().filter(|_| !self.returning_owned_activation())
                 {
                     let mut active = Vec::new();
                     for row in &result.projected_qualifications {

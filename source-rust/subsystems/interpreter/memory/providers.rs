@@ -348,7 +348,7 @@ pub(crate) mod entry {
 
         pub(crate) fn is_live_provider_owner(&self, home: &StructuralRuntimePlace) -> bool {
             self.call_stack
-                .iter()
+                .values()
                 .map(|frame| (&frame.live_claims, &frame.structural_values))
                 .chain(once((&self.live_claims, &self.structural_values)))
                 .any(|(claims, values)| {

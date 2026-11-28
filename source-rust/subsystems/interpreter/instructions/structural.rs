@@ -1662,8 +1662,7 @@ impl TerminalExecution<'_> {
         let mut memberships = Vec::new();
         for (frame_index, place, owner) in self
             .call_stack
-            .iter()
-            .enumerate()
+            .stored()
             .flat_map(|(frame_index, frame)| {
                 frame
                     .structural_values
@@ -1673,12 +1672,12 @@ impl TerminalExecution<'_> {
             .chain(
                 self.structural_values
                     .iter()
-                    .map(|(place, owner)| (self.call_stack.len(), place, owner)),
+                    .map(|(place, owner)| (self.call_stack.current(), place, owner)),
             )
             .chain(
                 self.linear_homes
                     .iter()
-                    .map(|(place, owner)| (self.call_stack.len(), place, owner)),
+                    .map(|(place, owner)| (self.call_stack.current(), place, owner)),
             )
         {
             if window.aggregate_view {
@@ -1758,7 +1757,7 @@ impl TerminalExecution<'_> {
             storage.publish(self)?;
         }
         for (frame_index, place, repaired) in memberships {
-            if frame_index == self.call_stack.len() {
+            if frame_index == self.call_stack.current() {
                 if place == destination && reserved.is_some() && !publishes_value {
                     self.linear_homes.insert(place, repaired)?;
                 } else {

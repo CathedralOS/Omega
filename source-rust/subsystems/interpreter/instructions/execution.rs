@@ -3122,11 +3122,12 @@ pub(crate) mod execution {
         pub(crate) current_machine: MachineId,
         pub(crate) current: BlockId,
         pub(crate) next_operation: usize,
-        pub(crate) call_stack: Vec<SuspendedCall>,
+        pub(crate) call_stack: crate::frame_store::Frames<SuspendedCall>,
         pub(crate) awaiting_effect: Option<Box<crate::engine::calls::PendingBoundaryCall>>,
         pub(crate) last_park: u64,
         // A prepared child keeps its own control across steps. A caller cannot
         // supply another producer's pending answer at the same instruction.
+        pub(crate) owned_activations: crate::activation::OwnedActivations,
         pub(crate) owned_step: Option<crate::activation::StepControl>,
         pub(crate) result: Option<TerminalExecutionResult>,
         pub(crate) returned_byte_sequence: Option<ByteSequenceBinding>,
@@ -3367,7 +3368,7 @@ pub(crate) mod execution {
 
     macro_rules! frame_field_mut {
         ($execution:ident, $depth:expr, $field:ident) => {
-            if $depth == $execution.call_stack.len() {
+            if $depth == $execution.call_stack.current() {
                 &mut $execution.$field
             } else {
                 &mut $execution
@@ -3594,9 +3595,10 @@ pub(crate) mod execution {
                 entry_results: None,
                 scalar_applications: None,
                 scalar_entry_checks: None,
-                call_stack: Vec::new(),
+                call_stack: crate::frame_store::Frames::new(),
                 awaiting_effect: None,
                 last_park: 0,
+                owned_activations: crate::activation::OwnedActivations::new(account.as_ref()),
                 owned_step: None,
                 result: None,
                 returned_byte_sequence: None,
@@ -4026,7 +4028,7 @@ pub(crate) mod execution {
                 .values()
                 .chain(
                     self.call_stack
-                        .iter()
+                        .values()
                         .flat_map(|frame| frame.structural_values.values()),
                 )
                 .chain(self.result.iter().filter_map(|result| match result {
