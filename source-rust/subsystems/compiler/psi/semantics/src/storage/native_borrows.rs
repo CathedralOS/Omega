@@ -6,6 +6,8 @@ use terminal_psi::{OperationKind, StructuralArgument, TerminalMachine};
 pub struct NativeAddressOrigin<'a> {
     /// Storage whose observed address contributed to this scalar, including at joins.
     pub sources: Vec<&'a StructuralArgument>,
+    /// Scalar formals whose actual addresses must be resolved at a direct call.
+    pub parameters: Vec<ValueId>,
     /// Every route supplies the start of one and the same place.
     pub exact: bool,
 }
@@ -13,6 +15,7 @@ pub struct NativeAddressOrigin<'a> {
 pub fn address_origin(machine: &TerminalMachine, value: ValueId) -> NativeAddressOrigin<'_> {
     let mut work = vec![value];
     let mut visited = std::collections::HashSet::new();
+    let mut parameters = Vec::new();
     let mut sources = Vec::new();
     let mut exact = true;
     while let Some(value) = work.pop() {
@@ -42,6 +45,8 @@ pub fn address_origin(machine: &TerminalMachine, value: ValueId) -> NativeAddres
                 }
                 _ => exact = false,
             }
+        } else if machine.parameters.iter().any(|formal| formal.id == value) {
+            parameters.push(value);
         } else if let Some((block, position)) = machine.blocks.iter().find_map(|block| {
             block.parameters.iter().position(|parameter| parameter.id == value)
                 .map(|position| (block.id, position))
@@ -59,7 +64,8 @@ pub fn address_origin(machine: &TerminalMachine, value: ValueId) -> NativeAddres
             exact = false;
         }
     }
-    NativeAddressOrigin { exact: exact && sources.len() == 1, sources }
+    parameters.sort_unstable();
+    NativeAddressOrigin { exact: exact && parameters.is_empty() && sources.len() == 1, sources, parameters }
 }
 
 
