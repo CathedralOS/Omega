@@ -500,7 +500,9 @@ pub mod structural_reference_input {
                             *referent,
                             position + 1,
                             scalar_descriptor,
-                            if scalar_descriptor || declarations.storage_inputs().is_package_witness(*referent) {
+                            if scalar_descriptor
+                                || declarations.storage_inputs().is_package_witness(*referent)
+                            {
                                 runtime_abi::ScalarReferenceLayout::NATIVE.byte_size
                             } else {
                                 8

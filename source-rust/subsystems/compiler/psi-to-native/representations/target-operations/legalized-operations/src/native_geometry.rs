@@ -5,7 +5,9 @@
 //! discard preparation by accepting only a slice of declarations.
 
 use arena::NonDenseIdentities;
-use calling_conventions::terminal_layout::{NativeGeometry as PhysicalGeometry, StorageLayoutInputs};
+use calling_conventions::terminal_layout::{
+    NativeGeometry as PhysicalGeometry, StorageLayoutInputs,
+};
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId, TargetCarrierLayout};
 use target::NativeTarget;
 use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration};

@@ -2029,11 +2029,16 @@ pub(crate) fn validate(
             owned_argument::validate_owned_arguments(source, call, operation).ok_or_else(invalid)?;
         }
         for (argument_index, argument) in call.arguments.iter().enumerate() {
-            if let LegalizedScalarArgument::Structural { semantic, target, .. } = argument
+            if let LegalizedScalarArgument::Structural {
+                semantic, target, ..
+            } = argument
                 && target.opened_referent.is_some()
                 && (!matches!(owner, target_vocabulary::CallSiteOwner::Operation(_))
                     || !matches!(call.source, target_vocabulary::NativeCallOrigin::Authored)
-                    || !matches!(call.target, target_vocabulary::NativeCallTarget::Callable { .. })
+                    || !matches!(
+                        call.target,
+                        target_vocabulary::NativeCallTarget::Callable { .. }
+                    )
                     || semantic.access == StructuralAccess::Owned
                     || semantic.path.last() != Some(&terminal_psi::StructuralPathSegment::Referent))
             {
