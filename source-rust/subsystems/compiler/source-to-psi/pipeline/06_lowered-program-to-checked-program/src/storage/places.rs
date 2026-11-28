@@ -4716,6 +4716,11 @@ impl<'a> Storage<'a> {
             return Ok(None);
         };
         if held_type != result.scalar_type {
+            if terminal_semantics::packages::projects_stored_callable(
+                self.module, self.lowered, operation, held_type,
+            ) {
+                return Ok(None);
+            }
             return Err(self.unsupported(
                 concerns,
                 "a place holds a value of another type than its read",

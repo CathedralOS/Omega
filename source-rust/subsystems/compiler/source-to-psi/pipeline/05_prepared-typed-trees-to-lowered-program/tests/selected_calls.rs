@@ -463,3 +463,43 @@ machine metres_sum(a: u8 in Metres, b: u8 in Metres) -> u8 in Metres {{ b + a }}
     // Twin: the two declarations exchange domains, so the callees exchange.
     assert_eq!(lowered_callees("Metres", "Km"), ["join", "combine"]);
 }
+
+#[test]
+fn scope_exit_restores_each_hidden_mutable_reference_in_an_array() {
+    let source = "
+data File { value: u8; }
+data Socket { other: u8; value: u8; }
+data Handle<'a, some State> { state: @'a mutable State; }
+machine main() {
+    let mutable file: File = File { value: 17u8 };
+    let mutable socket: Socket = Socket { other: 0u8, value: 42u8 };
+    let handles: [Handle; 2] = [
+        Handle { state: @mutable file }, Handle { state: @mutable socket }
+    ];
+}";
+    let program = Program::of(source);
+    let lowered = program.elaboration();
+    let sites = &lowered.module.execution.packages.sites;
+    let witnesses: Vec<_> = sites
+        .iter()
+        .filter_map(|site| match &site.event {
+            terminal_psi::TerminalPackageEvent::Construct { witnesses } => Some(witnesses),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(witnesses.len(), 2);
+    assert_ne!(witnesses[0], witnesses[1]);
+    let mut released = Vec::new();
+    for operation in program.machine("main").operations() {
+        if let OperationKind::ReleaseReference { path, .. } = &operation.kind
+            && let [
+                terminal_psi::StructuralPathSegment::FixedIndex(index),
+                terminal_psi::StructuralPathSegment::Field(_),
+            ] = path.as_slice()
+        {
+            released.push(*index);
+        }
+    }
+    released.sort_unstable();
+    assert_eq!(released, [0, 1]);
+}
