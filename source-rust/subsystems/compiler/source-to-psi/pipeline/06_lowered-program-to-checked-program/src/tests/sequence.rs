@@ -138,6 +138,8 @@ ensures |proof|::Identity::<N>(repeat(s.state, n), N::Z)
     );
 }
 
+const SAMPLER_RULE: &str = "a static machine argument must have its parameter's formals and result";
+
 #[test]
 fn a_sampler_must_take_the_state_and_an_index() {
     // `Sampler<N>` takes a state and an index; a machine of the state
@@ -153,9 +155,7 @@ ensures |proof|::Identity::<N>(repeat(s.state), s.state)
     ));
     let violations = violations(&verdicts);
     assert!(
-        violations
-            .iter()
-            .any(|rule| rule.contains("a static machine argument must have its parameter's formals and result")),
+        violations.iter().any(|rule| rule.contains(SAMPLER_RULE)),
         "{verdicts:?}"
     );
 }
@@ -175,9 +175,32 @@ ensures |proof|::Identity::<N>(N::Z, N::Z)
     ));
     let violations = violations(&verdicts);
     assert!(
-        violations
-            .iter()
-            .any(|rule| rule.contains("a static machine argument must have its parameter's formals and result")),
+        violations.iter().any(|rule| rule.contains(SAMPLER_RULE)),
         "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_conditional_sampler_needs_evidence_even_to_form_its_sequence() {
+    let verdicts = judged(&sequences(
+        "machine only_zero(state: N, n: N) -> N
+requires |proof|::Identity::<N>(n, N::Z)
+{ state }",
+        "machine holds_state(s: Sequence<N, only_zero>)
+ensures |proof|::Identity::<N>(s.state, s.state)
+{}",
+    ));
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::FallBack(refusal)
+                if refusal.detail.contains("record machine argument with an unproved premise")
+        )),
+        "{verdicts:?}"
+    );
+    assert!(
+        !verdicts
+            .iter()
+            .any(|verdict| matches!(verdict, RouteVerdict::Laws(_)))
     );
 }

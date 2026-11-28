@@ -440,3 +440,60 @@ fn an_indexed_borrow_only_holds_the_owner_through_its_last_use() {
         other => panic!("expected overlapping exclusive loans, got {other:?}"),
     }
 }
+
+#[test]
+fn a_reference_in_a_generic_case_keeps_its_input_loan() {
+    let mutable = "data Cell { value: u32; } data Wrapped<T> { case Ready(value: T); case Empty; }
+        machine keep<'a, 'b>(first: @'a mutable Cell, second: @'b mutable Cell) -> Wrapped<@'a mutable Cell> {
+            Wrapped::Ready { value: first }
+        }";
+    for (source, access) in [
+        (mutable.to_owned(), StructuralAccess::MutableBorrow),
+        (
+            mutable.replace("mutable Cell", "Cell"),
+            StructuralAccess::SharedBorrow,
+        ),
+    ] {
+        let program = Program::of(&source);
+        program.judged(|_| {}).accepted();
+        let keep = program.machine("keep");
+        let (place, _, published_access) = returned_origin(&program, keep);
+        assert_eq!(place, formal(keep, 0));
+        assert_eq!(published_access, access);
+
+        let other = formal(keep, 1);
+        let refusal = program
+            .judged_in("keep", |machine| {
+                let TerminalMachineResult::Structural(result) = &mut machine.contract.result else {
+                    unreachable!()
+                };
+                let StructuralReferenceOrigin::Parameter(origin) =
+                    &mut result.reference_sources[0].sources[0]
+                else {
+                    unreachable!()
+                };
+                origin.place = other;
+            })
+            .refused();
+        assert!(refusal.detail.contains(REFERENCE_ORIGIN), "{refusal:?}");
+
+        let wrong = source.replace("value: first", "value: second");
+        let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+            .err()
+            .expect("unrelated input lifetime");
+        assert!(refusal.message.contains("another lifetime"), "{refusal:?}");
+    }
+}
+
+#[test]
+fn forwarding_an_applied_sum_preserves_its_occurrence_lifetime() {
+    let source = "data Cell { value: u32; } data Wrapped<T> { case Ready(value: T); case Empty; }
+        machine forward<'a, 'b>(left: Wrapped<@'a mutable Cell>, right: Wrapped<@'b mutable Cell>)
+            -> Wrapped<@'a mutable Cell> { left }";
+    Program::of(source).judged(|_| {}).accepted();
+    let wrong = source.replace("{ left }", "{ right }");
+    let refusal = Program::try_of(&[("product/main.omg", &wrong)])
+        .err()
+        .expect("different occurrence lifetime");
+    assert!(refusal.message.contains("another lifetime"), "{refusal:?}");
+}

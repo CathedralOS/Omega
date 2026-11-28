@@ -296,6 +296,15 @@ component installation. External provider readiness goes through
 `poll_effect_readiness` and needs a checked suspension crossing. The Build
 application, not either interpreter hook, schedules product queries.
 
+When a checked call actually parks, `AwaitingEffect` identifies both the
+instruction and this visit to it. Polling a still-parked call reports the
+same occurrence; another activation or a later visit to the same instruction
+reports a different one. Observing it does not answer the provider or grant
+permission to resume. An event loop can pass it to `recheck_suspension`:
+a stale notification does not poll any provider, and a matching notification
+polls the original provider rather than declaring it ready. A work-budget
+pause has no suspension occurrence.
+
 The host reads storage through `TerminalInstance::observe_storage`. It selects
 a root and a canonical declaration path. On normal return the root may be the
 result or an original borrowed argument. While a synchronous host computation

@@ -66,6 +66,8 @@ mod float_integer;
 mod float_meaning;
 #[path = "prove/ieee_float_order.rs"]
 mod ieee_float_order;
+#[path = "prove/linear.rs"]
+mod linear;
 #[path = "prove/mathematical_bounds.rs"]
 mod mathematical_bounds;
 #[path = "prove/premise_order.rs"]
@@ -2644,7 +2646,10 @@ impl<'a> Prover<'a> {
                         "integer order antisymmetry requires one non-address integer carrier",
                     );
                 }
-                if let Some(proof) = self.equal_through_equations(goal) {
+                if let Some(proof) = self
+                    .equal_through_equations(goal)
+                    .or_else(|| self.linear_equality(goal))
+                {
                     return Ok(proof);
                 }
                 self.antisymmetry(
@@ -2680,6 +2685,7 @@ impl<'a> Prover<'a> {
                     .reflexive(goal.clone())
                     .or_else(|| self.closed(goal.clone()))
                     .or_else(|| self.by_transport(goal))
+                    .or_else(|| self.linear_equality(goal))
                 {
                     return Ok(proof);
                 }

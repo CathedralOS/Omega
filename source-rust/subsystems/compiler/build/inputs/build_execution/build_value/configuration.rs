@@ -102,9 +102,7 @@ pub(crate) fn extract_build_settings(
     };
 
     let elf_interpreters = match field("elf_interpreter") {
-        Ok(BuildTimeValue::Struct { fields, .. }) => {
-            ElfInterpreterSelections::from_build_rows(fields)?
-        }
+        Ok(BuildTimeValue::Struct { fields, .. }) => elf_interpreter_selections(fields)?,
         Ok(other) => {
             return Err(format!(
                 "Build.elf_interpreter is not an ElfInterpreterSelection struct: {other:?}"
@@ -173,6 +171,30 @@ pub(crate) fn extract_build_settings(
         },
         optimization_report,
     ))
+}
+
+fn elf_interpreter_selections(
+    rows: &[(String, BuildTimeValue)],
+) -> Result<ElfInterpreterSelections, String> {
+    let mut selections = ElfInterpreterSelections::default();
+    for target in target::ELF_INTERPRETER_TARGET_PROFILES {
+        let name = target.target_name();
+        let Some((_, value)) = rows.iter().find(|(row, _)| row == name) else {
+            continue;
+        };
+        let BuildTimeValue::Text(bytes) = value else {
+            return Err(format!(
+                "Build.elf_interpreter.{name} is not bytes: {value:?}"
+            ));
+        };
+        if bytes.is_empty() {
+            continue;
+        }
+        let plan = target::normalize_elf_interpreter_plan(bytes.clone(), target)
+            .map_err(|error| format!("Build.elf_interpreter.{name} is invalid: {error}"))?;
+        selections.set_explicit(plan);
+    }
+    Ok(selections)
 }
 
 #[cfg(test)]
@@ -245,6 +267,42 @@ mod tests {
             .find(|(field, _)| field == name)
             .expect("the production Build has the tested field");
         *field = changed;
+    }
+
+    #[test]
+    fn elf_loader_fields_preserve_target_defaults_and_diagnostics() {
+        use target::TargetProfile::{LinuxArm64, LinuxX64};
+        let x64 = LinuxX64.target_name();
+        let arm = LinuxArm64.target_name();
+        let custom = b"/runtime/ld-omega.so";
+        let choices = elf_interpreter_selections(&[
+            (x64.into(), BuildTimeValue::Text(custom.to_vec())),
+            (arm.into(), BuildTimeValue::Text(Vec::new())),
+        ])
+        .unwrap();
+        assert_eq!(
+            choices.explicit(LinuxX64).unwrap().interpreter_path(),
+            custom
+        );
+        assert_eq!(choices.explicit(LinuxArm64), None);
+        assert_eq!(
+            choices.effective(LinuxArm64),
+            target::declared_elf_interpreter_default(LinuxArm64)
+        );
+        assert_eq!(
+            elf_interpreter_selections(&[(
+                x64.into(),
+                BuildTimeValue::Text(b"relative/ld.so".to_vec())
+            )])
+            .unwrap_err(),
+            format!(
+                "Build.elf_interpreter.{x64} is invalid: ELF interpreter plan path is not absolute"
+            ),
+        );
+        assert_eq!(
+            elf_interpreter_selections(&[(arm.into(), BuildTimeValue::Unit)]).unwrap_err(),
+            format!("Build.elf_interpreter.{arm} is not bytes: Unit"),
+        );
     }
 
     #[test]

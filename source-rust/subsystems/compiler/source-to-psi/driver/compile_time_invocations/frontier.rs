@@ -375,17 +375,6 @@ impl PreCheckEvaluation {
         Ok(())
     }
 
-    /// The evaluation continuation of the program `activation` narrowed out
-    /// of a retained base.
-    ///
-    /// Only the activated program's requests are this continuation's to
-    /// account for. The base also holds sources the program did not select,
-    /// and the requests of their declarations stay with the base's own
-    /// continuation; they do not stop a program that holds none of them.
-    pub fn activate_sources(&self, activation: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
-        Self::require_recorded_requests(activation)?;
-        Ok(self.clone())
-    }
     /// Refuses until every continuation of one typed program has rejoined
     /// the current declaration authority. The program's requests are already
     /// recorded on its declarations (`defer_declared_requests`).

@@ -1,7 +1,9 @@
 use crate::errors::parse_error::ParseError;
 use crate::parameters::relevance::parse_binding_relevance_brackets;
 use crate::token_input::cursor::{Input, ParseResult};
-use crate::types::references::parse_type_reference_handle_allowing_borrow;
+use crate::types::references::{
+    parse_binding_type_reference, parse_type_reference_handle_allowing_borrow,
+};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{StateParameterHandle, StateSignature};
@@ -100,12 +102,11 @@ fn parse_parameter_type_reference<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<(TypeReferenceHandle, bool, Input<'tokens, 'source>), ParseError> {
     if !input.at_punctuation(PunctuationKind::At) {
-        let (type_reference, input) =
-            parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+        let (type_reference, input) = parse_binding_type_reference(syntax_trees, input)?;
         return Ok((type_reference, false, input));
     }
 
-    let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+    let (type_reference, input) = parse_binding_type_reference(syntax_trees, input)?;
     let borrowed_mutable = matches!(
         syntax_trees.type_references.type_reference(type_reference),
         syntax_trees::types::TypeReferenceNode::Reference {

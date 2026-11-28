@@ -17,11 +17,14 @@ use symbols::SymbolHandle;
 
 #[derive(Debug, Default, PartialEq, Eq, record_storage::Record)]
 #[record(
-    format = b"OmegaTypedTrees1",
+    format = b"OmegaTypedTrees3",
     write_scope = crate::source_state::type_identity::write_under_own_numbering
 )]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
+    pub package_openings: arena::RootedArena<package_openings::PackageOpening>,
+    /// Retained projection results, ordered by expression identity.
+    pub package_projections: Vec<package_openings::PackageProjection>,
     /// The entered declaration of a private Build judgment, in this forest's
     /// source table. Its entry file is checked whole for a subject request.
     /// A later request establishes its own selection when reusing typed source.
@@ -85,6 +88,7 @@ mod callables;
 mod definitions;
 mod exports;
 mod expressions;
+pub mod package_openings;
 mod proofs;
 mod storage;
 mod type_records;

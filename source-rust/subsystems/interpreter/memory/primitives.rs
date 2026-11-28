@@ -5965,6 +5965,36 @@ pub(crate) mod storage_addresses {
             Ok(identity)
         }
 
+        /// Resolve the caller's address before lending an array window across
+        /// instances. The receiving component never interprets a caller frame.
+        pub(crate) fn lent_array_window_address(
+            &mut self,
+            window: &crate::storage::byte_sequences::OriginalByteArrayWindow,
+        ) -> Result<Option<ScalarStorageAddress>, TerminalInterpretError> {
+            let end = window
+                .offset
+                .checked_add(window.length)
+                .ok_or(malformed())?;
+            if end > self.stored_byte_array_length(&window.array)? {
+                return Err(malformed());
+            }
+            if window.length == 0 {
+                return Ok(None);
+            }
+            let (namespace, root, path) =
+                self.endpoint_identity(PrimitiveStorageEndpoint::ArrayElement {
+                    array: window.array.clone(),
+                    index: window.offset,
+                })?;
+            Ok(Some(ScalarStorageAddress {
+                namespace: namespace
+                    .or(self.local_structural_identities.exposure_namespace)
+                    .ok_or_else(exhausted)?,
+                root,
+                path,
+            }))
+        }
+
         fn endpoint_identity(
             &mut self,
             endpoint: PrimitiveStorageEndpoint,
@@ -6035,6 +6065,16 @@ pub(crate) mod storage_addresses {
                     place
                 }
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
+                    if let Some((original, offset)) = bytes.component_array_address(index) {
+                        let mut path = original.path.clone();
+                        let Some((0, first)) = path.last_mut() else {
+                            return Err(malformed());
+                        };
+                        *first = first
+                            .checked_add(u64::try_from(offset).map_err(|_| exhausted())?)
+                            .ok_or_else(exhausted)?;
+                        return Ok((Some(original.namespace), original.root, path));
+                    }
                     if bytes.original_array().is_some() {
                         let original =
                             crate::storage::primitive_storage::original_scalar_storage_endpoint(
@@ -6697,6 +6737,26 @@ pub(crate) mod storage_addresses {
             let independent =
                 ByteSequenceView::new(ByteSequenceStorage::copy(&[1, 2, 3, 4], None).unwrap());
             assert_ne!(view_addr(&mut execution, independent, 2), snapshot_address);
+        }
+
+        #[test]
+        fn a_shared_component_subslice_keeps_its_callers_element_address() {
+            let mut caller = execution();
+            let array = array(&mut caller, 17);
+            let (namespace, root, path) = array_addr(&mut caller, &array, 2);
+            let address = (
+                namespace.or(caller.local_structural_identities.exposure_namespace),
+                root,
+                path,
+            );
+            let mut window = shared(&caller, &array).subslice(1, 4).unwrap();
+            window.lend_array_to_component(&mut caller).unwrap();
+
+            let mut child = execution();
+            let mut nested = window.subslice(1, 2).unwrap();
+            assert_eq!(view_addr(&mut child, nested.clone(), 0), address);
+            nested.lend_array_to_component(&mut child).unwrap();
+            assert_eq!(view_addr(&mut execution(), nested, 0), address);
         }
 
         #[test]

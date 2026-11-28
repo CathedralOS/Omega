@@ -415,8 +415,20 @@ specialization selected (`StaticRequirementDispatch`) and is read as that
 implementation's row (`dispatched_row`); `Identity::<T>` there is the type
 the copy's specialization binds `T` to; and a law cited as
 `E::identity_of_equal` has the requirement's header at the implementation's
-own arguments. What an
-operation ensures does not stop a clause naming it; a precondition does.
+own arguments. A row the compiler synthesized for an implementation that
+authors no `equals` is instead read as its checked body, however a clause
+names it: `CoinEq::equals(@a, @b)`, the requirement's `equals(@left,
+@right)` read for a member, or `E::equals` in a copy
+(`synthesized_comparison`, `unfold_synthesized_comparison`). That body is
+stage 03's field-by-field expansion, so the clause states the field
+comparisons `a == b` does ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Compiler-synthesized structural equality is proof-transparent through its
+ordinary checked body"). Each operand must lend a formal in scope, as
+`@a` of a by-value formal or a shared borrowed formal. A copied
+requirement's `Identity::<T>` names the implementation's type at the
+implementation's header, where stage 02 wrote it (`copied_requirement`).
+What an operation ensures does not stop a clause naming it; a precondition
+does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 

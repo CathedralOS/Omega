@@ -56,6 +56,7 @@ mod machine;
 mod mathematics;
 mod nominal_applications;
 mod numeric_contracts;
+mod packages;
 mod places;
 mod predicates;
 mod proof_stratum;

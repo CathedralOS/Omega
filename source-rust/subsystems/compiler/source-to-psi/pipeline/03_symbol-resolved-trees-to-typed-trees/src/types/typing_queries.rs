@@ -91,6 +91,14 @@ pub(crate) fn selected_construction_field_type(
     literal: &TableStructLiteral,
     symbol: SymbolHandle,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    if let Some(package) = &literal.package {
+        return package
+            .fields
+            .iter()
+            .find(|f| f.symbol == symbol)
+            .map(|f| f.ty)
+            .ok_or_else(|| crate::unavailable_judgment("package constructor field type"));
+    }
     let table = &program.expression_table;
     let application = [
         table.construction_required_type_reference(expression),
@@ -510,6 +518,9 @@ fn declared_projection_type(
     target: ExpressionHandle,
     mut root_type: impl FnMut(&TableNamePath) -> Result<TypeReferenceHandle, Diagnostic>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    if let Some(projection) = program.package_projection(target) {
+        return Ok(projection.result_type);
+    }
     let table = &program.expression_table;
     let mut spine = Vec::new();
     let mut cursor = target;
@@ -788,6 +799,9 @@ pub(crate) fn scoped_expression_type_reference(
             return Err(crate::unavailable_judgment(
                 "stale or cyclic value type query",
             ));
+        }
+        if let Some(projection) = program.package_projection(expression) {
+            return Ok(Some(projection.result_type));
         }
         if let Some(reference) = program
             .declared_callable_expression_type_reference(expression)
@@ -1190,14 +1204,17 @@ pub(crate) fn defer_unbound_calls(
     completed: &[SymbolHandle],
 ) -> Result<(), Diagnostic> {
     let cohort = crate::lowerer::TypingCohort::for_machines(frontier, completed);
-    let owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
-    defer_unbound_calls_in_cohort(program, &cohort, &owners)
+    defer_unbound_calls_in_cohort(
+        program,
+        &cohort,
+        crate::expressions::operand_owners::CohortOperandOwners::full,
+    )
 }
 
 pub(crate) fn defer_unbound_calls_in_cohort(
     program: &mut TypedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
-    owners: &crate::expressions::operand_owners::CohortOperandOwners,
+    collect_owners: impl FnOnce(&TypedTrees) -> crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     use crate::source_state::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
@@ -1441,6 +1458,7 @@ pub(crate) fn defer_unbound_calls_in_cohort(
             }
         }
         if !in_expressions.is_empty() {
+            let owners = collect_owners(program);
             for (handle, request, bare, path) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
                 let mut owned = false;
@@ -1659,6 +1677,9 @@ impl DeclaredExpressionTypes {
         owner: SymbolHandle,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
+        if let Some(projection) = program.package_projection(expression) {
+            return Some(projection.result_type);
+        }
         let key = (owner, expression);
         if let Some(result) = self.rows.get(&key) {
             return *result;
@@ -2811,7 +2832,13 @@ mod tests {
 
     #[test]
     fn empty_call_and_transition_rosters_record_nothing() {
-        assert_eq!(deferred(&TypedTrees::default()).unwrap(), Vec::new());
+        let mut program = TypedTrees::default();
+        let cohort = crate::lowerer::TypingCohort::for_machines(0, &[]);
+        defer_unbound_calls_in_cohort(&mut program, &cohort, |_| {
+            panic!("empty call and transition rosters need no operand owners")
+        })
+        .unwrap();
+        assert!(program.deferred_refusals.is_empty());
     }
 
     #[test]

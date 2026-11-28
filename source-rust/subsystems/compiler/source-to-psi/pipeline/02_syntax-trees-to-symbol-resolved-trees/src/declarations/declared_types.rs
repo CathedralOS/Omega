@@ -402,13 +402,47 @@ mod static_operands {
             );
         }
 
+        pub(super) fn retain_opening_names(
+            syntax: &SyntaxTrees,
+            mut reference: TypeReferenceHandle,
+            bound: &mut Vec<String>,
+        ) {
+            while reference.is_valid() {
+                match syntax.type_references.type_reference(reference) {
+                    TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                    TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                    TypeReferenceNode::Generic { arguments, .. } => {
+                        bound.extend(
+                            syntax
+                                .type_references
+                                .type_reference_handles(*arguments)
+                                .iter()
+                                .filter_map(|handle| {
+                                    match syntax.type_references.type_reference(*handle) {
+                                        TypeReferenceNode::SomeOpening(name) => {
+                                            Some(name.as_str(syntax).to_owned())
+                                        }
+                                        _ => None,
+                                    }
+                                }),
+                        );
+                        return;
+                    }
+                    _ => return,
+                }
+            }
+        }
+
         pub(super) fn retain_statement_bindings(
             syntax: &SyntaxTrees,
             statement: StatementHandle,
             bound: &mut Vec<String>,
         ) {
             match syntax.statements.statement(statement) {
-                StatementNode::LocalData(local) => bound.push(local.name.as_str(syntax).to_owned()),
+                StatementNode::LocalData(local) => {
+                    bound.push(local.name.as_str(syntax).to_owned());
+                    Self::retain_opening_names(syntax, local.type_reference, bound);
+                }
                 StatementNode::ProofOutputBindingStatement(output) => bound.extend(
                     output
                         .bindings
@@ -669,7 +703,7 @@ impl Expansion<'_, '_> {
             return Ok(());
         }
         let node = syntax.type_references.type_reference(reference).clone();
-        let (head, lifetimes, arguments) = match &node {
+        let (head, lifetimes, mut arguments) = match &node {
             TypeReferenceNode::Named(name) => (Some(name.clone()), Vec::new(), Vec::new()),
             TypeReferenceNode::Generic {
                 base_name,
@@ -701,13 +735,31 @@ impl Expansion<'_, '_> {
                     SymbolKind::Machine,
                 ],
             );
-            for (position, argument) in arguments.iter().enumerate() {
-                if parameters
-                    .as_ref()
-                    .and_then(|parameters| parameters.get(position))
-                    .is_some_and(|parameter| *parameter == GenericParameterRole::Type)
-                {
-                    self.reference(syntax, *argument, bound)?;
+            if let Some(parameters) = parameters {
+                let public = parameters
+                    .iter()
+                    .filter(|&&role| role != GenericParameterRole::PackageWitness);
+                let is_opening = |argument: &TypeReferenceHandle| matches!(
+                    syntax.type_references.type_reference(*argument), TypeReferenceNode::SomeOpening(_)
+                );
+                if arguments.iter().any(is_opening) {
+                    super::declaration_selection::package_opening_positions(
+                        syntax, &head, &parameters, &arguments
+                    )?;
+                    arguments.retain(|argument| !is_opening(argument));
+                } else if parameters.contains(&GenericParameterRole::PackageWitness) {
+                    let expected = public.clone().count();
+                    if arguments.len() != expected {
+                        return Err(Diagnostic::error(format!(
+                            "public argument count for package `{}` is {expected}, received {} (each value chooses its own `some` witnesses)",
+                            head.as_str(syntax), arguments.len()
+                        )).with_source_span(head.source_span()));
+                    }
+                }
+                for (argument, role) in arguments.iter().zip(public) {
+                    if *role == GenericParameterRole::Type {
+                        self.reference(syntax, *argument, bound)?;
+                    }
                 }
             }
             if let Some(declaration) = declaration {
@@ -1212,6 +1264,9 @@ pub(super) fn normalize(
 fn needs_normalization(syntax: &SyntaxTrees, selection: &ConstantSelection<'_>) -> bool {
     selection.has_aliases()
         || syntax.items.type_parameter_entries().any(|parameter| {
+            if matches!(parameter.kind, TypeParameterKind::SomeType) {
+                return true;
+            }
             let TypeParameterKind::Const { type_reference } = parameter.kind else {
                 return false;
             };
@@ -1223,6 +1278,18 @@ fn needs_normalization(syntax: &SyntaxTrees, selection: &ConstantSelection<'_>) 
                 } => name.as_str(syntax).contains("::"),
                 _ => false,
             }
+        })
+        || selection.retained_base().is_some_and(|base| {
+            base.tables
+                .declarations
+                .data_type_parameters
+                .iter()
+                .any(|(_, parameter)| {
+                    matches!(
+                        parameter.kind,
+                        crate::source_resolved::data::TypeParameterKind::SomeType
+                    )
+                })
         })
 }
 
@@ -1349,16 +1416,14 @@ impl Expansion<'_, '_> {
         signature: &syntax_trees::item::StateSignature,
         inherited: &[String],
     ) -> Result<(), Diagnostic> {
-        let bound = self.parameters(syntax, signature.type_parameters, inherited, true)?;
-        self.reference(syntax, signature.return_type, &bound)?;
+        let mut bound = self.parameters(syntax, signature.type_parameters, inherited, true)?;
         let parameters = syntax.items.state_parameters(signature.parameters).to_vec();
         for parameter in parameters {
-            self.reference(
-                syntax,
-                syntax.items.state_parameter(parameter).type_reference,
-                &bound,
-            )?;
+            let reference = syntax.items.state_parameter(parameter).type_reference;
+            self.reference(syntax, reference, &bound)?;
+            Self::retain_opening_names(syntax, reference, &mut bound);
         }
+        self.reference(syntax, signature.return_type, &bound)?;
         let mut expression_bound = bound.clone();
         expression_bound.extend(
             syntax
@@ -1464,16 +1529,14 @@ impl Expansion<'_, '_> {
         self.contract_static_operands(syntax, machine.contracts, &entry_bound)?;
         for handle in states {
             let state = syntax.items.state(handle).clone();
-            self.reference(syntax, state.return_type, &bound)?;
+            let mut expression_bound = bound.clone();
             let parameters = syntax.items.state_parameters(state.parameters).to_vec();
             for parameter in parameters {
-                self.reference(
-                    syntax,
-                    syntax.items.state_parameter(parameter).type_reference,
-                    &bound,
-                )?;
+                let reference = syntax.items.state_parameter(parameter).type_reference;
+                self.reference(syntax, reference, &expression_bound)?;
+                Self::retain_opening_names(syntax, reference, &mut expression_bound);
             }
-            let mut expression_bound = bound.clone();
+            self.reference(syntax, state.return_type, &expression_bound)?;
             expression_bound.extend(syntax.items.state_parameters(state.parameters).iter().map(
                 |handle| {
                     syntax

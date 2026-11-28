@@ -3,6 +3,43 @@ use nat.omg;
 use nat_metric.omg;
 use rat.omg;
 
+// A sequence carries its state. Its type selects the total machine that
+// samples that state at a natural-number index.
+public data Sampler<S> = machine(state: S, n: |nat|::Nat) -> |rat|::Rat
+    reaches none crashes none terminates;
+
+public data Sequence<S, const At: Sampler<S>> {
+    state: S;
+}
+
+public machine repeat(state: |rat|::Rat, n: |nat|::Nat) -> |rat|::Rat {
+    state
+}
+
+public machine constant(q: |rat|::Rat) -> Sequence<|rat|::Rat, repeat> {
+    Sequence { state: q }
+}
+
+public machine constant_sample(q: |rat|::Rat, n: |nat|::Nat)
+ensures |proof|::Identity::<|rat|::Rat>(repeat(constant(q).state, n), q)
+{
+}
+
+// Multiplying the bound 1/m + 1/n by mn gives m + n. Both samples of
+// this sequence are q, so their gap meets the bound at any positive indices.
+// The denominator of every sample is q.den, as constant_sample establishes.
+public machine constant_regular_at(q: |rat|::Rat, m: |nat|::Nat, n: |nat|::Nat)
+ensures |proof|::Identity::<|nat|::Nat>(
+    |rat|::rat_within(
+        repeat(constant(q).state, m), repeat(constant(q).state, n),
+        |nat|::add(m, n), |nat|::mul(m, n)
+    ),
+    |nat|::Nat::Zero
+)
+{
+    |rat|::rat_within_reflexive(q, |nat|::add(m, n), |nat|::mul(m, n));
+}
+
 // Constructive Cauchy obligations over core Rat's division-free metric.
 //
 // Quantification uses Omega's ordinary theorem-machine rule: `precision`,

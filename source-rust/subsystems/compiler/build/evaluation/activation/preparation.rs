@@ -23,6 +23,7 @@ use build_model::contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
+    pub(crate) network: package_compilation::build_execution::BuildNetworkInvocation,
     pub(crate) programs: Arc<crate::host::programs::ProgramInstallation>,
     original_sources: Option<Arc<super::OriginalBuildSources>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
@@ -45,6 +46,7 @@ impl PreparedBuildExecution {
         original_sources: Option<Arc<super::OriginalBuildSources>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
+            network,
             programs,
             prepared,
             produced,
@@ -82,6 +84,7 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
+            network,
             programs,
             original_sources,
             execution_purpose,
@@ -112,6 +115,7 @@ impl PreparedBuildExecution {
             Arc::clone(&self.machine),
             &self.filesystem_scope,
             Arc::clone(&self.programs),
+            self.network,
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),

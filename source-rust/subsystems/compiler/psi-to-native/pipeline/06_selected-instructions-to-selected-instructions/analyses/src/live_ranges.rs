@@ -475,8 +475,6 @@ pub mod compute {
                         operands,
                         virtual_uses: vec![],
                         virtual_defs: vec![],
-                        virtual_live_in: vec![],
-                        virtual_live_out: vec![],
                         unit_uses: vec![],
                         unit_defs: vec![],
                         unit_clobbers: vec![],

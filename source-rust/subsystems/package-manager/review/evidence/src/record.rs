@@ -16,15 +16,17 @@ use crate::record::accessors::field_projection_accessors;
 pub(crate) use authority::{
     PackageReviewBooleanExpression, PackageReviewDangerousAuthority,
     PackageReviewDangerousAuthoritySlack, PackageReviewIeeeFloatComparisonKind,
-    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
-    PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
-    PackageReviewPrimitiveType, PackageReviewProgressSubject, PackageReviewRuntimeIndex,
-    PackageReviewScalarExpression, PackageReviewStructuralParameterField,
-    PackageReviewStructuralPredicatePathSegment,
+    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind, PackageReviewPrimitiveType,
+    PackageReviewProgressSubject, PackageReviewRuntimeIndex, PackageReviewScalarExpression,
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
 pub use authority::{
     PackageReviewCrashCause, PackageReviewCrashInterface, PackageReviewDangerousAuthorityClass,
     PackageReviewInstallationReach, PackageReviewWriteFrameCompleteness,
+};
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use authority::{
+    PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
 };
 pub use baseline::{
     PackagePolicyBaseline, PackagePolicyComponentAssumption, PackagePolicyNativeApplication,
@@ -32,11 +34,15 @@ pub use baseline::{
 };
 use build_providers::acceptance::AcceptedSemanticBinding;
 use build_providers::plans::ServiceSchema;
+#[cfg(any(test, feature = "full-policy-recovery"))]
 pub(crate) use calling::{
-    PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
-    PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
-    PackagePolicyCallbackLayoutApplication, PackagePolicyCallbackMaterialization,
-    PackagePolicyCallingOpaqueUse, PackagePolicyEntryStack, PackagePolicyPreemption,
+    PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackInlineField,
+    PackagePolicyCallbackMaterialization,
+};
+pub(crate) use calling::{
+    PackagePolicyCallbackDestination, PackagePolicyCallbackLayout,
+    PackagePolicyCallbackLayoutApplication, PackagePolicyCallingOpaqueUse, PackagePolicyEntryStack,
+    PackagePolicyPreemption,
 };
 pub use calling::{
     PackagePolicyCallbacks, PackagePolicyCallingParameter, PackagePolicyCallingPlan,
@@ -44,9 +50,10 @@ pub use calling::{
     PackagePolicyMachineStateSet, PackagePolicyNativeParameter, PackagePolicyNativeParameterOrigin,
     PackagePolicyPhysicalCallingContract, PackagePolicyStatePlan,
 };
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use conformances::PackagePolicyConformanceRow;
 pub(crate) use conformances::{
     PackagePolicyClosedConformanceApplication, PackagePolicyConformanceConstArgument,
-    PackagePolicyConformanceRow,
 };
 pub use contracts::{
     PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate,
@@ -59,20 +66,22 @@ pub use contracts::{
     PackageReviewResultCaseIdentity, PackageReviewSynchronousInvocation,
 };
 pub(crate) use contracts::{
-    PackageReviewAtomicLoadOrdering, PackageReviewConstructorField,
-    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
-    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator, PackageReviewMatchArm,
+    PackageReviewAtomicLoadOrdering, PackageReviewContractEvidenceArgument,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
     PackageReviewOperatorRealization, PackageReviewPropositionApplication,
-    PackageReviewPropositionBinder, PackageReviewPropositionBinderArgument,
-    PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
-    PackageReviewPropositionParameterApplication, PackageReviewPropositionShape,
-    PackageReviewPublicPropositionBody,
+    PackageReviewPropositionBinder, PackageReviewPropositionBinderArgumentKind,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
+    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+};
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use contracts::{
+    PackageReviewConstructorField, PackageReviewContractEvidenceTerm, PackageReviewMatchArm,
+    PackageReviewPropositionBinderArgument,
 };
 pub(crate) use package::{
     PackagePolicyBoundaryApplicationDemand, PackagePolicyCallableConformance,
-    PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate,
-    PackagePolicyServiceProgressPremise, PackagePolicyServiceProgressRoute,
+    PackagePolicyProviderFamily, PackagePolicyServiceProgressRoute,
     PackageReviewBoundaryApplicationArgument, PackageReviewProviderFamilyCoverage,
     PackageReviewProviderSelectionAuthority, PackageReviewSymbolicBoundaryApplicationArgument,
 };
@@ -88,19 +97,23 @@ pub use package::{
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderGrantSelectorKind,
     PackageReviewSelectedInstallationReach,
 };
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use package::{
+    PackagePolicyProviderFamilyCoordinate, PackagePolicyServiceProgressPremise,
+};
 pub use policy_rows::{
     PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
     PackagePolicyRowUsage,
 };
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use public_policy::PackagePolicyMachineParameterSignature;
+pub(crate) use public_policy::PackagePolicyOperatorShape;
 pub(in crate::record) use public_policy::validation;
 pub use public_policy::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
     PackagePolicyMachineParameterContract, PackagePolicyPublicApi, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackagePolicyTypeAlias, PackagePolicyTypeParameter,
     PackagePolicyTypeParameterKind,
-};
-pub(crate) use public_policy::{
-    PackagePolicyMachineParameterSignature, PackagePolicyOperatorShape,
 };
 pub use representation::{
     PackagePolicyRepresentation, PackageReviewBoundaryShape, PackageReviewBoundaryShapeField,
@@ -128,6 +141,8 @@ pub(crate) use restricted_build::{
     PackagePolicyRestrictedBuildGrantRoot, PackagePolicyRestrictedBuildOperation,
 };
 use semantic_vocabulary::PackageKeyIdentity;
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use signatures::PackageReviewPropositionParameterValue;
 pub use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackageReviewBorrowOrigin,
     PackageReviewConformanceBound, PackageReviewForeignLocator,
@@ -139,7 +154,7 @@ pub(crate) use signatures::{
     PackagePolicyExternalBinding, PackagePolicyExternalCallableSignature,
     PackagePolicyExternalExecutableSupply, PackagePolicyExternalRequirement,
     PackageReviewExternalCallableParameter, PackageReviewPropositionParameterSignature,
-    PackageReviewPropositionParameterValue, PackageReviewRequirementRealization,
+    PackageReviewRequirementRealization,
 };
 use source_provenance::PackageSourceConsumptionCommitment;
 mod authority_expressions;

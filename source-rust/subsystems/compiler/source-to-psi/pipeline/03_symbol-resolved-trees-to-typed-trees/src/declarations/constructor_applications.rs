@@ -3,6 +3,8 @@
 //! This forms types and selections; the lowered checker still judges fields,
 //! argument admission, generic eligibility and declaration requirements.
 
+mod package;
+
 use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use crate::source_state::expression::{
     ExpressionHandle, ExpressionNode, StaticMachineArgument, TableBorrowExpression,
@@ -36,7 +38,15 @@ pub(crate) fn prepare_in_cohort(
         .iter_expressions_from(frontier + 1)
         .map(|(handle, _)| handle)
         .collect();
+    let mut packages = Vec::new();
     for expression in expressions {
+        if let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+            && let Some(data) = program.unique_data_definition_by_symbol(literal.type_symbol)
+            && !data.package_parameters.is_empty()
+        {
+            packages.push(expression);
+        }
         infer(program, expression, &mut Vec::new())?;
         let needs_owner = match program.expression_table.expression(expression) {
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
@@ -117,6 +127,11 @@ pub(crate) fn prepare_in_cohort(
                 call.authored_machine_application = application;
             }
         }
+    }
+    // Operand types (including fresh borrows) are now available, before the
+    // receiving field types are used to select or check callable values.
+    for literal in packages {
+        package::construct(program, literal)?;
     }
     let mut statements = Vec::new();
     let mut terminal_calls = Vec::new();
@@ -613,7 +628,7 @@ fn infer_call(
     } else {
         &[]
     };
-    let (parameters, formals) =
+    let (parameters, formals, result) =
         if let Some((owner, signature)) = program.trait_machine_signature(call.target) {
             if !owner.type_parameters.is_empty()
                 || !owner.lifetime_parameters.is_empty()
@@ -624,6 +639,7 @@ fn infer_call(
             (
                 program.state_signature_type_parameters(signature).to_vec(),
                 program.state_signature_parameters(signature).to_vec(),
+                signature.return_type,
             )
         } else {
             // The retained declaration owns the written prefix. Complete
@@ -647,12 +663,13 @@ fn infer_call(
             let Some(state) = state else {
                 return Ok(None);
             };
-            if machine.has_bodyless_signature() || machine.type_parameters.len() <= supplied.len() {
+            if machine.type_parameters.len() <= supplied.len() {
                 return Ok(None);
             }
             (
                 program.machine_callable_parameters(machine),
                 program.state_parameters(state).to_vec(),
+                state.return_type,
             )
         };
     let Some(omitted) = parameters.get(supplied.len()..) else {
@@ -683,6 +700,18 @@ fn infer_call(
             &mut Vec::new(),
         )
         .map_err(|error| error.with_source_span(call.source_span))?;
+    }
+    // A borrowed view can name its type only in the result. Its destination
+    // then supplies the argument that the operands leave open.
+    if let Some(expected) = call.expected_result
+        && inferred.iter().any(Option::is_none)
+        && program.type_reference_table.contains_type_reference(result)
+        && program
+            .type_reference_table
+            .contains_type_reference(expected)
+    {
+        unify(program, result, expected, omitted, &mut inferred)
+            .map_err(|error| error.with_source_span(call.source_span))?;
     }
     let Some(inferred) = inferred.into_iter().collect::<Option<Vec<_>>>() else {
         return Ok(None);
@@ -911,6 +940,9 @@ fn infer(
 ) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
     if !program.expression_table.expression_is_valid(value) {
         return Ok(None);
+    }
+    if let Some(projection) = program.package_projection(value) {
+        return Ok(Some(projection.result_type));
     }
     let retained = program
         .expression_table
@@ -1687,6 +1719,37 @@ mod tests {
                 .operand_lifetime_owner(reference),
             owner
         );
+    }
+
+    #[test]
+    fn a_bodyless_call_infers_its_header_without_inventing_an_unused_argument() {
+        let source = r#"
+            boundary machine exchange<Field, Value>(field: @mutable Field) -> Value;
+            machine caller(field: @mutable u8) -> u32 {
+                let value: u32 = exchange(field);
+                value
+            }
+        "#;
+        let arguments = |text: &str| {
+            let program = checked(&[("main.omg", text)]).unwrap();
+            let call = program
+                .expression_table
+                .expression_entries()
+                .find_map(|(_, node)| match node {
+                    ExpressionNode::Call(call) if call.target.as_str() == "exchange" => Some(call),
+                    _ => None,
+                })
+                .unwrap();
+            program
+                .expression_table
+                .static_machine_application_arguments(call.authored_machine_application)
+                .iter()
+                .map(|argument| program.display_type_reference(argument.type_reference))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(arguments(source), ["u8", "u32"]);
+        let missing = source.replace("exchange<Field, Value>", "exchange<Field, Value, Missing>");
+        assert!(arguments(&missing).is_empty());
     }
 
     #[test]

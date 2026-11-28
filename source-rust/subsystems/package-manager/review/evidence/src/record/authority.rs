@@ -11,10 +11,13 @@
 use super::PackageReviewNominalIdentity;
 pub(crate) use super::authority_expressions::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
-    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
-    PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
-    PackageReviewPrimitiveType, PackageReviewRuntimeIndex, PackageReviewScalarExpression,
+    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind, PackageReviewPrimitiveType,
+    PackageReviewRuntimeIndex, PackageReviewScalarExpression,
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
+};
+#[cfg(any(test, feature = "full-policy-recovery"))]
+pub(crate) use super::authority_expressions::{
+    PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
 };
 use crate::record::PackageReviewServiceIdentity;
 use crate::record::accessors::field_projection_accessors;
@@ -86,6 +89,13 @@ pub enum PackageReviewCrashInterface {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(
+    not(any(test, feature = "full-policy-recovery")),
+    expect(
+        dead_code,
+        reason = "only full policy recovery constructs these wire variants"
+    )
+)]
 pub(crate) enum PackageReviewProgressSubject {
     Declaration(PackageReviewNominalIdentity),
     Parameter(u32),

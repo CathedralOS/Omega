@@ -14,8 +14,10 @@ use std::path::PathBuf;
 
 #[derive(Clone)]
 pub(crate) struct CompileArguments {
+    pub(crate) staged_build: bool,
     pub(crate) build_dir: Option<PathBuf>,
     pub(crate) programs: package_compilation::build_execution::BuildProgramInvocation,
+    pub(crate) network: package_compilation::build_execution::BuildNetworkInvocation,
     pub(crate) build_directories: platform_custody::directory_mappings::DirectoryMappings,
     pub(crate) build_inputs: Option<BuildSourceCaptureRequest>,
     pub(crate) check_only: bool,
@@ -37,9 +39,9 @@ pub(crate) struct CompileArguments {
 
 pub(super) const USAGE: &str = concat!(
     "usage: omega --check [<root.omg>]\n       omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--bootstrap-assumptions <review-record>] [--interrupt-delivery-assumptions <review-record>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... [--validator <ExactName>]... [--every-validator] <root.omg>\n       ",
-    "omega build [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <ms>]]... [--compare-tests] <root.omg>\n       omega --emit-psi <program.psi> [--max-psi-output-bytes <bytes>] [--target <name>]... <root.omg>\n       omega --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] [--target <name>] [--build-dir <dir>] <program.psi>\n       ",
+    "omega build [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--allow Network] [--network-peer <ip:port> [--network-max-datagram <bytes>]] [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <ms>]]... [--compare-tests] <root.omg>\n       omega --emit-psi <program.psi> [--max-psi-output-bytes <bytes>] [--target <name>]... <root.omg>\n       omega --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] [--target <name>] [--build-dir <dir>] <program.psi>\n       ",
     super::run::run_help!(synopsis),
-    "\n       omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file> [--max-psi-input-bytes <bytes>]\n       omega source parse [--] <file>\n       omega source rewrite <ExactRule>... [--check] <root.omg>\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\n       omega --version\n--compare-tests compares interpreted registered tests with their compiled executables.\n--verify requires --check. Source checking re-verifies the captured package sources under their locked pins.\n--offline disables package source network acquisition for this invocation.\nrun and psi inspect do not support --offline.\nFor omega run, --target selects the target environment for interpretation.\n",
+    "\n       omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file> [--max-psi-input-bytes <bytes>]\n       omega source parse [--] <file>\n       omega source rewrite <ExactRule>... [--check] <root.omg>\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\n       omega --version\n--compare-tests compares interpreted registered tests with their compiled executables.\nomega build <root.omg> evaluates the staged Build with the invocation's grants.\nThe version 4 compilation route, omega <root.omg>, consumes adjacent lock decisions when present.\n--verify requires --check. Source checking re-verifies the captured package sources under their locked pins.\n--offline disables package source network acquisition for this invocation.\nrun and psi inspect do not support --offline.\nFor omega run, --target selects the target environment for interpretation.\n",
     super::run::run_help!(work_budget),
     "\n",
     super::run::run_help!(host_packages),
@@ -52,7 +54,7 @@ pub(super) fn parse_arguments(
     let mut build_dir = None;
     let mut build_inputs = Vec::new();
     let mut build_directories = Default::default();
-    let mut programs = package_compilation::build_execution::BuildProgramInvocation::default();
+    let mut grants = super::build_grants::Arguments::default();
     let mut check_only = false;
     let mut compare_tests = false;
     let mut emit_psi = None;
@@ -78,7 +80,7 @@ pub(super) fn parse_arguments(
             continue;
         }
 
-        if super::programs::take(&argument, arguments, &mut programs)? {
+        if grants.take(&argument, arguments)? {
             continue;
         }
 
@@ -336,9 +338,11 @@ pub(super) fn parse_arguments(
                 .into(),
         );
     }
-    super::programs::finish(&mut programs)?;
+    let (programs, network) = grants.finish()?;
     Ok(Some(CompileArguments {
+        staged_build: false,
         programs,
+        network,
         emit_psi,
         trusted_artifact,
         max_psi_input_bytes,

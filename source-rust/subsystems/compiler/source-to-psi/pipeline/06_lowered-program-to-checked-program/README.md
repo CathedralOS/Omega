@@ -60,7 +60,13 @@ outcome; one that is proved adds the subjects' identity
 ([equality.rs](src/proofs/equality.rs), `integer_bridges`). So a law whose
 comparison ensures `result == (left.value == right.value)` proves the record's
 identity from that comparison, and the identity proves the comparison true.
-Mixed types, addresses and other relations get no bridge.
+Mixed types, addresses and other relations get no bridge. A goal that is
+such a comparison, or a conjunction of them and of Boolean comparisons as a
+synthesized record comparison states, is retried one comparison at a time
+as the truth an identity proves when the arithmetic prover leaves it open
+and an Identity is known (`Discharged::Identities`). An equality of two
+pairs gives the equality of each component (`paired`), so a record's
+identity gives each field's.
 
 A law over data that contains itself is judged apart from every machine.
 Stage 05 hands this crate one

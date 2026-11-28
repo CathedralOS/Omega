@@ -35,6 +35,37 @@ pub struct EvaluatedBuild {
     pub source_completion_accounting: source_completion_accounting::SourceCompletionAccounting,
 }
 
+impl EvaluatedBuild {
+    /// A source graph can use one Product for two independently executed registrations
+    /// when their Build choices, staged outputs and accepted demands agree.
+    pub fn same_product_and_observations(&self, other: &Self) -> bool {
+        self.configuration
+            .same_product_and_observations(&other.configuration)
+            && self.preparations.len() == other.preparations.len()
+            && self.preparations.iter().zip(&other.preparations).all(
+                |((entry, result), (other_entry, other_result))| {
+                    entry == other_entry && result.same_product_and_observations(other_result)
+                },
+            )
+            && self.restricted_build_requests == other.restricted_build_requests
+            && self.base_source_consumption_commitment == other.base_source_consumption_commitment
+            && self.subject_validation == other.subject_validation
+            && self.constants == other.constants
+            && self.interpreter_providers == other.interpreter_providers
+            && self.dependency_validation.len() == other.dependency_validation.len()
+            && self
+                .dependency_validation
+                .iter()
+                .zip(&other.dependency_validation)
+                .all(|(a, b)| {
+                    a.purpose == b.purpose
+                        && a.inputs == b.inputs
+                        && a.configuration
+                            .same_product_and_observations(&b.configuration)
+                })
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BuildSubjectValidation {
     EntryOnly,

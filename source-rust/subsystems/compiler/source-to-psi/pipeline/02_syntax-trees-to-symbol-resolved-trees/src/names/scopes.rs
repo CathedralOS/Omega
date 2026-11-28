@@ -332,7 +332,7 @@ impl BinderRole {
     pub(super) fn of(kind: &crate::source_resolved::data::TypeParameterKind) -> Self {
         use crate::source_resolved::data::TypeParameterKind;
         match kind {
-            TypeParameterKind::Type => Self::Type,
+            TypeParameterKind::Type | TypeParameterKind::SomeType => Self::Type,
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => Self::Value,
             TypeParameterKind::Implementation
             | TypeParameterKind::Machine { .. }
@@ -609,6 +609,48 @@ impl LexicalRequirements<'_> {
             _ => SymbolHandle::invalid(),
         }
     }
+}
+
+/// Names introduced by the stable package bindings in lexical scope.
+pub(super) fn with_openings<'a, 'b>(
+    parameters: &'a [crate::source_resolved::data::TypeParameter],
+    types: &crate::source_resolved::types::TypeReferenceArena,
+    annotations: impl IntoIterator<Item = &'b crate::source_resolved::types::TypeReference>,
+) -> std::borrow::Cow<'a, [crate::source_resolved::data::TypeParameter]> {
+    use crate::source_resolved::data::{TypeParameter, TypeParameterKind};
+    if types.package_openings.is_empty() {
+        return std::borrow::Cow::Borrowed(parameters);
+    }
+    let mut scoped = std::borrow::Cow::Borrowed(parameters);
+    for reference in annotations {
+        for opened in types.annotation_openings(reference) {
+            if opened.symbol.is_valid() {
+                scoped.to_mut().push(TypeParameter {
+                    symbol: opened.symbol,
+                    name: opened.name.clone(),
+                    kind: TypeParameterKind::SomeType,
+                    bounds: Default::default(),
+                });
+            }
+        }
+    }
+    scoped
+}
+
+pub(super) fn with_local_openings<'a>(
+    parameters: &'a [crate::source_resolved::data::TypeParameter],
+    types: &crate::source_resolved::types::TypeReferenceArena,
+    statements: &[crate::source_resolved::statement::Statement],
+) -> std::borrow::Cow<'a, [crate::source_resolved::data::TypeParameter]> {
+    use crate::source_resolved::statement::Statement;
+    with_openings(
+        parameters,
+        types,
+        statements.iter().filter_map(|statement| match statement {
+            Statement::LocalData(local) => Some(&local.type_reference),
+            _ => None,
+        }),
+    )
 }
 
 pub(super) struct MachineScope<'program> {

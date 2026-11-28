@@ -36,7 +36,7 @@ pub(crate) const CONTAINED_LIVE_WAIT_NANOSECONDS: u64 = 60_000_000_000;
 /// directory mappings replace it. Mapped directories confine every path
 /// beneath their retained handles; a host without that namespace gets
 /// standard streams alone.
-fn filesystem(
+pub(super) fn standalone_filesystem(
     mut directories: platform_custody::directory_mappings::DirectoryMappings,
 ) -> Result<TerminalFilesystemDelegation, TerminalRuntimeError> {
     if directories.is_empty() {
@@ -68,7 +68,7 @@ pub(super) fn execute(
     psi_work_budget: u64,
     directories: platform_custody::directory_mappings::DirectoryMappings,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    let filesystem = filesystem(directories)?;
+    let filesystem = standalone_filesystem(directories)?;
     let refused =
         |_| TerminalRuntimeError::InvalidProvision("contained run limits are not admissible");
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {

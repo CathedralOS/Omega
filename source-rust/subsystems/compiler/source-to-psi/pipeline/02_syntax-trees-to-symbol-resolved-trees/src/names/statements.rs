@@ -353,6 +353,15 @@ mod routing {
         statement: &mut crate::source_resolved::statement::Statement,
         symbols: &SymbolTable,
     ) {
+        let visible = super::super::scopes::with_local_openings(
+            machine.type_parameters,
+            child_type_references,
+            machine.prior_statements,
+        );
+        let machine = &MachineScope {
+            type_parameters: &visible,
+            ..*machine
+        };
         macro_rules! assign_expr {
             ($expression:expr) => {
                 assign_statement_expression_symbols(
@@ -861,8 +870,19 @@ fn assign_machine_references(
             let state_symbol = state.symbol;
             let parameter_frontier = state_parameters.span_or_empty(state.parameters).to_vec();
             let parameters = parameter_frontier.as_slice();
+            let visible = super::scopes::with_openings(
+                machine_scope.type_parameters,
+                child_type_references,
+                parameters.iter().map(|parameter| &parameter.type_reference),
+            );
+            let machine_scope = MachineScope { type_parameters: &visible, ..machine_scope };
             for (offset, parameter) in parameters.iter().enumerate() {
                 let mut type_reference = parameter.type_reference.clone();
+                if !child_type_references.package_openings.is_empty() {
+                    super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
+                        symbols, child_type_references, type_constraints, &visible, &mut type_reference,
+                    );
+                }
                 super::type_references::assign_type_value_expression_symbols(
                     symbols,
                     &machine_scope,
@@ -876,6 +896,11 @@ fn assign_machine_references(
                 state_parameters.get_mut(handle).type_reference = type_reference;
             }
             if let Some(type_reference) = &mut state.return_type {
+                if !child_type_references.package_openings.is_empty() {
+                    super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
+                        symbols, child_type_references, type_constraints, &visible, type_reference,
+                    );
+                }
                 super::type_references::assign_type_value_expression_symbols(
                     symbols,
                     &machine_scope,
@@ -902,8 +927,13 @@ fn assign_machine_references(
                     symbols,
                 );
                 for (preceding, reference) in &mut inputs.types {
+                    let prior_statements = &inputs.locals[..*preceding];
+                    let visible = super::scopes::with_local_openings(
+                        machine_scope.type_parameters, child_type_references, prior_statements,
+                    );
                     let scope = MachineScope {
-                        prior_statements: &inputs.locals[..*preceding],
+                        prior_statements,
+                        type_parameters: &visible,
                         ..machine_scope
                     };
                     routing::assign_local_type_symbols(

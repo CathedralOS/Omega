@@ -7,6 +7,7 @@
     separate and retains the actual pending syntax until a consumer demands it.
 */
 
+use super::{SelectedMachines, symbol_key};
 use crate::resolution::constants::initializer_dependencies::ResolvedMachineBodyDemand;
 use crate::resolution::constants::initializer_dependencies::collect_machine_body_demand;
 use crate::resolution::declarations::declaration_selection::ConstantSelection;
@@ -30,6 +31,44 @@ use symbols::SymbolHandle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::ItemHandle;
 use syntax_trees::types::TypeReferenceHandle;
+
+// Build from current machine ordinals after any conformance remapping. Sorting
+// positions second preserves the first pending body for each full symbol.
+struct PendingPositions(Vec<((u32, u32), usize)>);
+
+impl PendingPositions {
+    fn new(trees: &SymbolResolvedTrees, pending: &[PendingMachineBody]) -> Self {
+        let mut rows = pending
+            .iter()
+            .enumerate()
+            .map(|(position, body)| {
+                (
+                    symbol_key(trees.machines[body.machine_ordinal].symbol),
+                    position,
+                )
+            })
+            .collect::<Vec<_>>();
+        rows.sort_unstable();
+        Self(rows)
+    }
+
+    fn demanded_position(&self, symbol: SymbolHandle) -> Result<usize, Vec<Diagnostic>> {
+        self.position(symbol).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "constant dependency has no retained deferred implementation",
+            )]
+        })
+    }
+
+    fn position(&self, symbol: SymbolHandle) -> Option<usize> {
+        let key = symbol_key(symbol);
+        let start = self.0.partition_point(|(candidate, _)| *candidate < key);
+        self.0
+            .get(start)
+            .filter(|(candidate, _)| *candidate == key)
+            .map(|(_, position)| *position)
+    }
+}
 
 /*
     An inferred callable type makes its defining uses declaration inputs.
@@ -122,26 +161,24 @@ pub(super) fn complete_initializer_receipt_dependencies(
         if demand.deferred_machines.is_empty() {
             return Ok(());
         }
+        let positions = PendingPositions::new(
+            &lowerer.symbol_resolved_trees,
+            &lowerer.pending_machine_bodies,
+        );
         for &symbol in &demand.deferred_machines {
-            let pending = lowerer
-                .pending_machine_bodies
-                .iter()
-                .find(|pending| {
-                    lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol == symbol
-                })
-                .cloned()
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "initializer receipt dependency has no retained deferred implementation",
-                    )]
-                })?;
+            let position = positions.position(symbol).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "initializer receipt dependency has no retained deferred implementation",
+                )]
+            })?;
+            let pending = lowerer.pending_machine_bodies[position].clone();
             complete_machine_body(lowerer, syntax, &pending).map_err(|error| vec![error])?;
         }
         crate::resolution::names::assign_body_symbols(lowerer, &demand.deferred_machines)?;
+        let completed = SelectedMachines::new(&demand.deferred_machines);
         lowerer.pending_machine_bodies.retain(|pending| {
-            !demand
-                .deferred_machines
-                .contains(&lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol)
+            !completed
+                .contains(lowerer.symbol_resolved_trees.machines[pending.machine_ordinal].symbol)
         });
     }
 }
@@ -378,11 +415,10 @@ impl DeferredResolvedFrontier {
         let demand =
             collect_machine_body_demand(&self.trees, machine_roots, expression_roots, overloads)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
-        for symbol in &demand.deferred_machines {
-            if !self.pending_machines().any(|pending| pending == *symbol) {
-                return Err(vec![Diagnostic::error(
-                    "constant dependency has no retained deferred implementation",
-                )]);
+        if !demand.deferred_machines.is_empty() {
+            let positions = PendingPositions::new(&self.trees, &self.pending);
+            for &symbol in &demand.deferred_machines {
+                positions.demanded_position(symbol)?;
             }
         }
         Ok(demand)
@@ -398,25 +434,25 @@ impl DeferredResolvedFrontier {
         subject_sources: &[source_text::SourceId],
         overloads: Option<&AuthoredDeclarationSelections>,
     ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
-        let demand = self.body_demand(roots, &[], overloads)?;
+        let demand = collect_machine_body_demand(&self.trees, roots, &[], overloads)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        let positions = PendingPositions::new(&self.trees, &self.pending);
         let symbols = &self.trees.symbols;
-        let mut pending_sorted: Vec<(u32, u32)> = self
-            .pending_machines()
-            .map(|symbol| (symbol.arena_index(), symbol.generation()))
-            .collect();
-        pending_sorted.sort_unstable();
-        if pending_sorted.is_empty() {
-            return Ok(Vec::new());
-        }
-        let is_pending = |symbol: SymbolHandle| {
-            symbol.is_valid()
-                && pending_sorted
-                    .binary_search(&(symbol.arena_index(), symbol.generation()))
-                    .is_ok()
-        };
+        let is_pending =
+            |symbol: SymbolHandle| symbol.is_valid() && positions.position(symbol).is_some();
         let mut next = demand.deferred_machines;
+        let mut selected = vec![false; self.pending.len()];
+        for &symbol in &next {
+            selected[positions.demanded_position(symbol)?] = true;
+        }
+        if self.pending.is_empty() {
+            return Ok(next);
+        }
         let mut push_pending = |symbol: SymbolHandle| {
-            if is_pending(symbol) && !next.contains(&symbol) {
+            if symbol.is_valid()
+                && let Some(position) = positions.position(symbol)
+                && !std::mem::replace(&mut selected[position], true)
+            {
                 next.push(symbol);
             }
         };
@@ -688,19 +724,7 @@ impl DeferredResolvedFrontier {
         mut self,
         selected: &[SymbolHandle],
     ) -> Result<ResolvedBodyCompletion, Vec<Diagnostic>> {
-        let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
-        let mut pending_by_symbol = self
-            .pending
-            .iter()
-            .enumerate()
-            .map(|(position, body)| {
-                (
-                    symbol_key(self.trees.machines[body.machine_ordinal].symbol),
-                    position,
-                )
-            })
-            .collect::<Vec<_>>();
-        pending_by_symbol.sort_unstable();
+        let positions = PendingPositions::new(&self.trees, &self.pending);
         let mut taken = std::collections::BTreeSet::new();
         let mut pending = Vec::new();
         for &symbol in selected {
@@ -708,11 +732,9 @@ impl DeferredResolvedFrontier {
             if taken.contains(&key) {
                 continue;
             }
-            let start = pending_by_symbol.partition_point(|(row, _)| *row < key);
-            let body = pending_by_symbol
-                .get(start)
-                .filter(|(row, _)| *row == key)
-                .map(|(_, position)| &self.pending[*position])
+            let body = positions
+                .position(symbol)
+                .map(|position| &self.pending[position])
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "body completion selected a declaration with no pending implementation",
@@ -765,8 +787,11 @@ impl DeferredResolvedFrontier {
         let trees = lowerer.into_trees();
         self.trees = Arc::new(trees);
         self.hoist_counter = hoist_counter;
-        self.pending
-            .retain(|body| !selected.contains(&self.trees.machines[body.machine_ordinal].symbol));
+        self.pending.retain(|body| {
+            !taken.contains(&symbol_key(
+                self.trees.machines[body.machine_ordinal].symbol,
+            ))
+        });
         Ok(ResolvedBodyCompletion {
             successor: self,
             predecessor,

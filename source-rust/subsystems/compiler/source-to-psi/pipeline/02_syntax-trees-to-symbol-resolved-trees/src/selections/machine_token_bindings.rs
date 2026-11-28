@@ -1105,6 +1105,7 @@ impl<'program> ShapeNormalizer<'program> {
                 let binder = self.binder_or_symbol(parameter.symbol, parameter.name.as_str());
                 let kind = match &parameter.kind {
                     TypeParameterKind::Type => "type".to_owned(),
+                    TypeParameterKind::SomeType => "some type".to_owned(),
                     TypeParameterKind::Implementation => "implementation".to_owned(),
                     TypeParameterKind::Const { type_reference } => {
                         format!("const {}", self.type_shape(type_reference))

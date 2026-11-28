@@ -211,9 +211,97 @@ impl Program<'_> {
             return self.record_definition(id, data, None);
         }
         let application = self.source_record_application(data, reference, id)?;
-        let regions = self.occurrence_regions(id, data, semantic)?;
+        let regions = self.applied_record_regions(id, data, semantic, &application)?;
         self.record_definition(id, data, Some(application))
             .map(|value_type| with_regions(value_type, regions))
+    }
+
+    fn applied_record_regions(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        semantic: crate::source_state::types::TypeReferenceHandle,
+        application: &crate::source_state::SourceTypeApplication,
+    ) -> Checked<crate::body::Regions> {
+        let typed = self.typed;
+        if application.substitutions.iter().all(|(_, argument)| {
+            application
+                .scope
+                .region_free_type_identity(typed, *argument)
+                .is_some()
+        }) {
+            return self.occurrence_regions(id, data, semantic);
+        }
+        // The stored application may have been shared by occurrences at
+        // different lifetimes. Read this occurrence's actual arguments.
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = typed.type_reference_table.type_reference(semantic)
+        else {
+            return Err(refuse_at(
+                id,
+                Unserved::Type("record occurrence lost its borrowed type argument"),
+            ));
+        };
+        let supplied = typed
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if supplied.len() != application.substitutions.len() {
+            return Err(refuse_at(
+                id,
+                Unserved::Type("record occurrence lost its borrowed argument tuple"),
+            ));
+        }
+        let mut tuple = Vec::new();
+        for ((binder, original), supplied) in application.substitutions.iter().zip(supplied) {
+            if typed.symbols.get(*binder).parent != *base_symbol
+                || application.scope.type_identity(typed, *original)
+                    != application.scope.type_identity(typed, *supplied)
+            {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Type("record occurrence changed its template binder"),
+                ));
+            }
+            if application
+                .scope
+                .region_free_type_identity(typed, *original)
+                .is_some()
+            {
+                if application
+                    .scope
+                    .region_free_type_identity(typed, *supplied)
+                    .is_none()
+                {
+                    return Err(refuse_at(
+                        id,
+                        Unserved::Type("record occurrence introduced a borrowed argument"),
+                    ));
+                }
+                continue;
+            }
+            // One slot can be substituted simultaneously at every field.
+            // Several reference arguments need independent declaration-local
+            // slots even if their original concrete lifetimes coincide.
+            if !tuple.is_empty() {
+                return Err(refuse_at(
+                    id,
+                    Unserved::Type("record application with multiple borrowed type arguments"),
+                ));
+            }
+            let actual =
+                super::source_records::retained_borrow(typed, &application.scope, *supplied)
+                    .ok_or_else(|| {
+                        refuse_at(
+                            id,
+                            Unserved::Type("record occurrence lost its borrow region"),
+                        )
+                    })?;
+            tuple.push(super::regions::Region::Parameter(actual));
+        }
+        Ok(self.intern_regions(tuple))
     }
 
     /// The regions a type occurrence applies `data` at. `Message<'a>` names
@@ -1601,9 +1689,10 @@ impl Program<'_> {
         if !literal.type_symbol.is_valid() {
             return Err(spelling("record literal without a type symbol"));
         }
-        if self.data_declaration(literal.type_symbol).is_none() {
-            return Err(unserved("literal of a type that is not a data declaration"));
-        }
+        let declaration = self
+            .data_declaration(literal.type_symbol)
+            .ok_or_else(|| unserved("literal of a type that is not a data declaration"))?;
+        let package = super::packages::check_construction(self.typed, id, declaration, literal)?;
         let applications = [
             literal.application_type,
             self.typed
@@ -1756,7 +1845,16 @@ impl Program<'_> {
             if std::mem::replace(&mut seen[position], true) {
                 return Err(typing("record literal names a field twice"));
             }
-            let field_type = declared[position];
+            let storage_type = declared[position];
+            let field_type = if let Some(package) = &package {
+                let concrete = package
+                    .get(&field.field_symbol)
+                    .ok_or_else(|| typing("package literal lacks its concrete field type"))?;
+                let concrete = self.value_type(id, *concrete)?;
+                self.substitute(concrete, &substitution)
+            } else {
+                storage_type
+            };
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
             if !self.agrees(operand.result, Some(field_type)) {
                 return Err(self.mistyped(
@@ -1766,6 +1864,13 @@ impl Program<'_> {
                     Some(field_type),
                     operand.result,
                     "record literal field type",
+                ));
+            }
+            // Keep concrete reference and callable types until the storage
+            // conversion can prove they share this package's witness.
+            if field_type != storage_type && !self.agrees(operand.result, Some(storage_type)) {
+                return Err(unserved(
+                    "package field requires a checked witness-preserving storage conversion",
                 ));
             }
             fields.push((position, operand));

@@ -258,9 +258,10 @@ fn an_exact_accepted_binding_runs_the_authored_build_launcher() {
     }
     assert_eq!(std::fs::read(&lock).unwrap(), locked);
 
+    // The version 4 compilation route consumes the accepted lock.
     let compile = || {
         Command::new(&public)
-            .args(["build", "--allow", "ProgramLaunch", "--program", "Packer"])
+            .args(["--allow", "ProgramLaunch", "--program", "Packer"])
             .arg(&image)
             .arg(&entry)
             .env("OMEGA_LIBRARY_ROOT", &library)
