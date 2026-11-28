@@ -3571,6 +3571,7 @@ fn visit_data(
         }
     }
     visit_type_parameters(program, retained, data.type_parameters);
+    visit_type_parameters(program, retained, data.package_parameters);
     for bound in &data.conformance_bounds {
         visit_symbol(retained, bound.trait_symbol);
         for argument in &bound.arguments {
@@ -4019,6 +4020,15 @@ pub fn visit_expression(
         }
         ExpressionNode::StructLiteral(literal) => {
             visit_type_reference(program, retained, literal.application_type);
+            if let Some(package) = &literal.package {
+                for witness in &package.witnesses {
+                    visit_type_reference(program, retained, *witness);
+                }
+                for field in &package.fields {
+                    visit_symbol(retained, field.symbol);
+                    visit_type_reference(program, retained, field.ty);
+                }
+            }
 
             visit_symbol(retained, literal.type_symbol);
             if let Some(case_symbol) = literal.case_symbol {

@@ -5796,6 +5796,7 @@ pub(crate) mod package_policy_reading_tests {
                         value,
                     }]);
             let literal = fixture.expression(ExpressionNode::StructLiteral(TableStructLiteral {
+                package: None,
                 zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: Identifier::generated("Record"),

@@ -138,7 +138,7 @@ pub(crate) mod data {
     use crate::contracts::proof_facts::lower_proof_facts;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
-    use crate::signatures::type_parameters::lower_type_parameters;
+    use crate::signatures::type_parameters::lower_type_parameter;
     use crate::source_resolved as resolved;
     use crate::source_state as typed;
     use crate::types::type_reference::{
@@ -183,6 +183,7 @@ pub(crate) mod data {
         supply_mode: data_definition.supply_mode,
         lifetime_parameters: lower_names(&data_definition.lifetime_parameters),
         type_parameters: HandleSpan::empty(),
+        package_parameters: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
         generic_instance: data_definition
             .generic_instance
@@ -297,8 +298,23 @@ pub(crate) mod data {
                 lowerer,
                 &data_definition.conformance_bounds,
             )?;
+        let mut public = Vec::new();
+        let mut hidden = Vec::new();
+        for parameter in lowerer
+            .source_trees
+            .data_type_parameters(data_definition.type_parameters)
+        {
+            let target = if matches!(parameter.kind, resolved::data::TypeParameterKind::SomeType) {
+                &mut hidden
+            } else {
+                &mut public
+            };
+            target.push(lower_type_parameter(lowerer, parameter)?);
+        }
         typed_data_definition.type_parameters =
-            lower_type_parameters(lowerer, data_definition.type_parameters)?;
+            lowerer.typed_trees.data_type_parameters.insert_many(public);
+        typed_data_definition.package_parameters =
+            lowerer.typed_trees.data_type_parameters.insert_many(hidden);
 
         if let Some(selection) = &data_definition.cleanup_selection {
             let subject = if let Some(origin) = typed_data_definition.generic_instance {

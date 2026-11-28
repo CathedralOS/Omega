@@ -2473,6 +2473,7 @@ pub mod expression {
                         let fields =
                             self.copy_struct_literal_fields(source, &literal, retain, copies);
                         self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                            package: literal.package,
                             zero_omitted_fields: literal.zero_omitted_fields,
                             application_type: literal.application_type,
                             type_name: literal.type_name,
@@ -5286,8 +5287,35 @@ pub mod expression {
         }
     }
 
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PackageConstruction {
+        /// One concrete type per hidden binder, in declaration order.
+        pub witnesses: Vec<crate::source_state::types::TypeReferenceHandle>,
+        /// Input types after substituting the visible arguments and these witnesses.
+        pub fields: Vec<PackageFieldType>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PackageFieldType {
+        pub symbol: SymbolHandle,
+        pub ty: crate::source_state::types::TypeReferenceHandle,
+    }
+
+    impl PackageConstruction {
+        pub fn type_references_mut(
+            &mut self,
+        ) -> impl Iterator<Item = &mut crate::source_state::types::TypeReferenceHandle> {
+            self.witnesses
+                .iter_mut()
+                .chain(self.fields.iter_mut().map(|field| &mut field.ty))
+        }
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct TableStructLiteral {
+        /// Construction instantiates the declaration's hidden types in binder order.
+        /// These arguments belong to this value, outside its public application type.
+        pub package: Option<Box<PackageConstruction>>,
         /// A final source `..` requests ordinary zero values for missing runtime fields.
         pub zero_omitted_fields: bool,
         pub application_type: crate::source_state::types::TypeReferenceHandle,

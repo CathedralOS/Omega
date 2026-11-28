@@ -3,6 +3,8 @@
 //! This forms types and selections; the lowered checker still judges fields,
 //! argument admission, generic eligibility and declaration requirements.
 
+mod package;
+
 use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use crate::source_state::expression::{
     ExpressionHandle, ExpressionNode, StaticMachineArgument, TableBorrowExpression,
@@ -36,7 +38,15 @@ pub(crate) fn prepare_in_cohort(
         .iter_expressions_from(frontier + 1)
         .map(|(handle, _)| handle)
         .collect();
+    let mut packages = Vec::new();
     for expression in expressions {
+        if let ExpressionNode::StructLiteral(literal) =
+            program.expression_table.expression(expression)
+            && let Some(data) = program.unique_data_definition_by_symbol(literal.type_symbol)
+            && !data.package_parameters.is_empty()
+        {
+            packages.push(expression);
+        }
         infer(program, expression, &mut Vec::new())?;
         let needs_owner = match program.expression_table.expression(expression) {
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
@@ -117,6 +127,11 @@ pub(crate) fn prepare_in_cohort(
                 call.authored_machine_application = application;
             }
         }
+    }
+    // Operand types (including fresh borrows) are now available, before the
+    // receiving field types are used to select or check callable values.
+    for literal in packages {
+        package::construct(program, literal)?;
     }
     let mut statements = Vec::new();
     let mut terminal_calls = Vec::new();
