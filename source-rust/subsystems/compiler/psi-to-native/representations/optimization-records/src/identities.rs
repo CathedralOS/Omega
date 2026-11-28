@@ -72,18 +72,6 @@ canonical_identity!(
     AcceptedObligationFactIdentity => b"omega.accepted-obligation-fact-identity.v1\0"
 );
 canonical_identity!(
-    PostAllocationOptimizationManifestIdentity =>
-        b"omega.post-allocation-optimization-manifest-identity.v1\0"
-);
-canonical_identity!(
-    SelectedLoweringOptimizationCompletionIdentity =>
-        b"omega.selected-lowering-optimization-completion-identity.v1\0"
-);
-canonical_identity!(
-    PreAllocationOptimizationCompletionIdentity =>
-        b"omega.pre-allocation-optimization-completion-identity.v1\0"
-);
-canonical_identity!(
     OptimizedBoundaryOccurrenceIdentity => b"omega.optimized-boundary-occurrence-identity.v2\0"
 );
 canonical_identity!(
@@ -103,9 +91,6 @@ mod tests {
             OptimizationUnitIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationValidatorIdentity::from_canonical_bytes(b"same").bytes(),
             AcceptedObligationFactIdentity::from_canonical_bytes(b"same").bytes(),
-            PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"same").bytes(),
-            SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
-            PreAllocationOptimizationCompletionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"same").bytes(),
             NativeOptimizationProjectionIdentity::from_canonical_bytes(b"same").bytes(),

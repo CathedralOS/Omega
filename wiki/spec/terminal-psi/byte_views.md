@@ -376,8 +376,11 @@ observation.
 
 A by-value `ElementViewRead` requires a `[copy]` element type. The
 compiler rejects moving a non-copy element out of borrowed storage. A shared
-or mutable borrow of an indexed element retains its backing. A range such as
-`@items[start..end]` returns a view with the element type of the input.
+or mutable borrow of an indexed element retains its backing. When a program
+copies a record from a typed slice, each borrowed field keeps its original
+loan through the field's final use. A slice borrowed from an array has its
+own loan on that array. A range such as `@items[start..end]` returns a view
+with the element type of the input.
 Element writes move the supplied
 value in and the displaced element out of its slot under the ordinary
 disposal law for its type; the write supplies no escape for a value whose

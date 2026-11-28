@@ -65,28 +65,56 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. May the selected work callback enable a maskable timer after interrupt-table publication?
+### 1. May core `Real` be the quotient of one regular function sequence type?
 
-An x86 kernel needs to admit timer interrupts after its exception handlers and
-stacks are ready. The bundled installer checks that interrupts are masked,
-loads the new table with `lidt`, then calls `Work`. Loading the table preserves
-the mask. Both the installer and `StaticInterruptWork::run` publish
-`MachineControl + PortIo`. Enabling or restoring the interrupt mask requires
-the separate `InterruptControl` reach. The successful installation alone
-therefore establishes no point at which a maskable timer can interrupt `Work`.
-[Core declarations](source/library/core/static_interrupt.omg) ·
-[x86 install checks and publication](source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64/src/selected_form_encoding/register_access.rs)
+The Real ruling leaves two things without a source form. Every regular
+`Sequence<S, At>` must project into one `Real`, but no declaration names a
+quotient over a whole carrier family. The ruling also requires regularity
+before projection, yet `as Quotient` takes no premise. Take
+`Sequence<Rat, repeat>` for a constant and `Sequence<Nat -> Rat, apply>` for
+a theorem's `f`. Both must give values of one `Real`.
 
-The target package already owns mask policy. Bootstrap keeps interrupts
-masked until the exception floor exists. The remaining decision is whether
-the bundled scope supports an explicit, authorized mask change by `Work`, or
-is deliberately a masked-only scope with interruptible work requiring a
-separate target-authored installation path. In the former case, let the
-selected work callback's checked reach propagate to the installer and require
-its controller authority at the operation. A work callback that leaves the
-mask alone should introduce no `InterruptControl` reach. A deadlock check can
-then use the actual enabled interval and its matching installed timer.
-[Interrupt obligations](wiki/spec/build/interrupt_obligations.md#mask-providers-and-initial-authority) ·
-[Bootstrap sequencing](wiki/spec/build/uefi_entry.md#hardware-preparation-and-reporting) ·
-[Privileged reach](wiki/spec/build/permissions.md#privileged-services) ·
-[Static callback reach](wiki/spec/language/effects.md#static-callback-reach-dependencies)
+Read literally, the carrier is the total family
+`Σ (S: Type<0>). Σ (At: Sampler<S>). Sequence<S, At>`, restricted to regular
+values. A sum over every state type is a large type, so `Real` would live in
+`Type<1>`. The spec forbids resizing it. `Identity::<Real>` would then sit at
+level 1. A sequence or quotient of reals would also need a level above that.
+
+Checked and found silent:
+[Cauchy sequences and the Real quotient](wiki/spec/proofs/quotients.md#cauchy-sequences-and-the-real-quotient)
+names the carrier but no declaration.
+[Families, relations, and evidence](wiki/spec/proofs/quotients.md#families-relations-and-evidence)
+interprets a family through `A = Σ (I : IndexPack). C<I>` but gives no
+source spelling. [Formation and representation](wiki/spec/proofs/quotients.md#formation-and-representation)
+declares `data Q = C % R` over one carrier, with `as Q` as the sole
+construction route. [Generics](wiki/spec/language/generics.md) and
+[proof contracts](wiki/spec/proofs/contracts.md) state the projection
+requirement but no form for it.
+
+Recommendation: yes, with ordinary declarations only.
+
+```omega
+data Regular {
+    samples: Sequence<Nat -> Rat, apply>;
+}
+requires regular::<Nat -> Rat, apply>(value.samples);
+
+data Real = Regular % converge_together
+requires converge_together satisfies MereEquivalence<Regular, converge_together>
+    as Together;
+
+machine project<S, const At: Sampler<S>>(s: Sequence<S, At>) -> Real
+requires regular::<S, At>(s)
+{
+    // the representative with state `λn. At(s.state, n)`
+}
+```
+
+The data predicate keeps every representative regular, so the convergence
+relation is an equivalence on the whole carrier. A sequence enters `Real`
+only through `project`, whose `requires` checks regularity for those exact
+samples. Two projections are equal when their
+samples converge together, whatever their `S` and `At`. `Real` stays in
+`Type<0>`. The alternative is a new family-quotient declaration with a
+carrier premise on `as`. That costs a large `Real`, a new surface, and Σ
+over types in the checker.

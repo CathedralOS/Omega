@@ -206,12 +206,7 @@ impl Program<'_> {
             self.source_scope = outer_source;
             self.scope = outer;
             let requirement = read?;
-            let signature = self.signatures.get(requirement).cloned().ok_or_else(|| {
-                refuse_at(
-                    caller,
-                    Unserved::Call("callable argument lost its required header"),
-                )
-            })?;
+            let signature = self.machine_signature(requirement)?.clone();
             let checked = self.callback_conformance(
                 caller,
                 RequiredCallback {
@@ -546,11 +541,7 @@ impl Program<'_> {
         requirement: MachineId,
     ) -> Checked<u32> {
         let unavailable = |what| refuse_at(owner, Unserved::Call(what));
-        let source = self
-            .symbols
-            .get(owner)
-            .copied()
-            .ok_or_else(|| unavailable("static callback lost its source owner"))?;
+        let source = self.machine_symbol(owner)?;
         let position = self
             .typed
             .declaration_type_parameters(source)

@@ -37,7 +37,8 @@ mod arrival_helpers;
 #[path = "static_interrupts/scopes.rs"]
 mod scopes;
 
-pub(super) fn require_helper_associations(
+fn require_helper_associations(
+    reached: &[OperationSite],
     input: &AdmissionSource<'_>,
     analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
     request: &ProviderAdmissionRequest<'_, '_>,
@@ -45,20 +46,12 @@ pub(super) fn require_helper_associations(
     entry_custody: &super::callback_entries::PreparedEntries<'_>,
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
 ) -> Result<Vec<crate::AdmittedInstalledInterruptHelper>, Vec<Diagnostic>> {
-    let mut operations: Vec<_> = input
-        .plan()
-        .functions
-        .iter()
-        .flat_map(|function| {
-            function.operations().filter_map(move |row| {
-                row.psi_operation()
-                    .map(|operation| (function.machine, operation))
-            })
-        })
-        .collect();
-    operations.sort();
-    operations.dedup();
-    let uses = if input.module().interfaces.installed_interrupt_registrations.is_empty() {
+    let uses = if input
+        .module()
+        .interfaces
+        .installed_interrupt_registrations
+        .is_empty()
+    {
         Vec::new()
     } else {
         let calls = super::selected_synchronous_call_graph(
@@ -70,7 +63,7 @@ pub(super) fn require_helper_associations(
             request.profile,
         )
         .map_err(|reason| super::realization_error("installed arrival call graph", reason))?;
-        arrival_helpers::validate(input, request, entry_custody, &calls, &operations).map_err(
+        arrival_helpers::validate(input, request, entry_custody, &calls, reached).map_err(
             |reason| {
                 vec![Diagnostic::error(format!(
                     "installed interrupt arrival: {reason}"
@@ -91,7 +84,7 @@ pub(super) fn require_helper_associations(
                 .operations()
                 .map(move |operation| (machine.id, operation))
         })
-        .filter(|(machine, operation)| operations.binary_search(&(*machine, operation.id)).is_ok())
+        .filter(|(machine, operation)| reached.binary_search(&(*machine, operation.id)).is_ok())
     {
         let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
             continue;
@@ -110,26 +103,16 @@ pub(super) fn require_helper_associations(
             ))]);
         }
     }
-    Ok(uses
-        .into_iter()
-        .map(|row| crate::AdmittedInstalledInterruptHelper {
-            installation_machine: row.installation_machine,
-            installation: row.installation,
-            machine: row.machine,
-            callback_application: row.callback_application,
-            operation: row.operation,
-            kind: row.kind,
-        })
-        .collect())
+    Ok(uses)
 }
 
 pub(super) fn admit(
+    reached: &[OperationSite],
     input: &AdmissionSource<'_>,
     analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
-    helpers: Vec<crate::AdmittedInstalledInterruptHelper>,
     entry_custody: &super::callback_entries::PreparedEntries<'_>,
 ) -> Result<AdmittedInstalledInterruptCohort, Vec<Diagnostic>> {
     let fail = |reason: String| {
@@ -137,30 +120,27 @@ pub(super) fn admit(
             "installed interrupt entry: {reason}"
         ))]
     };
+    let helpers = require_helper_associations(
+        reached,
+        input,
+        analyses,
+        request,
+        artifact,
+        entry_custody,
+        installation,
+    )?;
     let module = input.module();
     if input.plan().psi != artifact.view().identity() {
         return Err(fail(
             "entry proposal belongs to another Terminal program".into(),
         ));
     }
-    let reached: BTreeSet<_> = input
-        .plan()
-        .functions
-        .iter()
-        .flat_map(|function| {
-            function.operations().filter_map(move |operation| {
-                operation
-                    .psi_operation()
-                    .map(|operation| (function.machine, operation))
-            })
-        })
-        .collect();
     if helpers.is_empty()
         && request.installed_interrupts.is_empty()
         && !module
             .interfaces.installed_interrupt_registrations
             .iter()
-            .any(|row| reached.contains(&(row.machine, row.operation)))
+            .any(|row| reached.binary_search(&(row.machine, row.operation)).is_ok())
     {
         return Ok(AdmittedInstalledInterruptCohort::empty(input.plan().psi));
     }
@@ -250,7 +230,9 @@ pub(super) fn admit(
                 return Err("entry changed its retained body/placement association".into());
             }
             let thunk = occurrence.callback_thunk_artifact();
-            if !reached.contains(&(proposal.machine, proposal.operation))
+            if reached
+                .binary_search(&(proposal.machine, proposal.operation))
+                .is_err()
                 && thunk.entry() != input.plan().entry
             {
                 return Err(
@@ -326,7 +308,9 @@ pub(super) fn admit(
         ));
     }
     for registration in &module.interfaces.installed_interrupt_registrations {
-        if reached.contains(&(registration.machine, registration.operation))
+        if reached
+            .binary_search(&(registration.machine, registration.operation))
+            .is_ok()
             && registration
                 .callbacks
                 .iter()
@@ -346,6 +330,7 @@ pub(super) fn admit(
         &admitted,
         &helpers,
         &operations,
+        reached,
     )
     .map_err(fail)?;
     Ok(AdmittedInstalledInterruptCohort {

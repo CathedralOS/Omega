@@ -24,8 +24,8 @@ use isa_x86_64::{
     X86_64SelectedFormEncodingError,
 };
 use machine_code::{
-    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormEncodingState, TargetFrameLayoutPlan,
+    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingRow,
+    SelectedFormEncodingState, TargetFrameLayoutPlan,
 };
 use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineInstruction, PostAllocationMachinePlan,
@@ -95,7 +95,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding(
     if program_context(
         physical,
         Arc::clone(&artifact.frame_demands),
-        artifact.encoding.identity(),
+        machine_code::SelectedFormEncodingHandle::of(&artifact.encoding),
     ) != *artifact.context
         || layout_requirements::prepare_layout_requirements(physical)
             != *artifact.layout_requirements
@@ -240,15 +240,14 @@ pub fn counts_of(
     Ok(counts)
 }
 
-/// The checked encoding identity and immutable target roots are sufficient for
-/// current byte/layout checks; source correspondence takes explicit originals.
+/// The checked encoding and immutable target roots are sufficient for current
+/// byte/layout checks; source correspondence takes explicit originals.
 pub fn validate_encoded_integrity(
     context: &machine_code::program_context::EncodedProgramContext,
     frame: &TargetFrameLayoutPlan,
     encoding: &SelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    if encoding.identity() != context.checked_encoding
-        || encoding.recomputed_identity() != context.checked_encoding
+    if !context.checked_encoding.names(encoding)
         || *encoding.machine() != context.plan
         || encoding.frame.as_deref() != Some(frame)
         || frame.post_allocation_machine != context.plan
@@ -263,7 +262,7 @@ pub fn validate_encoded_integrity(
 pub fn program_context(
     program: &post_allocation_machine::PostAllocationMachineProgram,
     machine: Arc<machine_code::frame_demands::MachineFrameDemands>,
-    checked_encoding: SelectedFormEncodingIdentity,
+    checked_encoding: machine_code::SelectedFormEncodingHandle,
 ) -> machine_code::program_context::EncodedProgramContext {
     machine_code::program_context::EncodedProgramContext {
         contracts: Arc::clone(&program.contracts),

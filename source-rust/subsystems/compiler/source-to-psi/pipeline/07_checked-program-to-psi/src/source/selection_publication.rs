@@ -878,11 +878,8 @@ impl<'source> Questions<'source> {
         let cleanup_bindings = self.cleanup_bindings()?;
         let module = self.module;
         let elaboration = &self.source.closure().elaboration();
-        // Each machine selection joins the source occurrence lowered at its
-        // exact operation. Order the occurrences by that site once, so every
-        // selection reads its own range instead of scanning all of them.
-        let mut constructions = self.source.correspondence().constructions.clone();
-        constructions.sort_unstable_by_key(|(emitted, selected, _, _)| (*emitted, *selected));
+        let correspondence = self.source.correspondence();
+        let constructions = &correspondence.constructions;
         for machine in &module.machines {
             let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
                 refused("source machine lost its emitted identity correspondence")
@@ -1030,16 +1027,20 @@ impl<'source> Questions<'source> {
                     )?;
                 }
             }
+            let folded_calls = &correspondence.folded_calls;
+            let start = folded_calls.partition_point(|(emitted, ..)| *emitted < machine.id);
+            let calls = &folded_calls[start..];
+            let count = calls.partition_point(|(emitted, ..)| *emitted == machine.id);
+            if count == 0 {
+                continue;
+            }
             let mut successors = machine
                 .blocks
                 .iter()
                 .flat_map(|block| block.terminator.successor_edges())
                 .collect::<Vec<_>>();
             successors.sort_unstable_by_key(|(edge, _)| *edge);
-            for &(emitted, edge, owner, node) in &self.source.correspondence().folded_calls {
-                if emitted != machine.id {
-                    continue;
-                }
+            for &(_, edge, owner, node) in &calls[..count] {
                 let Ok(position) = successors.binary_search_by_key(&edge, |(edge, _)| *edge) else {
                     continue;
                 };

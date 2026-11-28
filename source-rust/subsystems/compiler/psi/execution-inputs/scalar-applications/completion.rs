@@ -157,12 +157,91 @@ impl AdmittedScalarApplications {
         observations.inherited = Some(previous.clone());
         Ok(())
     }
+    /// Canonical input to the native lowering digest. A scalar read selects a
+    /// value from the primary scope by application ID. The plan separately
+    /// retains the resolved geometry used to lower structural operations.
+    pub fn native_value_identity_bytes(&self) -> Vec<u8> {
+        native_value_identity_bytes(self.values().observed())
+    }
+
     pub fn values(&self) -> &ScalarApplicationValues {
         &self.primary.values
     }
     pub fn geometry(&self) -> &std::sync::Arc<[terminal_psi::StructuralTypeDeclaration]> {
         &self.primary.geometry
     }
+}
+
+fn native_value_identity_bytes(
+    observations: impl Iterator<
+        Item = (
+            semantic_vocabulary::ScalarApplicationId,
+            terminal_semantics::entry_values::TerminalScalarValue,
+        ),
+    >,
+) -> Vec<u8> {
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerValue};
+    use terminal_semantics::entry_values::TerminalScalarValue as Value;
+
+    let mut bytes = Vec::new();
+    for (application, value) in observations {
+        bytes.extend_from_slice(&application.get().to_le_bytes());
+        match value {
+            Value::Boolean(bit) => bytes.extend_from_slice(&[0, u8::from(bit)]),
+            Value::Integer { scalar_type, value } => {
+                bytes.push(1);
+                semantic_vocabulary::identity_encoding::encode_integer_type(
+                    &mut bytes,
+                    scalar_type,
+                );
+                match value {
+                    IntegerValue::Signed(value) => {
+                        bytes.push(0);
+                        bytes.extend_from_slice(&value.to_le_bytes());
+                    }
+                    IntegerValue::Unsigned(value) => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&value.to_le_bytes());
+                    }
+                }
+            }
+            Value::IeeeFloat(IeeeFloatValue::Binary32(bits)) => {
+                bytes.push(2);
+                bytes.extend_from_slice(&bits.to_le_bytes());
+            }
+            Value::IeeeFloat(IeeeFloatValue::Binary64(bits)) => {
+                bytes.push(3);
+                bytes.extend_from_slice(&bits.to_le_bytes());
+            }
+            Value::Callable {
+                contract,
+                descriptor,
+            } => {
+                bytes.push(4);
+                bytes.extend_from_slice(&contract.get().to_le_bytes());
+                bytes.extend_from_slice(&descriptor.get().to_le_bytes());
+            }
+            Value::HostAddress {
+                scalar_type,
+                address,
+            } => {
+                bytes.push(5);
+                semantic_vocabulary::identity_encoding::encode_integer_type(
+                    &mut bytes,
+                    scalar_type,
+                );
+                bytes.extend_from_slice(&address.to_le_bytes());
+            }
+            Value::UndeterminedNaN(format) => bytes.extend_from_slice(&[
+                6,
+                match format {
+                    IeeeFloatFormat::Binary32 => 0,
+                    IeeeFloatFormat::Binary64 => 1,
+                },
+            ]),
+        }
+    }
+    bytes
 }
 
 pub struct ScalarApplicationClosure<'artifact> {

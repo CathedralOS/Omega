@@ -79,7 +79,7 @@ pub(super) fn callable_coverage(
 
 pub(super) fn bind(
     proposal: &TerminalNativeRealizationProposal,
-    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    authorization: &psi_authorization::AdmittedTerminalArtifact,
     scope: NativeExecutionScope,
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
     let artifact = authorization.artifact();

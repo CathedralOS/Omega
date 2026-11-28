@@ -11,9 +11,8 @@ pub use machine_code::{
     CalleeSaveFrameSlot, FrameUnwindPlan, FrameUnwindRestore,
     FunctionNonAuthoritativeCalleeSaveStorage, FunctionTargetFrameLayout,
     NonAuthoritativeCalleeSaveSlot, NonAuthoritativeCalleeSaveSlotId,
-    NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
-    NonAuthoritativeCalleeSaveStoragePolicy, ReturnAddressFrameCustody, StackProbePlan,
-    TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
+    NonAuthoritativeCalleeSaveStoragePlan, NonAuthoritativeCalleeSaveStoragePolicy,
+    ReturnAddressFrameCustody, StackProbePlan, TargetFrameLayoutPlan, TargetFrameLayoutPolicy,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use post_allocation_machine::PostAllocationMachinePlan;
@@ -24,14 +23,13 @@ use register_environment::{
 };
 use register_homes::{
     AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirements,
-    AllocatedCalleeSavedUnitRequirement, encode_callee_saved_modification_witness_identity,
+    AllocatedCalleeSavedUnitRequirement,
 };
 use register_model::{
     PreservationStorageGroupId, RegisterUnitId, ValidatedPreservationStorageCatalog,
 };
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, MachineAlternativeFamily};
 use target::{Architecture, NativeTarget, ObjectFormat};
-use wire::digest_encoder::DomainDigestEncoder;
 
 pub const MAX_FRAME_BYTES: u64 = i32::MAX as u64;
 
@@ -77,36 +75,21 @@ diagnostics::failed_display!(
 
 impl std::error::Error for NonAuthoritativeCalleeSaveStorageError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NonAuthoritativeCalleeSaveStorageReceipt {
-    identity: NonAuthoritativeCalleeSaveStorageIdentity,
-    target: NativeTarget,
-}
-
-impl NonAuthoritativeCalleeSaveStorageReceipt {
-    pub const fn identity(self) -> NonAuthoritativeCalleeSaveStorageIdentity {
-        self.identity
-    }
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-}
-
+/// Checked callee-save storage. Frame layouts share this plan and compare it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedNonAuthoritativeCalleeSaveStorage {
-    plan: NonAuthoritativeCalleeSaveStoragePlan,
-    receipt: NonAuthoritativeCalleeSaveStorageReceipt,
+    plan: Arc<NonAuthoritativeCalleeSaveStoragePlan>,
 }
 
 impl ValidatedNonAuthoritativeCalleeSaveStorage {
-    pub fn into_plan(self) -> NonAuthoritativeCalleeSaveStoragePlan {
+    pub fn into_plan(self) -> Arc<NonAuthoritativeCalleeSaveStoragePlan> {
         self.plan
     }
-    pub const fn plan(&self) -> &NonAuthoritativeCalleeSaveStoragePlan {
+    pub fn plan(&self) -> &NonAuthoritativeCalleeSaveStoragePlan {
         &self.plan
     }
-    pub const fn receipt(&self) -> NonAuthoritativeCalleeSaveStorageReceipt {
-        self.receipt
+    pub fn shared_plan(&self) -> Arc<NonAuthoritativeCalleeSaveStoragePlan> {
+        Arc::clone(&self.plan)
     }
 }
 
@@ -377,10 +360,10 @@ pub fn validate_non_authoritative_callee_save_storage(
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: NonAuthoritativeCalleeSaveStoragePlan,
 ) -> Result<ValidatedNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveStorageError> {
-    let source_plan = source.plan();
+    let source_plan: &AllocatedCalleeSavedRequirementPlan = source;
     let catalog = selected_preservation_storage_catalog(environment)
         .map_err(|_| NonAuthoritativeCalleeSaveStorageError::UnsupportedTargetCatalog)?;
-    if candidate.callee_saved_requirements != source.identity()
+    if candidate.callee_saved_requirements != *source
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
         || candidate.preservation_storage_catalog != catalog.identity()
@@ -418,8 +401,9 @@ pub fn validate_non_authoritative_callee_save_storage(
 pub fn seal_admitted_callee_save_storage(
     plan: NonAuthoritativeCalleeSaveStoragePlan,
 ) -> ValidatedNonAuthoritativeCalleeSaveStorage {
-    let receipt = seal_storage(&plan);
-    ValidatedNonAuthoritativeCalleeSaveStorage { plan, receipt }
+    ValidatedNonAuthoritativeCalleeSaveStorage {
+        plan: Arc::new(plan),
+    }
 }
 
 pub fn admit_storage_plan(
@@ -438,7 +422,7 @@ pub fn admit_storage_plan(
     if policy != NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1 {
         return Err(NonAuthoritativeCalleeSaveStorageError::UnsupportedPolicy);
     }
-    let source_plan = source.plan();
+    let source_plan: &AllocatedCalleeSavedRequirementPlan = source;
     if source_plan.register_environment != environment.identity()
         || source_plan.physical_register_model != environment.physical().identity()
         || source_plan.target != environment.target()
@@ -464,7 +448,7 @@ pub fn admit_storage_plan(
         });
     }
     Ok(NonAuthoritativeCalleeSaveStoragePlan {
-        callee_saved_requirements: source.identity(),
+        callee_saved_requirements: Arc::clone(source),
         register_environment: environment.identity(),
         physical_register_model: environment.physical().identity(),
         preservation_storage_catalog: catalog.identity(),
@@ -609,58 +593,6 @@ fn storage_extent(
         })
 }
 
-pub(crate) fn non_authoritative_callee_save_storage_identity(
-    plan: &NonAuthoritativeCalleeSaveStoragePlan,
-) -> NonAuthoritativeCalleeSaveStorageIdentity {
-    let mut hasher = DomainDigestEncoder::new(b"omega.non-authoritative-callee-save-storage.v2");
-    hasher.raw(&plan.callee_saved_requirements.bytes());
-    hasher.raw(&plan.register_environment.bytes());
-    hasher.raw(&plan.physical_register_model.bytes());
-    hasher.raw(&plan.preservation_storage_catalog.bytes());
-    hasher.raw(&plan.target.identity_bytes());
-    hasher.byte(plan.abi.abi_tag());
-    register_model::sha256_register_units(&mut hasher, &plan.callee_saved_units);
-    hasher.byte(match plan.policy {
-        NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1 => 0,
-    });
-    hasher.raw(&plan.budget.encode());
-    hasher.raw(&plan.usage.encode());
-    register_model::sha256_length(&mut hasher, plan.functions.len());
-    for function in &plan.functions {
-        hasher.raw(&function.machine.get().to_le_bytes());
-        hasher.raw(&function.abstract_area_bytes.to_le_bytes());
-        hasher.raw(&function.abstract_area_alignment.to_le_bytes());
-        register_model::sha256_length(&mut hasher, function.slots.len());
-        for slot in &function.slots {
-            hasher.raw(&slot.id.0.to_le_bytes());
-            hasher.raw(&slot.storage_group.0.to_le_bytes());
-            hasher.raw(&slot.storage_view.0.to_le_bytes());
-            register_model::sha256_register_units(&mut hasher, &slot.preserved_units);
-            register_model::sha256_length(&mut hasher, slot.modified_units.len());
-            for requirement in &slot.modified_units {
-                hasher.raw(&requirement.unit.0.to_le_bytes());
-                register_model::sha256_length(&mut hasher, requirement.witnesses.len());
-                for witness in &requirement.witnesses {
-                    encode_callee_saved_modification_witness_identity(&mut hasher, *witness);
-                }
-            }
-            hasher.raw(&slot.abstract_offset_bytes.to_le_bytes());
-            hasher.raw(&slot.size_bytes.to_le_bytes());
-            hasher.raw(&slot.alignment_bytes.to_le_bytes());
-        }
-    }
-    NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(hasher.finish())
-}
-
-fn seal_storage(
-    plan: &NonAuthoritativeCalleeSaveStoragePlan,
-) -> NonAuthoritativeCalleeSaveStorageReceipt {
-    NonAuthoritativeCalleeSaveStorageReceipt {
-        identity: non_authoritative_callee_save_storage_identity(plan),
-        target: plan.target,
-    }
-}
-
 pub fn prepare_frame_demands(
     machine: &Arc<PostAllocationMachinePlan>,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -668,8 +600,6 @@ pub fn prepare_frame_demands(
     use machine_code::frame_demands::*;
     Ok(MachineFrameDemands {
         plan: Arc::clone(machine),
-        homes: machine.homes,
-        post_allocation_manifest: machine.post_allocation_manifest,
         target: machine.target,
         register_environment: machine.register_environment,
         physical_register_model: machine.physical_register_model,
@@ -736,12 +666,12 @@ fn validate_frame_roots(
     candidate: &TargetFrameLayoutPlan,
 ) -> Result<(), TargetFrameLayoutError> {
     if candidate.post_allocation_machine != machine.plan
-        || candidate.callee_saved_requirements != requirements.identity()
-        || candidate.callee_save_storage != storage.receipt().identity()
+        || candidate.callee_saved_requirements != *requirements
+        || *candidate.callee_save_storage != *storage.plan()
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
         || candidate.target != environment.target()
-        || candidate.abi != requirements.plan().abi
+        || candidate.abi != requirements.abi
     {
         return Err(TargetFrameLayoutError::RootMismatch);
     }
@@ -767,18 +697,18 @@ fn validate_frame_layout_plan(
 ) -> Result<(), TargetFrameLayoutError> {
     use TargetFrameLayoutError as Error;
     let current = machine;
-    let required = requirements.plan();
+    let required: &AllocatedCalleeSavedRequirementPlan = requirements;
     let saved = storage.plan();
     if current.target != environment.target()
         || current.register_environment != environment.identity()
         || current.physical_register_model != environment.physical().identity()
         || required.selected != current.plan.selected
-        || required.homes != current.homes
-        || required.post_allocation_manifest != current.post_allocation_manifest
+        || required.homes != current.plan.homes
+        || required.post_allocation_manifest != current.plan.post_allocation_manifest
         || required.register_environment != environment.identity()
         || required.physical_register_model != environment.physical().identity()
         || required.target != environment.target()
-        || saved.callee_saved_requirements != requirements.identity()
+        || saved.callee_saved_requirements != *requirements
         || saved.register_environment != environment.identity()
         || saved.physical_register_model != environment.physical().identity()
         || saved.target != environment.target()

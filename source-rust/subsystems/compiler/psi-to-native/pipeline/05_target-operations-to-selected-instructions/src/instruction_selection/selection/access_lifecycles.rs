@@ -655,10 +655,11 @@ pub(crate) mod relocation {
                 field.shape,
             )?;
         }
-        let StructuralTypeShape::Record { fields, .. } =
-            &terminal_psi::find_structural_type(types, carrier)
-                .ok_or_else(|| failure("relocation lost its run declaration"))?
-                .shape
+        let StructuralTypeShape::Record { fields, .. } = &types
+            .declaration(carrier)
+            .ok()
+            .ok_or_else(|| failure("relocation lost its run declaration"))?
+            .shape
         else {
             return Err(failure("run is not a record"));
         };
@@ -4397,8 +4398,8 @@ pub(crate) mod result_layout {
         identity: StructuralTypeId,
     ) -> Result<&'input StructuralTypeDeclaration, SelectedInstructionError> {
         types
-            .iter()
-            .find(|item| item.id == identity)
+            .declaration(identity)
+            .ok()
             .ok_or_else(|| failure("placement result lost a retained declaration"))
     }
 
@@ -4437,10 +4438,11 @@ pub(crate) mod result_layout {
                     "placement outcome changed its custody or reason roles",
                 ));
             };
-            match plan.operation {
+            let relocation_fields = match plan.operation {
                 terminal_psi::TerminalAccessLifecycleOperation::Relocate => {
+                    let ready_type = structural(ready_owner)?;
                     let StructuralTypeShape::Record { fields, .. } =
-                        &declaration(types, structural(ready_owner)?)?.shape
+                        &declaration(types, ready_type)?.shape
                     else {
                         return Err(failure(
                             "relocation Ready must contain its run and vacated backing",
@@ -4454,6 +4456,7 @@ pub(crate) mod result_layout {
                     {
                         return Err(failure("relocation Ready changed its run or backing type"));
                     }
+                    Some((ready_type, run, vacated))
                 }
                 terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
                     if structural(ready_owner)? != plan.storage.owner_carrier() {
@@ -4461,6 +4464,7 @@ pub(crate) mod result_layout {
                             "initialization Ready no longer retains the original owner",
                         ));
                     }
+                    None
                 }
                 terminal_psi::TerminalAccessLifecycleOperation::View => {
                     if !matches!(
@@ -4474,14 +4478,14 @@ pub(crate) mod result_layout {
                             "borrowed placement Ready must retain its borrowed reference",
                         ));
                     }
+                    None
                 }
                 terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
                     return Err(failure(
                         "extraction does not have a placement establishment outcome",
                     ));
                 }
-            }
-            let ready_type = structural(ready_owner)?;
+            };
             let result_layout = structural_reference_input::case_layout(result, types)
                 .ok_or_else(|| failure("placement outcome has no native layout"))?;
             let [ready_layout, rejected_layout] = result_layout.cases.as_slice() else {
@@ -4494,17 +4498,7 @@ pub(crate) mod result_layout {
                 return Err(failure("placement outcome layout changed fields"));
             };
             let mut ready_owner = *ready_owner;
-            let ready_vacated = if plan.operation
-                == terminal_psi::TerminalAccessLifecycleOperation::Relocate
-            {
-                let StructuralTypeShape::Record { fields, .. } =
-                    &declaration(types, ready_type)?.shape
-                else {
-                    return Err(failure("relocation Ready lost its record layout"));
-                };
-                let [run, vacated] = fields.as_slice() else {
-                    return Err(failure("relocation Ready lost its field pair"));
-                };
+            let ready_vacated = if let Some((ready_type, run, vacated)) = relocation_fields {
                 let packed = |field: &StructuralFieldDeclaration| -> Result<PackedFieldLayout, SelectedInstructionError> {
                     let region = super::field_region(types, ready_type, field)?;
                     Ok(PackedFieldLayout {
@@ -6252,9 +6246,10 @@ pub(crate) fn emit(
             "resident extraction must return its owner and complete value",
         ));
     };
-    let result_declaration =
-        terminal_psi::find_structural_type(declarations, result.structural_type)
-            .ok_or_else(|| failure("resident extraction result declaration is missing"))?;
+    let result_declaration = declarations
+        .declaration(result.structural_type)
+        .ok()
+        .ok_or_else(|| failure("resident extraction result declaration is missing"))?;
     let StructuralTypeShape::Sum { cases } = &result_declaration.shape else {
         return Err(failure(
             "resident extraction result is not its authenticated sum",
@@ -6418,7 +6413,9 @@ fn owner_word(
     home: ImageHome,
     identity: semantic_vocabulary::StructuralFieldId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let owner = terminal_psi::find_structural_type(types, plan.storage.carrier)
+    let owner = types
+        .declaration(plan.storage.carrier)
+        .ok()
         .ok_or_else(|| failure("lifecycle owner declaration is missing"))?;
     let StructuralTypeShape::Record { fields, .. } = &owner.shape else {
         return Err(failure("lifecycle owner is not its retained record"));
@@ -6481,7 +6478,9 @@ fn transfer_image(
     value: ImageHome,
     direction: ImageDirection,
 ) -> Result<(), SelectedInstructionError> {
-    let declaration = terminal_psi::find_structural_type(declarations, plan.schema)
+    let declaration = declarations
+        .declaration(plan.schema)
+        .ok()
         .ok_or_else(|| failure("resident image schema is missing"))?;
     let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err(failure(
@@ -6616,7 +6615,7 @@ fn aggregate_chunks(
     let declaration = field
         .field_type
         .as_structural()
-        .and_then(|root| terminal_psi::find_structural_type(declarations, root))
+        .and_then(|root| declarations.declaration(root).ok())
         .ok_or_else(|| failure("resident aggregate lost its structural type"))?;
     if let StructuralTypeShape::FixedArray {
         element,

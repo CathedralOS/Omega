@@ -1,8 +1,8 @@
 /*
 We derive each function's callee-saved requirements by intersecting its assigned
 physical register write units, implicit definitions, and clobbers with the
-target ABI's callee-saved registers. The receipt records the resulting plan's
-identity.
+target ABI's callee-saved registers. Later forms share the resulting plan and
+compare it.
 */
 
 pub(crate) mod compute {
@@ -53,7 +53,7 @@ pub(crate) mod compute {
         let homes = source.homes();
         let manifest = source.post_allocation_manifest().record();
         if *manifest.selected != *selected.selected_plan()
-            || manifest.homes != homes.receipt().identity()
+            || manifest.homes != *homes.plan_handle()
             || manifest.register_environment != environment.identity()
             || manifest.target != environment.target()
         {
@@ -83,8 +83,8 @@ pub(crate) mod compute {
         }
         Ok(AllocatedCalleeSavedRequirementPlan {
             selected: selected.shared_selected_plan(),
-            homes: homes.receipt().identity(),
-            post_allocation_manifest: manifest.identity,
+            homes: homes.shared_plan(),
+            post_allocation_manifest: std::sync::Arc::clone(manifest),
             register_environment: environment.identity(),
             physical_register_model: environment.physical().identity(),
             target: environment.target(),
@@ -97,28 +97,12 @@ pub(crate) mod compute {
         })
     }
 }
-pub(crate) mod custody {
-    use super::{
-        AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementReceipt,
-        allocated_callee_saved_requirement_identity,
-    };
-
-    pub(crate) fn seal(
-        plan: &AllocatedCalleeSavedRequirementPlan,
-    ) -> AllocatedCalleeSavedRequirementReceipt {
-        AllocatedCalleeSavedRequirementReceipt {
-            identity: allocated_callee_saved_requirement_identity(plan),
-        }
-    }
-}
-pub(crate) use register_homes::allocated_callee_saved_requirement_identity;
 pub use selected_instruction_analyses::register_writes::AllocatedCalleeSavedRequirementError;
 
 use crate::allocation::AllocationOutput;
 use optimization_core::OptimizationWorkBudget;
 pub use register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-    AllocatedCalleeSavedRequirementPolicy,
+    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy,
 };
 
 pub fn stage_allocated_callee_saved_requirements(
@@ -130,43 +114,23 @@ pub fn stage_allocated_callee_saved_requirements(
     Ok(ValidatedAllocatedCalleeSavedRequirements::from_plan(plan))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocatedCalleeSavedRequirementReceipt {
-    pub(crate) identity: AllocatedCalleeSavedRequirementIdentity,
-}
-
-impl AllocatedCalleeSavedRequirementReceipt {
-    receipt_accessor_rows!(AllocatedCalleeSavedRequirementReceipt {
-        identity: AllocatedCalleeSavedRequirementIdentity,
-    });
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedAllocatedCalleeSavedRequirements {
     requirements: register_homes::AllocatedCalleeSavedRequirements,
-    pub(crate) receipt: AllocatedCalleeSavedRequirementReceipt,
 }
 
 impl ValidatedAllocatedCalleeSavedRequirements {
     fn from_plan(plan: AllocatedCalleeSavedRequirementPlan) -> Self {
-        let receipt = custody::seal(&plan);
         Self {
-            requirements: register_homes::AllocatedCalleeSavedRequirements {
-                plan: std::sync::Arc::new(plan),
-                identity: receipt.identity(),
-            },
-            receipt,
+            requirements: std::sync::Arc::new(plan),
         }
     }
 
     pub fn plan(&self) -> &AllocatedCalleeSavedRequirementPlan {
-        self.requirements.plan()
+        &self.requirements
     }
 
     pub fn retained(&self) -> &register_homes::AllocatedCalleeSavedRequirements {
         &self.requirements
     }
-    receipt_accessor_rows!(ref ValidatedAllocatedCalleeSavedRequirements {
-        receipt: AllocatedCalleeSavedRequirementReceipt,
-    });
 }

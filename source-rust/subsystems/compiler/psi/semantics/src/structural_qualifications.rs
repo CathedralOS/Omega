@@ -1271,6 +1271,19 @@ impl<'a> DefaultRequirements<'a> {
             if matches!(prefix.last(), Some(StructuralPathSegment::Case(_))) {
                 continue;
             }
+            // A byte of a byte view, such as one element of
+            // `@mutable row[a..b] as @mutable [u8; N]`, is a plain `u8`
+            // with no defaults or clauses of its own.
+            if prefix == [StructuralPathSegment::AllElements]
+                && matches!(
+                    self.declaration(*root_type)?.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    )
+                )
+            {
+                continue;
+            }
             let Some(carrier) =
                 crate::qualification_path_carrier(self.types.iter(), *root_type, prefix)
             else {

@@ -17,7 +17,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
     {
         Some(
-            crate::saved_program::input::open_trusted_program(
+            crate::saved_program::input::open_run_program(
                 &arguments.main_path,
                 arguments.trusted_artifact.as_deref(),
                 arguments.max_psi_input_bytes,
@@ -142,7 +142,7 @@ fn present_terminal(outcome: TerminalOutcome) -> i32 {
 fn run_cases(
     arguments: RunArguments,
     outputs: PathBuf,
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AdmittedTerminalArtifact>,
 ) -> ! {
     let cases = match &arguments.inputs {
         Some(inputs) => {

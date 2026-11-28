@@ -1,10 +1,10 @@
 /*
     Shared declaration selection before complete symbol assignment.
 
-    `ConstantSelection::new` collects declaration headers, builds a partial
-    namespace with imports and builtin names, and exposes exact lookup for
-    constants, nominal carriers, domains and traits. `with_retained_base` extends
-    the same namespace for generated source. Preparation, initializer handling
+    `ConstantSelection::with_shared_base` collects declaration headers, builds
+    a partial namespace with imports and builtin names, and exposes exact lookup
+    for constants, nominal carriers, domains and traits. Given a retained base,
+    it extends the same namespace for generated source. Preparation, initializer handling
     and resolution share this owner; generic-data synthesis is one consumer.
     Transient symbols remain private and do not escape into normalized syntax.
 */
@@ -140,6 +140,10 @@ impl<'base> ConstantSelection<'base> {
         self.symbols.same_source_package(left, right)
     }
 
+    /// A selection with no retained base. Resolution builds its one selection
+    /// with `with_shared_base` and threads it to every consumer; only tests
+    /// build a standalone selection.
+    #[cfg(test)]
     pub(crate) fn new(
         syntax: &SyntaxTrees,
         sources: Option<Arc<SourceMap>>,

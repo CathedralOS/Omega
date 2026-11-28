@@ -12,7 +12,7 @@ use crate::NativeSelectedProviderPlan;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
-use crate::physical::derivation::evidence::boundary_physical_child_parts;
+use crate::physical::derivation::evidence::PhysicalChildPlacement;
 use crate::physical::derivation::evidence::span;
 use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::settlement_identity::installed_provider_internal_call_identity;
@@ -20,7 +20,6 @@ use crate::physical::fragment_publication::FragmentPublicationBinding;
 use crate::physical::native_byte_span;
 use crate::physical::operator_applications::fragment_call::validate_destination;
 use machine_code::SemanticCodeSite;
-use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::{InvocationSite, MachineId};
 use target::{Architecture, NativeTarget};
 use target_vocabulary::CallSiteOwner;
@@ -132,12 +131,12 @@ pub(crate) fn boundary_internal_call_exists(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn derive_boundary_internal_call_child(
+pub(super) fn derive_boundary_internal_call_child(
     module: &terminal_psi::TerminalModule,
     object: &image_emission::ObjectArtifact,
     image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
-    projection: NativeOptimizationProjectionIdentity,
+    placement: PhysicalChildPlacement,
     requirement_identity: &str,
     plan: &NativeSelectedProviderPlan,
     target: NativeTarget,
@@ -332,10 +331,9 @@ pub(crate) fn derive_boundary_internal_call_child(
         interval.attribution.byte_count,
     );
     let object_span = native_byte_span(interval.text_offset, interval.attribution.byte_count);
-    let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(image, final_image_span)?;
+    let final_image_bytes = span(image, object_span)?;
     if machine_bytes != object_bytes || object_bytes != final_image_bytes {
         return Err("selected boundary internal call bytes changed across physical custody");
     }
@@ -402,19 +400,12 @@ pub(crate) fn derive_boundary_internal_call_child(
             identity: parent_identity,
         })
     };
-    Ok(Some(
-        boundary_physical_child_parts(
-            parent,
-            projection,
-            NativePhysicalOccurrence::Boundary(occurrence.identity()),
-            machine_span,
-            object_span,
-            final_image_span,
-            machine_bytes,
-            object_bytes,
-            final_image_bytes,
-            PhysicalRelocationDisposition::ResolvedInternalCall,
-        )
-        .into(),
-    ))
+    Ok(Some(placement.seal_boundary(
+        parent,
+        NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        machine_span,
+        object_span,
+        object_bytes,
+        PhysicalRelocationDisposition::ResolvedInternalCall,
+    )?))
 }

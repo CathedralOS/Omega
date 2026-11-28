@@ -178,15 +178,9 @@ fn advance<'m>(
                         call.structural_arguments,
                     )
                 } else if let Some(call) = op.kind.callable_invocation() {
-                    let reached = computed.site(module, boundary, frame.machine.id, op.id)?;
-                    let [callee] = reached.selected_machines.as_slice() else {
-                        return None;
-                    };
-                    if !reached.targets_are_resolved() {
-                        return None;
-                    }
+                    let callee = computed.selected_at(module, boundary, frame, op.id, &call)?;
                     (
-                        Some(SelectedCall::Local(*callee)),
+                        Some(SelectedCall::Local(callee)),
                         call.arguments,
                         call.structural_arguments,
                     )
@@ -243,6 +237,14 @@ fn advance<'m>(
                         frame.position += 1;
                         return Some(Advance::OpaqueReturn);
                     };
+                    if result.is_ok()
+                        && effects
+                            .bind_result(op, structural_arguments, &mut frame.bindings, memory)
+                            .is_none()
+                    {
+                        frame.position += 1;
+                        return Some(Advance::OpaqueReturn);
+                    }
                     result.map(|returned| {
                         if let Some(dest) = op.result.as_scalar() {
                             let value = returned

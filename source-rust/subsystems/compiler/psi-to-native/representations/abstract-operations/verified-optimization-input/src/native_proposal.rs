@@ -193,7 +193,7 @@ mod proposal {
     impl super::RetainedTerminalArtifact {
         /// Bind the entry, target and providers to the authorized program they describe.
         pub fn project(
-            authorization: psi_authorization::AuthorizedTerminalArtifact,
+            authorization: psi_authorization::AdmittedTerminalArtifact,
             request: TerminalNativeProposalRequest<'_>,
         ) -> Result<Self, Vec<Diagnostic>> {
             let artifact = authorization.shared_artifact();
@@ -623,7 +623,7 @@ pub use proposal::{NativeRootNomination, TerminalNativeProposalRequest};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetainedTerminalArtifact {
-    artifact: psi_authorization::AuthorizedTerminalArtifact,
+    artifact: psi_authorization::AdmittedTerminalArtifact,
     native_realization_proposal: TerminalNativeRealizationProposal,
 }
 
@@ -636,7 +636,7 @@ impl RetainedTerminalArtifact {
         self.artifact.shared_artifact()
     }
 
-    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AdmittedTerminalArtifact {
         &self.artifact
     }
 

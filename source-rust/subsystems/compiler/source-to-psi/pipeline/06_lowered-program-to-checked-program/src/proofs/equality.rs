@@ -2647,8 +2647,8 @@ use proof_admission::{
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ClauseCarrier, ClauseDeclaration, ClauseIdentity,
-    ClauseOperand, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm, StructuralFieldId,
-    StructuralTypeId, TargetMachineCallable,
+    ClauseOperand, IntegerType, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, StructuralFieldId, StructuralTypeId, TargetMachineCallable,
 };
 use terminal_check_tables::mathematics::IdentityTable;
 use terminal_check_tables::{
@@ -2665,6 +2665,15 @@ pub struct Judgment {
     pub certificate: Vec<u8>,
 }
 
+/// Whether the same-type integer identity bridge applies to builtin
+/// `left == right`: both operands have exactly the comparison's integer
+/// type, which is not an address. Mixed carriers keep numerical equality.
+fn bridged_integer(scalar_type: IntegerType, left: &ScalarTerm, right: &ScalarTerm) -> bool {
+    !scalar_type.is_address()
+        && left.scalar_type() == ScalarType::Integer(scalar_type)
+        && right.scalar_type() == ScalarType::Integer(scalar_type)
+}
+
 /// What one declaration of an obligation's kernel signature stands for.
 #[derive(Clone, PartialEq, Eq)]
 enum Named {
@@ -2679,6 +2688,14 @@ enum Named {
     /// The quotient's soundness at the two representatives of one
     /// `QuotientSoundness` row, by its position.
     Soundness(usize),
+    /// Builtin `==` of one computational integer type, `T -> T -> bool`.
+    IntegerEquality(IntegerType),
+    /// The [same-type integer identity](wiki/spec/terminal-psi/integer_certificates.md#same-type-integer-identity)
+    /// bridge at one type: `Π x y : T. Id bool (x == y) true -> Id T x y`.
+    IntegerIdentity(IntegerType),
+    /// Its converse, stated at one subject: `Π x : T. Id bool (x == x) true`.
+    /// Rewriting with an identity of `x` and `y` gives `x == y` true.
+    IntegerReflexivity(IntegerType),
 }
 
 /// The kernel carrier of a record field: either a `ClauseCarrier` that clauses
@@ -2741,6 +2758,9 @@ struct Declarations<'a> {
     /// The values the inputs' fields held at the goal point, as their terms
     /// state them. An equality of one of them can rebuild an input.
     contents: Vec<ScalarTerm>,
+    /// Each builtin same-type integer comparison a term names, with its
+    /// type and subjects, for the identity bridge.
+    integer_comparisons: Vec<(IntegerType, TermHandle, TermHandle, TermHandle)>,
     arena: TermArena,
     entries: Vec<(Named, TermHandle)>,
     signature: Vec<Declaration>,
@@ -2857,6 +2877,7 @@ impl<'a> Declarations<'a> {
             machine,
             entry,
             contents: Vec::new(),
+            integer_comparisons: Vec::new(),
             arena: TermArena::default(),
             entries: Vec::new(),
             signature: Vec::new(),
@@ -2878,6 +2899,7 @@ impl<'a> Declarations<'a> {
             machine,
             entry: Some(entry),
             contents: Vec::new(),
+            integer_comparisons: Vec::new(),
             arena: table.arena.clone(),
             entries: table
                 .entries
@@ -3220,6 +3242,21 @@ impl<'a> Declarations<'a> {
                 }
                 self.application(*declaration, ty, &domains, &terms)
             }
+            ScalarTerm::IntegerEqual {
+                scalar_type,
+                left,
+                right,
+            } if bridged_integer(*scalar_type, left, right) => {
+                let left = self.scalar(left, binders)?;
+                let right = self.scalar(right, binders)?;
+                let equality = self.integer_equality(*scalar_type)?;
+                let applied = self.arena.apply_arguments(equality, &[left, right]);
+                let compared = (*scalar_type, left, right, applied);
+                if !self.integer_comparisons.contains(&compared) {
+                    self.integer_comparisons.push(compared);
+                }
+                Ok(applied)
+            }
             ScalarTerm::Value { id, .. } if !binders.is_empty() => {
                 let position = binders
                     .iter()
@@ -3236,6 +3273,136 @@ impl<'a> Declarations<'a> {
             _ if binders.is_empty() => self.entry(Named::Scalar(term.clone()), ty),
             _ => Err("no whole-value mathematical input for this scalar operand"),
         }
+    }
+
+    /// Builtin `==` at one computational integer type, as an operation of
+    /// the signature.
+    fn integer_equality(&mut self, scalar_type: IntegerType) -> Result<TermHandle, &'static str> {
+        let subject = self.carrier(ClauseCarrier::Scalar(ScalarType::Integer(scalar_type)))?;
+        let boolean = self.carrier(ClauseCarrier::Scalar(ScalarType::Boolean))?;
+        let function = self.arena.insert(Term::Pi {
+            domain: subject,
+            codomain: boolean,
+        });
+        let function = self.arena.insert(Term::Pi {
+            domain: subject,
+            codomain: function,
+        });
+        self.entry(Named::IntegerEquality(scalar_type), function)
+    }
+
+    /// Evidence of each same-type identity and true comparison the bridge
+    /// gives from what `context` and `citations` already prove
+    /// ([same-type integer identity](wiki/spec/terminal-psi/integer_certificates.md#same-type-integer-identity)):
+    /// for every comparison a premise or the goal names, its true outcome
+    /// at the same subject twice, and, where the premises prove it true at
+    /// two subjects, their typed identity.
+    fn integer_bridges(
+        &mut self,
+        context: &Context,
+        citations: &[TermHandle],
+        budget: &mut Budget,
+    ) -> Result<Vec<TermHandle>, &'static str> {
+        let mut bridged = Vec::new();
+        for (scalar_type, left, right, applied) in self.integer_comparisons.clone() {
+            let reflexivity = self.integer_reflexivity(scalar_type)?;
+            for subject in [left, right] {
+                let evidence = self.arena.apply_arguments(reflexivity, &[subject]);
+                if !bridged.contains(&evidence) {
+                    bridged.push(evidence);
+                }
+            }
+            let boolean = self.carrier(ClauseCarrier::Scalar(ScalarType::Boolean))?;
+            let truth = self.scalar(&ScalarTerm::Boolean(true), &[])?;
+            let outcome = self.arena.insert(Term::Id {
+                ty: boolean,
+                left: applied,
+                right: truth,
+            });
+            let Ok(proof) = prove(&mut self.arena, context, outcome, citations, 4_096, budget)
+            else {
+                continue;
+            };
+            let identity = self.integer_identity(scalar_type)?;
+            bridged.push(self.arena.apply_arguments(identity, &[left, right, proof]));
+        }
+        Ok(bridged)
+    }
+
+    /// The bridge at each integer type a comparison names, declared before
+    /// the signature is checked.
+    fn declare_integer_bridges(&mut self) -> Result<(), &'static str> {
+        let mut types = self
+            .integer_comparisons
+            .iter()
+            .map(|(scalar_type, ..)| *scalar_type)
+            .collect::<Vec<_>>();
+        types.dedup();
+        for scalar_type in types {
+            self.integer_identity(scalar_type)?;
+            self.integer_reflexivity(scalar_type)?;
+        }
+        Ok(())
+    }
+
+    /// `Π x y : T. Id bool (x == y) true -> Id T x y`.
+    fn integer_identity(&mut self, scalar_type: IntegerType) -> Result<TermHandle, &'static str> {
+        let subject = self.carrier(ClauseCarrier::Scalar(ScalarType::Integer(scalar_type)))?;
+        let boolean = self.carrier(ClauseCarrier::Scalar(ScalarType::Boolean))?;
+        let equality = self.integer_equality(scalar_type)?;
+        let truth = self.scalar(&ScalarTerm::Boolean(true), &[])?;
+        // Under the binders `x` (1) and `y` (0), then the premise (0).
+        let x = self.arena.insert(Term::Variable(1));
+        let y = self.arena.insert(Term::Variable(0));
+        let compared = self.arena.apply_arguments(equality, &[x, y]);
+        let premise = self.arena.insert(Term::Id {
+            ty: boolean,
+            left: compared,
+            right: truth,
+        });
+        let x = self.arena.insert(Term::Variable(2));
+        let y = self.arena.insert(Term::Variable(1));
+        let conclusion = self.arena.insert(Term::Id {
+            ty: subject,
+            left: x,
+            right: y,
+        });
+        let implication = self.arena.insert(Term::Pi {
+            domain: premise,
+            codomain: conclusion,
+        });
+        let over_y = self.arena.insert(Term::Pi {
+            domain: subject,
+            codomain: implication,
+        });
+        let statement = self.arena.insert(Term::Pi {
+            domain: subject,
+            codomain: over_y,
+        });
+        self.entry(Named::IntegerIdentity(scalar_type), statement)
+    }
+
+    /// `Π x : T. Id bool (x == x) true`.
+    fn integer_reflexivity(
+        &mut self,
+        scalar_type: IntegerType,
+    ) -> Result<TermHandle, &'static str> {
+        let subject = self.carrier(ClauseCarrier::Scalar(ScalarType::Integer(scalar_type)))?;
+        let boolean = self.carrier(ClauseCarrier::Scalar(ScalarType::Boolean))?;
+        let equality = self.integer_equality(scalar_type)?;
+        let truth = self.scalar(&ScalarTerm::Boolean(true), &[])?;
+        let x = self.arena.insert(Term::Variable(0));
+        let compared = self.arena.apply_arguments(equality, &[x, x]);
+        let outcome = self.arena.insert(Term::Id {
+            ty: boolean,
+            left: compared,
+            right: truth,
+        });
+        let statement = self.arena.insert(Term::Pi {
+            domain: subject,
+            codomain: outcome,
+        });
+        self.entry(Named::IntegerReflexivity(scalar_type), statement)
     }
 
     /// `left = right` between two scalar terms, as a kernel Identity at
@@ -3757,6 +3924,9 @@ pub(crate) fn discharge(
             ),
         )
     };
+    declarations
+        .declare_integer_bridges()
+        .map_err(unavailable)?;
     // Only what this obligation added after the table is checked here.
     let signature = match table {
         Some(table) => extend_signature(
@@ -3782,6 +3952,11 @@ pub(crate) fn discharge(
     for &premise in &premises {
         context = context.extend(premise);
     }
+    // What the premises give through the same-type integer identity bridge.
+    let bridged = declarations
+        .integer_bridges(&context, &proofs, &mut budget)
+        .map_err(unavailable)?;
+    proofs.extend(bridged);
     let Term::Id { left, right, .. } = declarations.arena.get(expected) else {
         unreachable!("an Identity denotes kernel Id")
     };
@@ -3825,4 +4000,52 @@ pub(crate) fn discharge(
         decision: MathematicalCoreDecision::Judged(receipt),
         certificate: bytes,
     })
+}
+
+#[cfg(test)]
+mod integer_bridge_tests {
+    use super::bridged_integer;
+    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarTerm, ScalarType, ValueId};
+
+    fn subject(position: u64, scalar_type: IntegerType) -> ScalarTerm {
+        ScalarTerm::value(
+            ValueId::new(position).expect("a value id"),
+            ScalarType::Integer(scalar_type),
+        )
+    }
+
+    /// The bridge has two subjects of the comparison's own integer type.
+    /// `7i == 7u` is true, but its operands cannot form one identity.
+    #[test]
+    fn the_bridge_takes_only_two_operands_of_one_integer_type() {
+        let narrow = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+        let wide = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+        let address = IntegerType::supported_address_representation();
+        assert!(bridged_integer(
+            narrow,
+            &subject(1, narrow),
+            &subject(2, narrow)
+        ));
+        assert!(!bridged_integer(
+            narrow,
+            &subject(1, narrow),
+            &subject(2, wide)
+        ));
+        assert!(!bridged_integer(
+            wide,
+            &subject(1, narrow),
+            &subject(2, wide)
+        ));
+        assert!(!bridged_integer(
+            narrow,
+            &subject(1, narrow),
+            &subject(2, unsigned)
+        ));
+        assert!(!bridged_integer(
+            address,
+            &subject(1, address),
+            &subject(2, address)
+        ));
+    }
 }

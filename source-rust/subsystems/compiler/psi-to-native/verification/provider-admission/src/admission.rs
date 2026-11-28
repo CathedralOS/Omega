@@ -20,7 +20,7 @@ replacing independent native admission.
 */
 
 use crate::terminal_authority_policy::darwin_poll;
-use crate::terminal_authority_review::reachability::AuthorityGraph;
+use crate::terminal_authority_review::reachability::{AuthorityGraph, ReachableAuthorityEdges};
 use crate::{
     AdmissionSource, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
     AdmittedProgramProviderContext, AdmittedProviderInstallation, ProviderAdmissionRequest,
@@ -167,21 +167,14 @@ pub fn admit_native_providers<'request>(
     let entry_custody = callback_entries::PreparedEntries::new(input, request)
         .map_err(|reason| realization_error("callback entry admission", reason))?;
     let installation = admit_checked_provider_installation(input, artifact, request)?;
-    let helper_associations = static_interrupts::require_helper_associations(
-        input,
-        analyses.as_ref(),
-        request,
-        artifact,
-        &entry_custody,
-        installation.as_ref().map(|row| row.terminal_selection()),
-    )?;
+    let reached_operations = input.reached_operations();
     let installed_interrupts = static_interrupts::admit(
+        &reached_operations,
         input,
         analyses.as_ref(),
         artifact,
         request,
         installation.as_ref().map(|row| row.terminal_selection()),
-        helper_associations,
         &entry_custody,
     )?;
     let (interrupt_settlements, interrupt_mechanisms) = static_interrupts::settle(
@@ -192,18 +185,28 @@ pub fn admit_native_providers<'request>(
     let compiler_builtins = compiler_builtins::reached_builtins(input, artifact, request)?;
     let (native_settlements, native_mechanisms) =
         crate::native_binding_settlements::settle(input, request, &compiler_builtins)?;
-    require_reached_providers(
+    let graph = AuthorityGraph::new(
         input,
         analyses.as_ref(),
         request.profile,
-        request.selected_provider_plans,
         &installed_interrupts,
+    )
+    .map_err(|error| realization_error("provider supply", error))?;
+    let root_edges = graph
+        .reachable_authority_edges(input.plan().entry)
+        .map_err(|error| realization_error("provider supply", error))?;
+    require_reached_providers(
+        input,
+        &root_edges,
+        request.profile,
+        request.selected_provider_plans,
         &interrupt_mechanisms,
         &native_settlements,
     )?;
     let (lifecycle_settlements, lifecycle_mechanisms) =
         access_lifecycles::settle_native_lifecycles(
             input,
+            &reached_operations,
             installation.as_ref(),
             request.terminal_authority_policy,
         )?;
@@ -290,7 +293,8 @@ pub fn admit_native_providers<'request>(
             terminal_artifact_identity,
             request.profile,
             input,
-            analyses.as_ref(),
+            graph,
+            root_edges,
             request.selected_provider_plans,
             effective_policy,
             request.terminal_authority_permission_policy.as_ref(),
@@ -393,7 +397,6 @@ fn admit_checked_provider_installation(
             .admit_folded_constant_closure(view, request.profile.target_name(), &dependencies)
             .map_err(|reason| realization_error("folded constant realization closure", reason))?;
         return Ok(Some(AdmittedProviderInstallation {
-            psi: selection.terminal_psi(),
             terminal_selection: selection,
             installed_candidates: Vec::new(),
             installed_calls: Vec::new(),
@@ -419,26 +422,18 @@ fn admit_checked_provider_installation(
 
 fn require_reached_providers(
     input: &crate::AdmissionSource<'_>,
-    analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
+    reached: &ReachableAuthorityEdges,
     target_profile: target::TargetProfile,
     selected: &build_providers::selections::SelectedProviderPlanFacts,
-    installed_interrupts: &crate::AdmittedInstalledInterruptCohort,
     interrupt_mechanisms: &[AdmittedTerminalMechanism],
     native_settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<(), Vec<Diagnostic>> {
     let plan = input.plan();
-    let reached = AuthorityGraph::new(input, analyses, target_profile)
-        .and_then(|graph| graph.with_installed_interrupts(installed_interrupts))
-        .and_then(|graph| graph.reachable_authority_edges(plan.entry))
-        .map_err(|error| realization_error("provider supply", error))?;
     let diagnostics = reached
         .boundaries
         .iter()
         .filter_map(|boundary| {
-            let declaration = plan
-                .boundary_machines
-                .iter()
-                .find(|declaration| declaration.id == *boundary)?;
+            let declaration = plan.boundary_machine(*boundary)?;
             if declaration.declaration.as_ref().is_some_and(|row| {
                 row.execution == terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
             }) {

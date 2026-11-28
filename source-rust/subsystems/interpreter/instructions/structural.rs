@@ -159,15 +159,7 @@ impl TerminalExecution<'_> {
         let view = self.stage_host_referent(result.place, referent, access, &supply)?;
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&value),
-            crate::storage::reference::ReferenceReferent {
-                view,
-                placed: None,
-                primitive_loan: None,
-                collection_loan: None,
-                byte_owner: None,
-                byte_region: None,
-                aggregate_view: None,
-            },
+            crate::storage::reference::ReferenceReferent::from_view(view),
         )?;
         self.structural_host_atoms.insert(
             StructuralRuntimePlace::from(&value),
@@ -345,15 +337,7 @@ impl TerminalExecution<'_> {
                     )
                     .ok_or(malformed())?,
                 },
-                crate::storage::reference::ReferenceReferent {
-                    view: nested_view,
-                    placed: None,
-                    primitive_loan: None,
-                    collection_loan: None,
-                    byte_owner: None,
-                    byte_region: None,
-                    aggregate_view: None,
-                },
+                crate::storage::reference::ReferenceReferent::from_view(nested_view),
             )?;
         }
         Ok(view)
@@ -516,9 +500,8 @@ impl TerminalExecution<'_> {
                     claim_path.push(StructuralPathSegment::Field(declaration.identity));
                     let member = StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,
-                        path: claim_path.clone(),
+                        path: claim_path,
                     };
-                    claim_operands.push((argument, claim_path.clone()));
                     let child = ConstructorValue::resolve(self, argument)?;
                     if let Some(bytes) = self.prepare_constructor_byte_field(
                         declaration,
@@ -527,6 +510,7 @@ impl TerminalExecution<'_> {
                         &mut frontier,
                         &mut consumed,
                     )? {
+                        claim_operands.push((argument, member.path));
                         storage.stage_byte_field(
                             StructuralByteSequenceRuntimeField {
                                 parent: member_root.clone(),
@@ -544,8 +528,9 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    child.append_memberships(&claim_path, &mut value.projected_qualifications);
+                    child.append_memberships(&member.path, &mut value.projected_qualifications);
                     storage.stage(self, argument, &child, &member, transfers_custody)?;
+                    claim_operands.push((argument, member.path));
                 }
             }
         }
@@ -553,17 +538,7 @@ impl TerminalExecution<'_> {
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;
-        let claims = self.stage_constructor_claims(
-            crate::storage::record::ResultClaimOrigin::Construction,
-            result,
-            &claim_operands,
-            &mut frontier,
-            &|current| storage.case_at_projection(self, &value, &current.path),
-        )?;
-        let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
-        storage.publish(self)?;
-        self.structural_values.insert(result.place, value)?;
-        retirement.commit(self)?;
+        storage.publish_construction(self, result, value, &claim_operands, frontier, &consumed)?;
         Ok(())
     }
 
@@ -1439,6 +1414,54 @@ impl TerminalExecution<'_> {
             })
             .ok_or(malformed())?
             == StructuralMultiplicity::Unrestricted;
+        // A mutable `[T; N]` reference into a byte view's window, such as
+        // `@mutable row[a..b] as @mutable [u8; N]`, has no structural home:
+        // its elements are the view's bytes. Replacing the whole array
+        // writes each copied element into those bytes.
+        if path.is_empty()
+            && field.is_none()
+            && let Some(view) = self.element_view_values.get(&destination)
+            && view.is_representation()
+        {
+            if !copies_storage
+                || disposition != terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+                || view.access() != StructuralAccess::MutableBorrow
+            {
+                return Err(malformed());
+            }
+            let view = view.clone();
+            let types = self.structural_types();
+            let value_type = self.live_structural_type(value.place)?;
+            let Some(StructuralTypeShape::FixedArray { element, length }) =
+                types.get(&value_type).map(|row| &row.shape)
+            else {
+                return Err(malformed());
+            };
+            let Some(StructuralTypeShape::PrimitiveScalar(scalar_type)) =
+                types.get(element).map(|row| &row.shape)
+            else {
+                return Err(malformed());
+            };
+            let scalar_type = *scalar_type;
+            if length
+                .literal()
+                .and_then(|length| usize::try_from(length).ok())
+                != Some(view.len())
+            {
+                return Err(malformed());
+            }
+            for index in 0..view.len() {
+                let scalar = self.read_primitive_place(
+                    value.place,
+                    &[StructuralPathSegment::FixedIndex(
+                        u64::try_from(index).map_err(|_| malformed())?,
+                    )],
+                    scalar_type,
+                )?;
+                self.write_representation_element(&view, index, &[], scalar)?;
+            }
+            return Ok(OperationFlow::Advance);
+        }
         let failure = |phase, cause| TerminalInterpretError::StructuralReplacement {
             operation: operation.id,
             phase,

@@ -1,7 +1,6 @@
 //! Known contents of activation-local storage. A by-value copy gets a new
 //! home. References inside the copy still select the original allocation.
 
-mod allocations;
 mod contents;
 mod join;
 mod location;
@@ -9,8 +8,8 @@ pub(super) use join::Arrivals;
 use location::Allocation;
 pub(super) use location::Location;
 
+use super::super::facts::BranchFacts;
 use crate::synchronization::progress::condition::Assumption;
-use allocations::Allocations;
 pub(super) use contents::Stored;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
 use std::cell::Cell;
@@ -23,7 +22,7 @@ pub(super) struct Storage {
     // from joins and worklist keys; frame/control visitation bounds the calls.
     next_identity: Rc<Cell<usize>>,
     pub(super) conditions: Rc<Vec<Assumption>>,
-    contents: Allocations,
+    contents: BranchFacts<usize, Stored>,
     /// A write through a selected reference establishes its value even
     /// when the individual candidate allocations only receive weak updates.
     selected: Rc<Vec<(Location, Stored)>>,
@@ -54,7 +53,8 @@ impl Storage {
                 }
             });
         }
-        self.contents.join(&other.contents, &mut arrivals);
+        self.contents
+            .union(&other.contents, |left, right| arrivals.value(left, right));
         arrivals.record(self);
         if !Rc::ptr_eq(&self.conditions, &other.conditions) {
             Rc::make_mut(&mut self.conditions)
@@ -90,7 +90,7 @@ impl Storage {
 
     fn allocate_with(&mut self, contents: Stored, home: fn(usize) -> Allocation) -> Location {
         let id = self.fresh_identity();
-        *self.contents.slot(id) = contents;
+        self.contents.insert(id, contents);
         Location::allocation(home(id))
     }
 
@@ -221,9 +221,9 @@ impl Storage {
             }
         }
         location.each_home(|allocation, path| {
-            let value = self
-                .contents
-                .get(allocation)
+            let value = allocation
+                .local_id()
+                .and_then(|id| self.contents.get(&id))
                 .unwrap_or(&Stored::Unknown)
                 .read(path);
             match &mut result {
@@ -252,9 +252,9 @@ impl Storage {
         let mut caller = false;
         let mut local = false;
         location.each_home(|home, path| {
-            let value = self
-                .contents
-                .get(home)
+            let value = home
+                .local_id()
+                .and_then(|id| self.contents.get(&id))
                 .unwrap_or(&Stored::Unknown)
                 .read(path);
             match home {
@@ -285,7 +285,9 @@ impl Storage {
         }
         location.each_home(|allocation, path| {
             if let Some(id) = allocation.local_id() {
-                self.contents.slot(id).write(path, &new, weak);
+                self.contents
+                    .get_or_insert_with(id, Stored::default)
+                    .write(path, &new, weak);
             }
         });
     }

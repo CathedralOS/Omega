@@ -3,20 +3,11 @@
 use diagnostics::Diagnostic;
 use build_providers::plans::ProviderPlan;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DirectBoundaryMechanism {
-    Intrinsic,
-    Foreign(Result<calling_conventions::ExternalBindingRow, Vec<Diagnostic>>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DirectBoundaryInput {
-    row_index: usize,
+pub(crate) struct DirectBoundaryInput {
     declaration_identity: String,
     callable_identity: String,
     realization_owner: String,
     realization_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub mechanism: DirectBoundaryMechanism,
 }
 
 impl DirectBoundaryInput {
@@ -24,14 +15,9 @@ impl DirectBoundaryInput {
     /// or supplied conformance to invent for its external execution.
     pub(crate) fn from_boundary(
         module: &terminal_psi::TerminalModule,
-        boundary: semantic_vocabulary::BoundaryMachineId,
-        mechanism: DirectBoundaryMechanism,
+        boundary: &terminal_psi::BoundaryMachineDeclaration,
+        realization_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Result<Self, Diagnostic> {
-        let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, boundary)
-            .map_err(Diagnostic::error)?;
-        let boundary = module
-            .boundary_machine(boundary)
-            .ok_or_else(|| Diagnostic::error("direct binding lost its checked boundary"))?;
         let declaration = boundary
             .declaration
             .as_ref()
@@ -47,23 +33,19 @@ impl DirectBoundaryInput {
                 })
         };
         Ok(Self {
-            row_index: 0,
             declaration_identity: text(declaration.source.semantic_declaration)?,
             callable_identity: text(declaration.source.callable)?,
             // A direct requirement has no selected named implementation.
             realization_owner: String::new(),
-            realization_package: schema.surface.trait_package_identity,
-            mechanism,
+            realization_package,
         })
     }
 
     /// Keep the exact external declaration the checker admitted. This adapter
     /// describes a native leaf; receiving execution still admits its binding.
     pub(crate) fn from_checked(
-        row_index: usize,
         source: &terminal_psi::ExternalProviderConformance,
         identities: &terminal_psi::TerminalIdentityTable,
-        mechanism: DirectBoundaryMechanism,
     ) -> Result<Self, Diagnostic> {
         source.validate(identities).map_err(Diagnostic::error)?;
         let text = |identity| {
@@ -76,7 +58,6 @@ impl DirectBoundaryInput {
                 })
         };
         Ok(Self {
-            row_index,
             declaration_identity: text(source.realization.machine.identity())?,
             callable_identity: text(source.realization.callable)?,
             realization_owner: source
@@ -89,15 +70,14 @@ impl DirectBoundaryInput {
                 .provider
                 .as_ref()
                 .and_then(|provider| provider.package),
-            mechanism,
         })
     }
-    pub fn finish(
+    pub(crate) fn finish(
         &self,
         original: &ProviderPlan,
         mut execution: direct_boundary_bindings::DirectBoundaryExecution,
     ) -> Result<direct_boundary_bindings::DirectBoundaryLeaf, Diagnostic> {
-        let row = original.rows.get(self.row_index).ok_or_else(|| {
+        let row = original.rows.first().ok_or_else(|| {
             Diagnostic::error("direct boundary projection lost its original provider row")
         })?;
         let requirement = original.identities.text(row.declared_requirement_identity);
@@ -260,16 +240,13 @@ pub fn direct_compiler_primitive_leaves(
                 machine: text(declaration.source.semantic_declaration)?.to_owned(),
             },
         });
-        let row_index = 0;
         let input = DirectBoundaryInput {
-            row_index,
             declaration_identity: text(declaration.source.semantic_declaration)?.to_owned(),
             callable_identity: text(declaration.source.callable)?.to_owned(),
             realization_owner: text(declaration.source.machine.identity())?.to_owned(),
             // Receiving has already authenticated both declarations as exact
             // core members; the canonical schema retains that package custody.
             realization_package: original.schema.declaration.trait_package_identity,
-            mechanism: DirectBoundaryMechanism::Intrinsic,
         };
         let mut leaf = input
             .finish(
@@ -343,12 +320,10 @@ mod tests {
             },
         });
         let input = DirectBoundaryInput {
-            row_index: 0,
             declaration_identity: "primitive declaration".into(),
             callable_identity: "primitive callable(i32)->core::Never".into(),
             realization_owner: "core::ProcessExitPrimitive".into(),
             realization_package: None,
-            mechanism: DirectBoundaryMechanism::Intrinsic,
         };
         let leaf = input
             .finish(

@@ -223,6 +223,98 @@ pub fn admit_contained_interpretation(
     })
 }
 
+/// An artifact admitted to runtime admission: provider selection, target
+/// binding, abstract-operation lowering and realization admission.
+///
+/// Either the host trusts its producer, or the host admitted it only for
+/// contained interpretation. Every stage that runtime admission shares with
+/// native compilation takes this. The optimizer, image emission, component
+/// emission and foreign-adapter compilation take only the authorized form,
+/// through [`Self::authorized`], so a contained artifact never reaches native
+/// code or fact-driven optimization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AdmittedTerminalArtifact {
+    Authorized(AuthorizedTerminalArtifact),
+    Contained(ContainedTerminalArtifact),
+}
+
+impl AdmittedTerminalArtifact {
+    pub fn artifact(&self) -> &CanonicalTerminalArtifact {
+        self.shared_artifact()
+    }
+
+    pub fn shared_artifact(&self) -> &Arc<CanonicalTerminalArtifact> {
+        match self {
+            Self::Authorized(artifact) => artifact.shared_artifact(),
+            Self::Contained(artifact) => &artifact.artifact,
+        }
+    }
+
+    pub fn identity(&self) -> TerminalArtifactIdentity {
+        self.artifact().manifest().identity()
+    }
+
+    /// Checks a separate input without broadening this admission.
+    pub fn require_artifact(
+        &self,
+        artifact: &CanonicalTerminalArtifact,
+    ) -> Result<(), ArtifactTrustError> {
+        match self {
+            Self::Authorized(authorized) => authorized.require_artifact(artifact),
+            Self::Contained(contained) => contained.require_artifact(artifact),
+        }
+    }
+
+    /// The host-authorized form, required by every stage past runtime
+    /// admission.
+    pub fn authorized(&self) -> Result<&AuthorizedTerminalArtifact, ArtifactTrustError> {
+        match self {
+            Self::Authorized(authorized) => Ok(authorized),
+            Self::Contained(_) => Err(ArtifactTrustError::ProducerTrustRequired),
+        }
+    }
+
+    pub fn into_authorized(self) -> Result<AuthorizedTerminalArtifact, ArtifactTrustError> {
+        match self {
+            Self::Authorized(authorized) => Ok(authorized),
+            Self::Contained(_) => Err(ArtifactTrustError::ProducerTrustRequired),
+        }
+    }
+
+    /// The contained form, for a host that runs this artifact only on the
+    /// contained interpreter route.
+    pub fn contained(&self) -> Option<&ContainedTerminalArtifact> {
+        match self {
+            Self::Authorized(_) => None,
+            Self::Contained(contained) => Some(contained),
+        }
+    }
+
+    pub const fn is_contained(&self) -> bool {
+        matches!(self, Self::Contained(_))
+    }
+}
+
+impl From<AuthorizedTerminalArtifact> for AdmittedTerminalArtifact {
+    fn from(artifact: AuthorizedTerminalArtifact) -> Self {
+        Self::Authorized(artifact)
+    }
+}
+
+impl From<ContainedTerminalArtifact> for AdmittedTerminalArtifact {
+    fn from(artifact: ContainedTerminalArtifact) -> Self {
+        Self::Contained(artifact)
+    }
+}
+
+impl PartialEq for ContainedTerminalArtifact {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.artifact, &other.artifact) || self.identity() == other.identity()
+    }
+}
+
+impl Eq for ContainedTerminalArtifact {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

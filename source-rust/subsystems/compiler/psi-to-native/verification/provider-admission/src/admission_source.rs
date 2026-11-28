@@ -61,12 +61,29 @@ impl<'a> AdmissionSource<'a> {
         self.private_entry_ram
     }
 
+    /// The Psi operations present in this lowering, ordered by machine and operation.
+    pub(crate) fn reached_operations(&self) -> Vec<(MachineId, semantic_vocabulary::OperationId)> {
+        let mut reached: Vec<_> = self
+            .plan()
+            .functions
+            .iter()
+            .flat_map(|function| {
+                function.operations().filter_map(move |row| {
+                    row.psi_operation()
+                        .map(|operation| (function.machine, operation))
+                })
+            })
+            .collect();
+        reached.sort_unstable();
+        reached.dedup();
+        reached
+    }
+
     pub fn selected_calling_abi_identity(
         &self,
         boundary: BoundaryMachineId,
     ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
-        let declaration = boundary;
-        self.module().calling_abi_identity(declaration)
+        self.module().calling_abi_identity(boundary)
     }
 }
 

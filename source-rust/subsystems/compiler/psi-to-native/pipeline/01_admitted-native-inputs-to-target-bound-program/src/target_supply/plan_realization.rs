@@ -12,9 +12,8 @@ use build_providers::plans::{
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::TerminalModule;
 
-use super::realized_supply::{
-    ProviderPlanRealizationInput, RealizedTargetSupply, TargetSupplyRealizationInput,
-};
+use super::realized_supply::{ProviderPlanRealizationInput, RealizedTargetSupply};
+use crate::provider_rows::DirectBoundaryInput;
 
 /// Actual normalized products of the Build, calling, and permission owners.
 /// No default constructor turns an unfinished projection into empty supply.
@@ -40,21 +39,12 @@ pub struct PublishedComponentSuppliers {
 }
 
 pub struct TargetSupplyRealizationRequest<'a> {
-    components: Option<PublishedComponentSuppliers>,
+    inputs: TargetSupplyExecutionInputs,
     logical: &'a terminal_semantics::logical_providers::ClosedLogicalProviders,
     module: &'a TerminalModule,
     /// The identity of `module`, taken from its sealed artifact or hashed
     /// once by the caller that holds only the module.
     program: terminal_psi::TerminalPsiIdentity,
-    target: &'a str,
-    reached: &'a [BoundaryMachineId],
-    calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
-    external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    evaluated_native_bindings: Vec<build_providers::plans::EvaluatedNativeBinding>,
-    evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    terminal_authority_permissions:
-        Vec<build_providers::acceptance::ServiceTerminalAuthorityPermission>,
-    terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
 impl<'a> TargetSupplyRealizationRequest<'a> {
@@ -80,16 +70,7 @@ impl<'a> TargetSupplyRealizationRequest<'a> {
             module,
             program,
             logical,
-            target: logical.target(),
-            reached: logical.requirements(),
-            components: inputs.components,
-            calling_applications: inputs.calling_applications,
-            external_bindings: inputs.external_bindings,
-            evaluated_native_bindings: inputs.evaluated_native_bindings,
-            evaluated_binding_identities: inputs.evaluated_binding_identities,
-            terminal_authority_permissions: inputs.terminal_authority_permissions,
-            terminal_authority_permission_identities: inputs
-                .terminal_authority_permission_identities,
+            inputs,
         }
     }
 }
@@ -384,12 +365,11 @@ fn direct_leaves(
             + foreign_bindings[begin..]
                 .partition_point(|binding| binding.requirement_identity == callable);
         let foreign = &foreign_bindings[begin..end];
-        let (binding, mechanism, execution) = match &row.binding {
+        let (binding, execution) = match &row.binding {
             semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic => (
                 ProviderBinding::CompilerIntrinsic {
                     machine: callable.to_owned(),
                 },
-                crate::DirectBoundaryMechanism::Intrinsic,
                 direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(
                     provider_correspondence::external_providers::canonical_external_execution(row, target)?,
                 ),
@@ -416,7 +396,6 @@ fn direct_leaves(
                 };
                 (
                     ProviderBinding::Syscall { number: *number },
-                    crate::DirectBoundaryMechanism::Foreign(execution.clone()),
                     direct_boundary_bindings::DirectBoundaryExecution::Foreign(execution),
                 )
             }
@@ -446,7 +425,7 @@ fn direct_leaves(
             origin_package: text(module, row.realization.semantic_declaration)?.to_owned(),
             ..ProviderPlan::default()
         };
-        let input = crate::DirectBoundaryInput::from_checked(0, row, &module.identities, mechanism)
+        let input = DirectBoundaryInput::from_checked(row, &module.identities)
             .map_err(|error| error.message)?;
         leaves.push(
             input
@@ -518,10 +497,10 @@ fn direct_leaves(
             origin_package: text(module, boundary.owner.identity())?.to_owned(),
             ..ProviderPlan::default()
         };
-        let input = crate::DirectBoundaryInput::from_boundary(
+        let input = DirectBoundaryInput::from_boundary(
             module,
-            id,
-            crate::DirectBoundaryMechanism::Foreign(Ok(binding.clone())),
+            boundary,
+            schema.surface.trait_package_identity,
         )
         .map_err(|error| error.message)?;
         let leaf = input
@@ -541,30 +520,27 @@ pub fn realize_target_supply(
     request: TargetSupplyRealizationRequest<'_>,
 ) -> Result<RealizedTargetSupply, TargetSupplyRealizationError> {
     let module = request.module;
-    target::TargetProfile::from_canonical_target_name(request.target)
+    let target = request.logical.target();
+    let reached = request.logical.requirements();
+    let inputs = request.inputs;
+    let profile = target::TargetProfile::from_canonical_target_name(target)
         .map_err(|error| error.to_string())?;
     let program = request.program;
     request.logical.require_program(program)?;
-    if request.target != request.logical.target()
-        || request.reached != request.logical.requirements()
-    {
-        return Err("native planning changed its closed logical target or requirements".into());
-    }
     let logical = request.logical.providers();
     let mut plans = Vec::with_capacity(logical.len());
     // Each provider names the reached boundaries it covers. Look them up by
     // sorted boundary instead of rescanning every covered list per boundary.
-    let mut reached_order = request
-        .reached
+    let mut reached_order = reached
         .iter()
         .enumerate()
         .map(|(ordinal, boundary)| (*boundary, ordinal))
         .collect::<Vec<_>>();
     reached_order.sort_unstable();
-    let mut covered = vec![false; request.reached.len()];
+    let mut covered = vec![false; reached.len()];
     for selected in logical {
-        let mut plan = checked_plan(module, selected, &request.calling_applications)?;
-        if let Some(components) = &request.components
+        let mut plan = checked_plan(module, selected, &inputs.calling_applications)?;
+        if let Some(components) = &inputs.components
             && selected.choice.composition_mode
                 == semantic_vocabulary::source_selections::CompositionMode::Independent
         {
@@ -595,19 +571,19 @@ pub fn realize_target_supply(
     }
     let mut direct_boundary_leaves = direct_leaves(
         module,
-        request.target,
-        &request.calling_applications,
-        &request.external_bindings,
-        &request.evaluated_native_bindings,
-        &request.evaluated_binding_identities,
-        request.reached,
+        target,
+        &inputs.calling_applications,
+        &inputs.external_bindings,
+        &inputs.evaluated_native_bindings,
+        &inputs.evaluated_binding_identities,
+        reached,
     )?;
     let primitive_schemas = crate::compiler_primitive_schemas(module)?;
     let primitive_leaves = crate::direct_compiler_primitive_leaves(
         module,
         &primitive_schemas,
-        request.target,
-        request.reached.iter().copied(),
+        target,
+        reached.iter().copied(),
     )
     .map_err(|diagnostics| {
         diagnostics
@@ -630,15 +606,8 @@ pub fn realize_target_supply(
             *joined = true;
         }
     }
-    direct_boundary_leaves.extend(
-        primitive_leaves
-            .into_iter()
-            .zip(joins)
-            .filter_map(|(leaf, joined)| joined.then_some(leaf)),
-    );
-    let leaf_keys = super::sorted_leaf_keys(&direct_boundary_leaves);
     let mut missing = Vec::new();
-    for (ordinal, boundary) in request.reached.iter().enumerate() {
+    for (ordinal, boundary) in reached.iter().enumerate() {
         if covered[ordinal] {
             continue;
         }
@@ -650,7 +619,7 @@ pub fn realize_target_supply(
             .as_ref()
             .ok_or("reached boundary has no genuine checked declaration")?;
         if !super::boundary_leaf_key(&module.identities, row.kind, declaration)
-            .is_some_and(|key| !super::entries_with_key(&leaf_keys, key).is_empty())
+            .is_some_and(|key| known.binary_search(&key).is_ok())
         {
             missing.push(*boundary);
         }
@@ -659,26 +628,34 @@ pub fn realize_target_supply(
         // Keep every failed coordinate until the source-owning caller can join
         // its retained diagnostic labels. Labels never participate in supply.
         return Err(TargetSupplyRealizationError::MissingSupplies {
-            target: request.target.to_owned(),
+            target: target.to_owned(),
             boundaries: missing,
         });
     }
+    let joined_primitives = primitive_leaves
+        .iter()
+        .zip(&joins)
+        .filter_map(|(leaf, joined)| joined.then_some(leaf));
+    super::realized_supply::validate_direct_leaves(
+        module,
+        target,
+        &inputs,
+        direct_boundary_leaves.iter().chain(joined_primitives),
+        &primitive_leaves,
+    )?;
+    direct_boundary_leaves.extend(
+        primitive_leaves
+            .into_iter()
+            .zip(joins)
+            .filter_map(|(leaf, joined)| joined.then_some(leaf)),
+    );
     RealizedTargetSupply::from_checked(
         module,
         program,
-        TargetSupplyRealizationInput {
-            reached: request.reached.to_vec(),
-            target: request.target.to_owned(),
-            plans,
-            direct_boundary_leaves,
-            calling_applications: request.calling_applications,
-            external_bindings: request.external_bindings,
-            evaluated_native_bindings: request.evaluated_native_bindings,
-            evaluated_binding_identities: request.evaluated_binding_identities,
-            terminal_authority_permissions: request.terminal_authority_permissions,
-            terminal_authority_permission_identities: request
-                .terminal_authority_permission_identities,
-        },
+        profile,
+        plans,
+        direct_boundary_leaves,
+        inputs,
     )
     .map_err(TargetSupplyRealizationError::ExistingDiagnostics)
 }

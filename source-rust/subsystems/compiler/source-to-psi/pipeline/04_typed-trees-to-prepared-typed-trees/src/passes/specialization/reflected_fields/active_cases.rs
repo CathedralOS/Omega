@@ -114,15 +114,6 @@ pub(super) fn expand(
         (case_binder, &case_visitor, None),
         (field_binder, &field_visitor, Some([].as_slice())),
     ] {
-        if program
-            .authored_service_reach_rows_for(binder.symbol)
-            .next()
-            .is_some()
-        {
-            return Err(unserved(
-                "a callback binder needs a refinement proof for its full interface",
-            ));
-        }
         satisfies_binder(
             program,
             binder,

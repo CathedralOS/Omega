@@ -907,20 +907,30 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         }
     }
 
+    // An absent operand, such as the subject of a subjectless `match` or a
+    // positional pattern's `_` and `..`, is the invalid handle and names no
+    // dependency. A valid handle the table no longer holds is still refused
+    // as stale when it is visited.
     fn queue_expression(&mut self, value: ExpressionHandle) {
-        self.expressions.push(DependencyWork {
-            value,
-            lexical_owner: self.lexical_owner,
-        });
+        if value.is_valid() {
+            self.expressions.push(DependencyWork {
+                value,
+                lexical_owner: self.lexical_owner,
+            });
+        }
     }
 
     fn queue_expressions(&mut self, values: impl IntoIterator<Item = ExpressionHandle>) {
         let lexical_owner = self.lexical_owner;
-        self.expressions
-            .extend(values.into_iter().map(|value| DependencyWork {
-                value,
-                lexical_owner,
-            }));
+        self.expressions.extend(
+            values
+                .into_iter()
+                .filter(|value| value.is_valid())
+                .map(|value| DependencyWork {
+                    value,
+                    lexical_owner,
+                }),
+        );
     }
 
     fn queue_type(&mut self, value: &'program TypeReference) {

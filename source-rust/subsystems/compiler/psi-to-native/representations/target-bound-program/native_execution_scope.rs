@@ -64,7 +64,7 @@ pub struct NativeScopeSource {
 
 impl NativeScopeSource {
     pub fn admit(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AdmittedTerminalArtifact,
         root: NativeRoot,
         selection: Arc<SelectedProviderPlanFacts>,
         adapters: SelectedProviderAdapters,
@@ -122,7 +122,7 @@ impl NativeScopeSource {
 
     pub fn program<'a>(
         self: &'a Arc<Self>,
-        authorization: &'a psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &'a psi_authorization::AdmittedTerminalArtifact,
     ) -> Result<NativeScopeBinding<'a>, Vec<Diagnostic>> {
         if self.artifact != authorization.identity() {
             return Err(vec![Diagnostic::error(
@@ -311,14 +311,14 @@ impl NativeExecutionScope {
 
 /// The authorized program and the providers selected for its reachable boundaries.
 pub struct ScopedProviderSelection {
-    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    authorization: psi_authorization::AdmittedTerminalArtifact,
     scope: NativeExecutionScope,
     selection: Arc<SelectedProviderPlanFacts>,
 }
 
 impl ScopedProviderSelection {
     pub fn bind(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &psi_authorization::AdmittedTerminalArtifact,
         source: &Arc<NativeScopeSource>,
         mut scope: NativeExecutionScope,
         leaves: &[direct_boundary_bindings::DirectBoundaryLeaf],
@@ -346,7 +346,7 @@ impl ScopedProviderSelection {
         })
     }
 
-    pub const fn authorization(&self) -> &psi_authorization::AuthorizedTerminalArtifact {
+    pub const fn authorization(&self) -> &psi_authorization::AdmittedTerminalArtifact {
         &self.authorization
     }
     pub const fn scope(&self) -> &NativeExecutionScope {

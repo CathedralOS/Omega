@@ -1310,17 +1310,85 @@ impl Program<'_> {
         } else {
             false
         };
+        // A copy of a machine generic over `T` writes the subject where its
+        // template wrote `Identity::<T>` with the same call occurrence, and
+        // the copy's specialization binds `T` to the subject.
+        let specialized_type = written_type.is_none()
+            && !parameter_in_scope
+            && !supplied_type
+            && [owner, typed.symbols.get(owner).parent]
+                .into_iter()
+                .filter_map(|instance| typed.machine_instantiation(instance).ok().flatten())
+                .any(|instantiation| {
+                    let mut pending = Vec::new();
+                    let template = instantiation.template();
+                    let declarations = typed
+                        .machine_by_symbol(template)
+                        .into_iter()
+                        .flat_map(|machine| {
+                            typed.machine_states(machine).iter().map(move |state| (machine, state))
+                        })
+                        .chain(typed.machine_states_named(template));
+                    for (machine, state) in declarations {
+                        for contracts in [machine.contracts, state.contracts] {
+                            for contract in typed.signature_contracts.span_or_empty(contracts) {
+                                pending.extend(
+                                    typed
+                                        .proof_facts
+                                        .span_or_empty(contract.facts)
+                                        .iter()
+                                        .filter_map(|fact| fact.as_expression().copied()),
+                                );
+                            }
+                        }
+                    }
+                    let mut binder = None;
+                    while let Some(handle) = pending.pop() {
+                        if !expressions.expression_is_valid(handle) {
+                            continue;
+                        }
+                        let node = expressions.expression(handle);
+                        if let ExpressionNode::Call(written) = node
+                            && written.authored_call_selection == Some(selection)
+                            && let [written] = written.machine_arguments.as_ref()
+                            && typed.symbols.symbols().nodes().is_valid(written.symbol)
+                            && typed.symbols.get(written.symbol).kind
+                                == symbols::SymbolKind::TypeParameter
+                        {
+                            binder = Some(written.symbol);
+                            break;
+                        }
+                        typed.expression_children(node, |child| pending.push(child));
+                    }
+                    binder.is_some_and(|binder| {
+                        expressions
+                            .static_machine_application_bindings(
+                                instantiation.binding_application(),
+                            )
+                            .iter()
+                            .any(|binding| {
+                                binding.parameter == binder
+                                    && matches!(binding.value,
+                                        crate::source_state::static_applications::StaticMachineBindingValue::Type(
+                                            supplied,
+                                        ) if names_subject(supplied))
+                            })
+                    })
+                });
         if !attached_call
-            || written_type.map_or(!(parameter_in_scope || supplied_type), |row| {
-                let typed_source = row.source_span();
-                !within_call(typed_source)
-                    || typed_source.span.start < call_source.span.end
-                    || row
-                        .target()
-                        .as_resolved()
-                        .map(|selected| selected.selected_symbol())
-                        != Some(subject)
-            })
+            || written_type.map_or(
+                !(parameter_in_scope || supplied_type || specialized_type),
+                |row| {
+                    let typed_source = row.source_span();
+                    !within_call(typed_source)
+                        || typed_source.span.start < call_source.span.end
+                        || row
+                            .target()
+                            .as_resolved()
+                            .map(|selected| selected.selected_symbol())
+                            != Some(subject)
+                },
+            )
         {
             return Err(unavailable(
                 "Identity lost the source selection for its written type",

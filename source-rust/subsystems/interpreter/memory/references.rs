@@ -41,6 +41,20 @@ pub(crate) struct ReferenceReferent {
     pub(crate) aggregate_view: Option<AggregateViewRegion>,
 }
 
+impl ReferenceReferent {
+    pub(crate) fn from_view(view: TerminalStructuralValue) -> Self {
+        Self {
+            view,
+            placed: None,
+            primitive_loan: None,
+            collection_loan: None,
+            byte_owner: None,
+            byte_region: None,
+            aggregate_view: None,
+        }
+    }
+}
+
 pub(crate) struct PreparedReference {
     pub(crate) referent: ReferenceReferent,
     pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
@@ -1070,13 +1084,8 @@ pub(crate) mod placed {
                                 ],
                             },
                             crate::storage::reference::ReferenceReferent {
-                                view: backing,
-                                primitive_loan: None,
-                                collection_loan: None,
-                                byte_region: None,
-                                byte_owner: None,
-                                aggregate_view: None,
                                 placed: Some(captured),
+                                ..crate::storage::reference::ReferenceReferent::from_view(backing)
                             },
                         )?;
                     }
@@ -1664,13 +1673,8 @@ pub(crate) mod placed {
             self.reference_referents.insert(
                 StructuralRuntimePlace::from(&carrier),
                 super::ReferenceReferent {
-                    view: backing,
-                    primitive_loan: None,
-                    collection_loan: None,
-                    byte_region: None,
-                    byte_owner: None,
-                    aggregate_view: None,
                     placed: Some(captured),
+                    ..super::ReferenceReferent::from_view(backing)
                 },
             )?;
             self.structural_values.insert(result.place, carrier)?;

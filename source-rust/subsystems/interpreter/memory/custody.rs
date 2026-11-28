@@ -399,7 +399,7 @@ pub(crate) mod windows {
             }
             let mut claims = self.live_claims.clone();
             for binding in &result.claims {
-                super::bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
+                super::bind_result_claim(&mut claims, binding, result)?;
             }
             self.stage_result_affine_frontier(result, frontier, &case_membership)?;
             Ok(claims)
@@ -498,13 +498,12 @@ use terminal_psi::{
 pub(crate) fn bind_result_claim(
     live_claims: &mut BTreeMap<ClaimId, crate::engine::execution::LiveClaim>,
     binding: &StructuralResultClaimBinding,
-    place: PlaceId,
-    multiplicity: StructuralMultiplicity,
+    result: &StructuralOperationResult,
 ) -> Result<(), TerminalInterpretError> {
     if live_claims
         .insert(
             binding.claim,
-            crate::engine::execution::LiveClaim::at(place, binding.path.clone(), multiplicity),
+            LiveClaim::at(result.place, binding.path.clone(), result.multiplicity),
         )
         .is_some()
     {
@@ -1392,9 +1391,13 @@ pub(crate) fn projected_ownership_claims(
             continue;
         }
         if let Some(suffix) = claim.path.strip_prefix(argument.path.as_slice()) {
-            let mut moved = claim.clone();
-            moved.path = suffix.to_vec();
-            selected.push((*identity, moved));
+            selected.push((
+                *identity,
+                LiveClaim {
+                    path: suffix.to_vec(),
+                    ..*claim
+                },
+            ));
         } else if argument.path.starts_with(&claim.path) {
             return Err(TerminalInterpretError::ClaimTransferMismatch);
         }
@@ -2034,23 +2037,6 @@ pub(crate) fn bind_entry_claims(
     Ok(claims)
 }
 
-pub(crate) fn resolve_structural_arguments(
-    structural_types: &crate::embedding::program::ProgramDeclarations<
-        '_,
-        StructuralTypeDeclaration,
-    >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    arguments: &[StructuralArgument],
-) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
-    arguments
-        .iter()
-        .map(|argument| {
-            let value = crate::engine::custody::verified_structural_place(values, argument.place)?;
-            project_structural_value(structural_types, value, &argument.path)
-        })
-        .collect()
-}
-
 pub(crate) fn verified_structural_place<'v, V: 'v>(
     values: &'v impl std::borrow::Borrow<BTreeMap<PlaceId, V>>,
     place: PlaceId,
@@ -2071,9 +2057,8 @@ pub(crate) fn resolve_single_structural_argument(
     values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     argument: &StructuralArgument,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-    resolve_structural_arguments(structural_types, values, std::slice::from_ref(argument))?
-        .pop()
-        .ok_or(malformed())
+    let value = verified_structural_place(values, argument.place)?;
+    project_structural_value(structural_types, value, &argument.path)
 }
 
 pub(crate) fn project_structural_value(
@@ -2121,24 +2106,30 @@ pub(crate) fn project_structural_value_with_leaf(
     leaf_type: impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>
     + Copy,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-    let mut value = root.clone();
-    value.structural_type = resolve_structural_path_type_with_leaf(
+    let structural_type = resolve_structural_path_type_with_leaf(
         structural_types,
         root.structural_type,
         path,
         expected,
         leaf_type,
     )?;
-    (value.qualifications, value.projected_qualifications) =
+    let (qualifications, projected_qualifications) =
         terminal_psi::StructuralPathQualification::select(
             &root.qualifications,
             &root.projected_qualifications,
             path,
         );
-    value
-        .path
-        .extend_from_slice(crate::boundary::values::structural_storage_path(path));
-    Ok(value)
+    let suffix = crate::boundary::values::structural_storage_path(path);
+    let mut projected_path = Vec::with_capacity(root.path.len() + suffix.len());
+    projected_path.extend_from_slice(&root.path);
+    projected_path.extend_from_slice(suffix);
+    Ok(TerminalStructuralValue {
+        opaque_identity: root.opaque_identity,
+        structural_type,
+        qualifications,
+        projected_qualifications,
+        path: projected_path,
+    })
 }
 
 pub(crate) fn direct_scalar_field_type(
@@ -2242,9 +2233,7 @@ pub(crate) fn transfer_claims(
             .or_default()
             .push(transfer);
     }
-    if expected_by_argument.keys().collect::<Vec<_>>()
-        != actual_by_argument.keys().collect::<Vec<_>>()
-    {
+    if expected_by_argument.keys().ne(actual_by_argument.keys()) {
         return Err(TerminalInterpretError::ClaimTransferMismatch);
     }
 
@@ -2402,9 +2391,8 @@ pub(crate) fn complete_claims(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
     caller_arguments: &[StructuralArgument],
     receipts: &[CompletionReceipt],
-    _boundary_parameters: &[StructuralParameterDeclaration],
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
-    let expected = caller_arguments
+    let mut expected = caller_arguments
         .iter()
         .enumerate()
         .flat_map(|(index, argument)| {
@@ -2419,14 +2407,13 @@ pub(crate) fn complete_claims(
         })
         .collect::<BTreeSet<_>>();
     let mut remaining = caller_claims.clone();
-    let mut actual = BTreeSet::new();
     for receipt in receipts {
         let occurrence = (
             receipt.argument_index,
             receipt.claim,
             receipt.path.as_slice(),
         );
-        if !actual.insert(occurrence) || !expected.contains(&occurrence) {
+        if !expected.remove(&occurrence) {
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
         let argument = caller_arguments
@@ -2441,7 +2428,7 @@ pub(crate) fn complete_claims(
             return Err(TerminalInterpretError::CompletionReceiptMismatch);
         }
     }
-    if actual != expected {
+    if !expected.is_empty() {
         return Err(TerminalInterpretError::CompletionReceiptMismatch);
     }
     Ok(remaining)
@@ -2926,6 +2913,41 @@ pub(crate) mod tests {
             &[],
             &callee_values,
         )
+    }
+
+    #[test]
+    fn completion_receipts_cover_each_projected_claim_once() {
+        let claims = BTreeMap::from([
+            (claim(1), linear(5, vec![field("left")])),
+            (claim(2), linear(5, vec![field("right")])),
+        ]);
+        let arguments = [StructuralArgument {
+            place: place(5),
+            path: vec![field("right")],
+            access: StructuralAccess::Owned,
+        }];
+        let receipt = terminal_psi::CompletionReceipt {
+            claim: claim(2),
+            argument_index: 0,
+            path: Vec::new(),
+        };
+        let complete = |receipts: &[terminal_psi::CompletionReceipt]| {
+            super::complete_claims(&claims, &arguments, receipts)
+        };
+        assert_eq!(
+            complete(std::slice::from_ref(&receipt)).unwrap(),
+            BTreeMap::from([(claim(1), linear(5, vec![field("left")]))])
+        );
+        let mismatch = Err(TerminalInterpretError::CompletionReceiptMismatch);
+        assert_eq!(complete(&[]), mismatch);
+        assert_eq!(complete(&[receipt.clone(), receipt.clone()]), mismatch);
+        assert_eq!(
+            complete(&[terminal_psi::CompletionReceipt {
+                claim: claim(1),
+                ..receipt
+            }]),
+            mismatch
+        );
     }
 
     #[test]

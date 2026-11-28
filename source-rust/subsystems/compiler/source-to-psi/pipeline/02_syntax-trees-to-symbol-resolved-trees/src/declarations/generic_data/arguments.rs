@@ -695,8 +695,9 @@ pub(crate) fn domain_index_telescope(
 
 /*
     Rejoin an authored domain family through the shared namespace authority.
-    Without a supplied package selection, build the same local header authority;
-    never rescue a contested or inaccessible owner with a leaf-name scan.
+    Resolution threads the selection it built for the program to every caller;
+    without one there is no authority to name the family, so none is selected.
+    Never rescue a contested or inaccessible owner with a leaf-name scan.
 */
 pub(crate) fn selected_domain_family(
     syntax: &SyntaxTrees,
@@ -704,15 +705,7 @@ pub(crate) fn selected_domain_family(
     name: &Identifier,
     carrier: Option<&str>,
 ) -> Option<ItemHandle> {
-    let fallback;
-    let selection = match selection {
-        Some(selection) => selection,
-        None => {
-            fallback =
-                declaration_selection::ConstantSelection::new(syntax, None, Vec::new()).ok()?;
-            &fallback
-        }
-    };
+    let selection = selection?;
     let definition = selection
         .domain_family(syntax, name.as_str(syntax), name.source_span(), carrier)
         .map(|(_, definition)| definition)

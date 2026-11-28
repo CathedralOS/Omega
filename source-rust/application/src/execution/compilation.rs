@@ -29,6 +29,11 @@ impl RunProduct {
     pub(super) fn runtime(&self) -> Option<&TerminalRuntimeProvisions> {
         self.product.runtime_provisions()
     }
+
+    /// The contained admission of saved Psi the host does not trust.
+    pub(super) fn contained(&self) -> Option<&psi_authorization::ContainedTerminalArtifact> {
+        self.product.contained_artifact()
+    }
 }
 
 pub(super) struct ProjectInput {
@@ -45,7 +50,7 @@ pub(super) struct CompiledRun {
 }
 
 pub(super) fn compile(
-    artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
+    artifact: Option<psi_authorization::AdmittedTerminalArtifact>,
     input: ProjectInput,
 ) -> Result<CompiledRun, Vec<Diagnostic>> {
     let ProjectInput {

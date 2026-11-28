@@ -47,7 +47,9 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
     let scratch = TemporaryDirectory::create("named-authored", false).unwrap();
     let root = scratch.path();
     std::fs::write(root.join("build.omg"), "machine build() {}").unwrap();
-    std::fs::write(root.join("release.omg"), format!("{BUILD}{MAIN}")).unwrap();
+    // The Build and its entry share `release.omg`, so the Build imports its own file.
+    let release = format!("{BUILD}{MAIN}").replace("use main.omg", "use release.omg");
+    std::fs::write(root.join("release.omg"), &release).unwrap();
     let run = project::omega(root, &["run", "--target", "linux_x86_64", "release.omg"]);
     assert!(
         run.status.success(),
@@ -55,11 +57,7 @@ fn a_renamed_build_can_select_a_product_from_the_same_file() {
         String::from_utf8_lossy(&run.stderr)
     );
 
-    std::fs::write(
-        root.join("release.omg"),
-        format!("{BUILD}{MAIN}").replace("main", "launch"),
-    )
-    .unwrap();
+    std::fs::write(root.join("release.omg"), release.replace("main", "launch")).unwrap();
     let alternate = project::omega(root, &["run", "--target", "linux_x86_64", "release.omg"]);
     assert!(
         alternate.status.success(),

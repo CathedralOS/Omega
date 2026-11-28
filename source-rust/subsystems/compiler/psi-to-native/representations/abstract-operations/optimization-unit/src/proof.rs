@@ -285,21 +285,6 @@ pub struct SourceCheckedScalarReceiving {
     pub restriction: terminal_psi::StructuralFieldType,
 }
 
-impl super::PsiOptimizationUnit {
-    pub fn accepted_obligation_fact(
-        &self,
-        machine: MachineId,
-        owner: impl Into<AcceptedObligationOwner>,
-        obligation: Option<ObligationId>,
-    ) -> Option<&AcceptedObligationFact> {
-        let key = (machine, owner.into(), obligation?);
-        self.accepted_obligation_facts
-            .binary_search_by_key(&key, |fact| (fact.machine, fact.owner, fact.obligation))
-            .ok()
-            .map(|position| &self.accepted_obligation_facts[position])
-    }
-}
-
 impl AcceptedObligationFact {
     pub fn new(
         psi: TerminalPsiIdentity,
@@ -412,7 +397,7 @@ pub fn attach_verified_module_context(
     unit.structural_domains = module.types.structural_domains.clone().into();
     unit.services = module.interfaces.services.clone().into();
     unit.root_service_reach = module.interfaces.root_service_reach.clone();
-    for function in &mut unit.functions {
+    for function in &mut unit.functions.rows {
         let source = module.machine(function.machine).ok_or(function.machine)?;
         function.structural_places = source.structural_places.clone();
         function.content_entry_claims = source.content_entry_claims.clone();

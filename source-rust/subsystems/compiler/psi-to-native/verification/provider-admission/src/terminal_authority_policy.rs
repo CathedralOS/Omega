@@ -45,7 +45,6 @@ use terminal_authority_receipts::{
 
 pub(crate) use external_mechanisms::{
     conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
-    normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
 pub(crate) use host_cohorts::darwin_clock_mechanism_row;
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};

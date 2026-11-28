@@ -17,7 +17,7 @@ Wrapping is modulo `2^N`; wrapping shift counts are modulo N, not a hardware
 register mask. Literal and rule formation at width one must not assume that
 positive one or negative two is representable in `i1`.
 
-Builtin fixed-integer comparisons, including mixed widths and signedness, denote
+Builtin computational-integer comparisons, including unbounded integers and mixed widths and signedness, denote
 the [exact mathematical relation](../language/numeric_values.md#integer-equality-and-order)
 between the original operands. Reconstruction retains both source carriers,
 exact value identities, the selected comparison and branch polarity. It must
@@ -33,6 +33,24 @@ Mathematical embeddings retain each source's exact range and identity.
 A mixed signed-index/unsigned-length upper-bound branch supplies no implicit
 nonnegativity fact. Bounds and later arithmetic safety still need their exact
 independent premises; optimization cannot obtain them from unsigned promotion.
+
+### Same-type integer identity
+
+The elementary equality bridge checks a proof in either direction between
+a true builtin integer comparison `x == y` and the kernel judgment
+`Id T x y`. Both subjects must have the same original computational integer
+type `T`, chosen from `i<N>`, `u<N>`, `i` and `u`. Checking unbounded integers uses their
+exact values independently of storage layout.
+
+The producer and the independent receiver check the cited premise in its
+scope and reconstruct the conclusion for the same operand versions, carrier
+and builtin operation. The forward direction requires evidence for the true
+outcome and yields evidence of the typed kernel identity. The reverse
+direction requires evidence of that identity and yields the true comparison.
+An `Id` formation alone only establishes that the proposition is well typed.
+Reject applications to mixed carriers, addresses, IEEE comparisons or
+user-selected comparisons. Existing checked laws can still supply evidence
+for a user-selected comparison.
 
 ## Bounded wrapping equality
 
@@ -103,6 +121,7 @@ names the goals every checker must find such proofs for.
 | Rule | Permitted conclusion |
 | --- | --- |
 | `DisjunctionElimination` | From a checked disjunction and one ordered proof per arm, conclude the same goal in every arm. Each branch adds only its own alternative to ambient assumptions; discharged alternatives are not ambient requirements. |
+| [Same-type integer identity](#same-type-integer-identity) | From a proved true builtin comparison derive typed kernel identity. From that identity derive the true comparison on the same integer subjects. |
 | `EqualitySymmetry` | Reverse one proved scalar equality, retaining its child citation. |
 | `IntegerOrderWeakening` | Integer equality or strict order implies `<=` over the same ordered endpoints. No Boolean-to-integer order or reversal. |
 | `IntegerOrderSubstitution` | Replace one endpoint of `<` or `<=` through a proved integer equality in either orientation. Preserve the other endpoint and relation kind. |

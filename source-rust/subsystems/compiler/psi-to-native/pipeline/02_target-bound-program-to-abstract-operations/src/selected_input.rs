@@ -209,7 +209,7 @@ mod native {
     }
 
     pub(crate) struct NativeScopePreparation<'request> {
-        authorization: &'request psi_authorization::AuthorizedTerminalArtifact,
+        authorization: &'request psi_authorization::AdmittedTerminalArtifact,
         selection: &'request NativeExecutionSelection<'request>,
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
@@ -220,7 +220,7 @@ mod native {
 
     impl<'request> NativeScopePreparation<'request> {
         pub(crate) fn prepare(
-            authorization: &'request psi_authorization::AuthorizedTerminalArtifact,
+            authorization: &'request psi_authorization::AdmittedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             selection: &'request NativeExecutionSelection<'request>,
@@ -360,14 +360,23 @@ mod native {
                 entry,
                 structural_types,
                 scope.map(crate::NativeExecutionScope::reach),
-                scalar_applications,
+                scalar_applications.map(AdmittedScalarApplications::values),
                 Some(&layouts),
             )
             .map_err(ArtifactLoweringError::Lowering)?;
             let optimization_input = VerifiedPsiOptimizationInput::lowered(
                 plan,
                 authorization.clone(),
-                Some(selections),
+                Some(verified_optimization_input::NativeLoweringSelection {
+                    target: selections,
+                    entry_call: selection.entry_call.cloned(),
+                    scalar_applications: scalar_applications.cloned(),
+                    scope: scope.cloned().map(std::sync::Arc::new),
+                    provider_closure: scope.map_or_else(
+                        || *selection.plans.identity_digest().as_bytes(),
+                        crate::NativeExecutionScope::selected_provider_closure,
+                    ),
+                }),
             )
             .map_err(|reason| ArtifactLoweringError::TargetContext(reason.to_owned()))?;
             let access_view_establishments =
@@ -381,18 +390,6 @@ mod native {
                 access_view_establishments,
                 private_entry_ram: Vec::new(),
             };
-            input
-                .optimization_input
-                .retain_native_selections(
-                    selection.entry_call.cloned(),
-                    scalar_applications.cloned(),
-                    scope.cloned().map(std::sync::Arc::new),
-                    scope.map_or_else(
-                        || *selection.plans.identity_digest().as_bytes(),
-                        crate::NativeExecutionScope::selected_provider_closure,
-                    ),
-                )
-                .map_err(|reason| ArtifactLoweringError::TargetContext(reason.into()))?;
             if let Some(evidence) = evidence {
                 input.attach_evidence(evidence).map_err(|error| {
                     ArtifactLoweringError::TargetContext(format!(
@@ -415,7 +412,7 @@ mod native {
 
         #[cfg(any(test, feature = "test-support"))]
         pub fn prepare(
-            artifact: &psi_authorization::AuthorizedTerminalArtifact,
+            artifact: &psi_authorization::AdmittedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             establishments: &[TerminalAccessViewEstablishment],
@@ -434,7 +431,7 @@ mod native {
 
         #[cfg(any(test, feature = "test-support"))]
         pub fn prepare_with_private_entry_ram(
-            artifact: &psi_authorization::AuthorizedTerminalArtifact,
+            artifact: &psi_authorization::AdmittedTerminalArtifact,
             profile: target::TargetProfile,
             root: terminal_psi::TargetMachineCallable,
             recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
@@ -595,13 +592,14 @@ mod native {
     #[cfg(test)]
     fn authorize_test_artifact(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> psi_authorization::AuthorizedTerminalArtifact {
+    ) -> psi_authorization::AdmittedTerminalArtifact {
         let producer = psi_authorization::HostProducerTrust::accept("controlled native fixture");
         psi_authorization::authorize_terminal_artifact(
             std::sync::Arc::new(artifact.clone()),
             Some(&producer),
         )
         .unwrap()
+        .into()
     }
 
     #[cfg(test)]
@@ -862,6 +860,90 @@ mod native {
                     entry_call: None,
                 },
             )
+        }
+
+        #[test]
+        fn unit_identity_binds_admitted_values_and_target_even_when_the_body_is_identical() {
+            let mut module = graph();
+            module.machines.truncate(1);
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+            let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
+            let plans = build_providers::selections::SelectedProviderPlanFacts::default();
+            let application = semantic_vocabulary::ScalarApplicationId::new(1).unwrap();
+            let make_unit = |profile: target::TargetProfile, observed: Option<u128>| {
+                let name = profile.target_name();
+                let targets = psi_target_layouts::terminal_target_context(artifact.view(), name);
+                let providers = target_provider_admission::admit_selected_checked_providers(
+                    artifact.view(),
+                    name,
+                    &plans,
+                )
+                .unwrap();
+                let mut observations = psi_scalar_applications::ScalarApplicationObservations::new(
+                    artifact.view(),
+                    &targets,
+                    &providers,
+                    profile.layout_target_facts().as_ref(),
+                )
+                .unwrap()
+                .with_target_carriers(
+                    profile
+                        .native_realization()
+                        .map(runtime_abi::target_carrier_layout),
+                )
+                .unwrap();
+                if let Some(value) = observed {
+                    observations
+                        .record_value(
+                            application,
+                            terminal_semantics::entry_values::TerminalScalarValue::Integer {
+                                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                                value: IntegerValue::Unsigned(value),
+                            },
+                        )
+                        .unwrap();
+                }
+                let conditions = observations.conditions(name, &[]).unwrap();
+                let mut closure =
+                    psi_scalar_applications::ScalarApplicationClosure::new(artifact.view(), name);
+                closure
+                    .close_scope(observations, conditions, Ok(None))
+                    .unwrap();
+                let completed = closure.finish().unwrap();
+                let input = VerifiedNativeArtifactInput::prepare(
+                    &authorize_test_artifact(&artifact),
+                    profile,
+                    artifact.semantic_module().entry.unwrap(),
+                    &[],
+                    &NativeExecutionSelection {
+                        scope: None,
+                        scalar_applications: Some(crate::NativeScalarApplications {
+                            completed: &completed,
+                        }),
+                        providers: &[],
+                        plans: &plans,
+                        callbacks: &[],
+                        entry_call: None,
+                    },
+                )
+                .unwrap();
+                input
+                    .optimization_input()
+                    .reconstruct_unit(semantic_vocabulary::WorkScheduleIdentity::new(1).unwrap())
+                    .unwrap()
+            };
+            let mac = target::TargetProfile::MacosArm64;
+            let seven = make_unit(mac, Some(7));
+            assert_eq!(seven.identity, make_unit(mac, Some(7)).identity);
+            for other in [
+                make_unit(mac, Some(8)),
+                make_unit(mac, None),
+                make_unit(target::TargetProfile::LinuxX64, Some(7)),
+            ] {
+                assert_eq!(seven.functions, other.functions);
+                assert_ne!(seven.identity, other.identity);
+            }
         }
 
         #[test]

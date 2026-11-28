@@ -50,6 +50,17 @@ is that literal's or value's exact bits, so `0.0f64` is identical to itself
 and not to `-0.0f64`. A float computed by arithmetic stays opaque, and IEEE
 `==` is neither evidence of raw identity nor proved by it
 ([float equality and source identity](../../../../../../wiki/spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity)).
+Builtin `==` of two operands of one integer type is the kernel operation
+`IntegerEquality` at that type, and the
+[same-type integer identity](../../../../../../wiki/spec/terminal-psi/integer_certificates.md#same-type-integer-identity)
+bridge is two signature declarations over it: a proof that `x == y` is true
+gives `Id T x y`, and `x == x` is true for every `x`. Before the goal is
+searched, each comparison a premise or the goal names is tried for a true
+outcome; one that is proved adds the subjects' identity
+([equality.rs](src/proofs/equality.rs), `integer_bridges`). So a law whose
+comparison ensures `result == (left.value == right.value)` proves the record's
+identity from that comparison, and the identity proves the comparison true.
+Mixed types, addresses and other relations get no bridge.
 
 A law over data that contains itself is judged apart from every machine.
 Stage 05 hands this crate one

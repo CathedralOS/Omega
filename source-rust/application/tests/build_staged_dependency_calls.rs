@@ -1348,7 +1348,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
         line.strip_prefix("at ")
-            .and_then(|position| position.strip_suffix(":15:22"))
+            .and_then(|position| position.strip_suffix(":16:22"))
     });
     // `project::stage` names the directory `omega-<name>-<pid>-<sequence>`.
     let staged = format!("omega-product-dependency-{}-", std::process::id());

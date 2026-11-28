@@ -2627,6 +2627,26 @@ pub(crate) mod values {
         }
     }
 
+    pub(crate) fn scalar_from_view(
+        target: semantic_vocabulary::ScalarType,
+        viewed: terminal_semantics::ScalarViewValue,
+    ) -> Result<TerminalScalarValue, crate::boundary::errors::TerminalInterpretError> {
+        use semantic_vocabulary::ScalarType;
+        use terminal_semantics::ScalarViewValue;
+        match (target, viewed) {
+            (ScalarType::Boolean, ScalarViewValue::Boolean(value)) => {
+                Ok(TerminalScalarValue::Boolean(value))
+            }
+            (ScalarType::Integer(scalar_type), ScalarViewValue::Integer(value)) => {
+                Ok(TerminalScalarValue::Integer { scalar_type, value })
+            }
+            (ScalarType::IeeeFloat(_), ScalarViewValue::IeeeFloat(value)) => {
+                Ok(TerminalScalarValue::IeeeFloat(value))
+            }
+            _ => Err(crate::boundary::errors::malformed()),
+        }
+    }
+
     pub(crate) fn scalar_view_value(
         value: TerminalScalarValue,
     ) -> Result<terminal_semantics::ScalarViewValue, crate::boundary::errors::TerminalInterpretError>

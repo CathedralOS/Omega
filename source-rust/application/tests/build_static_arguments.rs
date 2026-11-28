@@ -79,7 +79,7 @@ fn the_choice_a_configured_helper_makes_is_a_choice_of_the_build() {
     assert!(!compiled);
     assert!(
         stderr.contains("conflicting providers on target `linux_x86_64`")
-            && stderr.contains("`Provider` and `Other`"),
+            && stderr.contains("`|app|::Provider` and `|app|::Other`"),
         "{stderr}"
     );
 }

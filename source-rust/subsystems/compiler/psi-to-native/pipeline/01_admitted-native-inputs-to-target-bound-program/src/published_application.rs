@@ -309,11 +309,18 @@ fn project_root<Publisher>(
     };
     let authorized = if Arc::ptr_eq(original.shared_artifact(), artifact) {
         original.clone()
+    } else if original.is_contained() {
+        // Folding a contained program keeps it contained: the folded copy is
+        // derived from Psi the host does not trust.
+        psi_authorization::admit_contained_interpretation(Arc::clone(artifact))
+            .map_err(|reason| refuse(reason.to_string()))?
+            .into()
     } else {
         // effective_artifact checked the folded program against this publication.
         let producer = psi_authorization::HostProducerTrust::accept("in-process target folding");
         psi_authorization::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
             .map_err(|reason| refuse(reason.to_string()))?
+            .into()
     };
     let terminal = RetainedTerminalArtifact::project(authorized, native)?;
     Ok((terminal, permissions))

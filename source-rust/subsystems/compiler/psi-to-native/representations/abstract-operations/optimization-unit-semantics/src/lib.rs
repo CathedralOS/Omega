@@ -19,8 +19,6 @@ archived beside it under
 `_recycling/source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/`.
 */
 
-mod operation_metadata;
-
 pub use structural_storage_queries::access_reference_validation as access_references;
 pub mod callable_values;
 mod current_ownership;

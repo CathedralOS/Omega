@@ -169,6 +169,40 @@ public machine main() crashes Trap {
     assert_silent_return_under_each_selection(source);
 }
 
+/// Lanes loaded from windows of shared views add and store into a window of
+/// a mutable view, the shape of PNG's Up filter, on Psi and in native code.
+#[test]
+fn u8x16_stores_into_a_window_of_a_mutable_view() {
+    let source = r#"
+use {system}/simd/simd.omg as simd;
+use {system}/simd/u8x16.omg as u8x16;
+
+machine up(out: @mutable [u8], raw: @[u8], prior: @[u8]) requires out.length >= 20 && raw.length >= 20 && prior.length >= 20 {
+    let x: @[u8; 16] = @raw[2..18] as @[u8; 16];
+    let y: @[u8; 16] = @prior[2..18] as @[u8; 16];
+    let a: |simd|::Lanes<u8, 16> = |u8x16|::load(x);
+    let b: |simd|::Lanes<u8, 16> = |u8x16|::load(y);
+    let s: |simd|::Lanes<u8, 16> = |u8x16|::wrapping_add(@a, @b);
+    let lane: @mutable [u8; 16] = @mutable out[4..20] as @mutable [u8; 16];
+    |u8x16|::store(lane, @s);
+}
+
+public machine main() crashes Trap {
+    let raw: [u8; 20] = [0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8, 9u8, 10u8, 11u8, 12u8, 13u8, 14u8, 15u8, 16u8, 17u8, 18u8, 19u8];
+    let prior: [u8; 20] = [250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8, 250u8];
+    let mutable out: [u8; 20] = [7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8, 7u8];
+    up(@mutable out[..], @raw[..], @prior[..]);
+    transition out[3] == 7u8 && out[4] == 252u8 && out[9] == 1u8 && out[19] == 11u8 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+}
+
 #[test]
 fn i16x8_abs_min_cmpgt_and_bitops_match_psi_and_native() {
     let source = r#"

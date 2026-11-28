@@ -401,9 +401,12 @@ machine build(builder: @mutable BuildPlan) {
             .unwrap_err(),
         "physical adapter belongs to another canonical artifact",
     );
-    let errors = prepare_program(x64.native_realization_proposal(), &republished)
-        .err()
-        .expect("the proposal must use its original publication");
+    let errors = prepare_program(
+        x64.native_realization_proposal(),
+        &republished.clone().into(),
+    )
+    .err()
+    .expect("the proposal must use its original publication");
     assert_eq!(
         errors[0].message,
         "native proposal belongs to another canonical artifact"

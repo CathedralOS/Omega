@@ -6,7 +6,6 @@ use terminal_psi::{
     TerminalIdentityIndex, TerminalModule, find_structural_type,
 };
 
-
 use super::private_cells::normal_effects;
 use super::spin::{Operand, Subject, type_path};
 use super::{NormalEffects, SpinWait, selected_spin_wait};
@@ -34,7 +33,55 @@ pub fn component_normal_effects(
     candidate: MachineId,
 ) -> Option<NormalEffects> {
     let body = producer.machine(candidate)?;
-    let mut effects = normal_effects(producer, candidate, |_| None)?;
+    let mut effects = if let Some(result) = body.result.structural() {
+        let terminal_psi::BoundaryMachineResult::Structural(target) = &receiving.result else {
+            return None;
+        };
+        let mut effects = NormalEffects::returned_guard(producer, body)?;
+        for reference in &mut effects.references {
+            let source = reference.source.fixed_path()?;
+            let formal = body.structural_parameters.get(reference.source.parameter)?;
+            let actual = receiving
+                .structural_parameters
+                .get(reference.source.parameter)?;
+            if formal.access != actual.access
+                || formal.access == terminal_psi::StructuralAccess::Owned
+            {
+                return None;
+            }
+            reference_matches(
+                producer,
+                result.structural_type,
+                &reference.field,
+                formal.structural_type,
+                &source,
+            )?;
+            reference.field = translate_path(
+                producer,
+                result.structural_type,
+                receiver,
+                target.structural_type,
+                &reference.field,
+            )?;
+            reference.source.path = translate_path(
+                producer,
+                formal.structural_type,
+                receiver,
+                actual.structural_type,
+                &source,
+            )?;
+            reference_matches(
+                receiver,
+                target.structural_type,
+                &reference.field,
+                actual.structural_type,
+                &reference.source.path,
+            )?;
+        }
+        effects
+    } else {
+        normal_effects(producer, candidate, |_| None)?
+    };
     effects.map_operands(|operand| {
         if let Operand::Parameter {
             position,
@@ -50,6 +97,26 @@ pub fn component_normal_effects(
     effects
         .map_subjects(|subject| translate_subject(producer, body, receiver, receiving, subject))?;
     Some(effects)
+}
+
+fn reference_matches(
+    module: &TerminalModule,
+    result: StructuralTypeId,
+    field: &[Segment],
+    parameter: StructuralTypeId,
+    path: &[Segment],
+) -> Option<()> {
+    let types = &module.types.structural_types;
+    let descriptor = crate::runtime_structural_path_tip(types.iter(), result, field)?;
+    let StructuralTypeShape::Reference {
+        referent,
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+    } = descriptor.shape
+    else {
+        return None;
+    };
+    (crate::runtime_structural_path_tip(types.iter(), parameter, path)?.id == referent)
+        .then_some(())
 }
 
 fn translate_subject(
@@ -75,6 +142,27 @@ fn translate_subject(
 }
 
 fn translate_cell(
+    producer: &TerminalModule,
+    source_root: StructuralTypeId,
+    receiver: &TerminalModule,
+    target_root: StructuralTypeId,
+    path: &[Segment],
+) -> Option<Vec<Segment>> {
+    let translated = translate_path(producer, source_root, receiver, target_root, path)?;
+    let observed = crate::atomic_cell_type(
+        producer.types.structural_types.iter(),
+        source_root,
+        &type_path(path),
+    )?;
+    let imported = crate::atomic_cell_type(
+        receiver.types.structural_types.iter(),
+        target_root,
+        &type_path(&translated),
+    )?;
+    (observed == imported).then_some(translated)
+}
+
+fn translate_path(
     producer: &TerminalModule,
     source_root: StructuralTypeId,
     receiver: &TerminalModule,
@@ -161,17 +249,7 @@ fn translate_cell(
             _ => return None,
         }
     }
-    let observed = crate::atomic_cell_type(
-        producer.types.structural_types.iter(),
-        source_root,
-        &type_path(path),
-    )?;
-    let imported = crate::atomic_cell_type(
-        receiver.types.structural_types.iter(),
-        target_root,
-        &type_path(&translated),
-    )?;
-    (observed == imported).then_some(translated)
+    Some(translated)
 }
 
 #[cfg(test)]
