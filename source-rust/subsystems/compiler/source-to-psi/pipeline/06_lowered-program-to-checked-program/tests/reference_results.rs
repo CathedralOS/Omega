@@ -435,6 +435,33 @@ machine main() crashes Trap {
 }
 
 #[test]
+fn a_returned_borrow_of_a_record_preserves_its_field_loan() {
+    let source = r"
+data File { byte: u8; }
+data Socket<'a> { file: @'a File; }
+machine pass<'outer, 'inside>(socket: @'outer Socket<'inside>) -> @'outer Socket<'inside> { socket }
+machine main() crashes Trap {
+    let mutable other: File = File { byte: 8u8 };
+    let mutable file: File = File { byte: 17u8 };
+    let mutable socket: Socket = Socket { file: @file };
+    let r: @Socket = pass(@socket);
+    other.byte = 7u8;
+    transition r.file.byte == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+    let overlapping = source.replace("other.byte = 7u8", "file.byte = 7u8");
+    assert!(
+        !Program::of(&overlapping)
+            .judged(|_| {})
+            .rejected()
+            .conflicts
+            .is_empty()
+    );
+}
+
+#[test]
 fn an_indexed_borrow_only_holds_the_owner_through_its_last_use() {
     let source = r#"
         data Item { value: i32; }
