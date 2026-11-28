@@ -817,6 +817,7 @@ mod calls {
                     matches!(
                         operation,
                         BuildOperation::ProviderSelection
+                            | BuildOperation::ProviderExport
                             | BuildOperation::ProviderReadiness
                             | BuildOperation::BoundaryAcceptance
                     ) && index == 0,

@@ -222,11 +222,19 @@ type Dependencies = Option<BTreeSet<Dependency>>;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Facts(BTreeMap<Fact, Dependencies>);
 
-fn combine_dependencies(left: &mut Dependencies, right: &Dependencies) {
+fn combine_dependencies(left: &mut Dependencies, right: &Dependencies) -> bool {
     match (left, right) {
-        (Some(left), Some(right)) => left.extend(right.iter().cloned()),
-        (left, None) => *left = None,
-        (None, Some(_)) => {}
+        (Some(left), Some(right)) => {
+            let previous_len = left.len();
+            for dependency in right {
+                if !left.contains(dependency) {
+                    left.insert(dependency.clone());
+                }
+            }
+            left.len() != previous_len
+        }
+        (left, None) => left.take().is_some(),
+        (None, Some(_)) => false,
     }
 }
 
@@ -259,7 +267,7 @@ impl Facts {
                 entry.insert(dependencies);
             }
             std::collections::btree_map::Entry::Occupied(mut entry) => {
-                combine_dependencies(entry.get_mut(), &dependencies)
+                combine_dependencies(entry.get_mut(), &dependencies);
             }
         }
     }
@@ -431,15 +439,16 @@ impl Facts {
     }
 
     fn intersect(&mut self, incoming: &Self) -> bool {
-        let before = self.clone();
+        let mut changed = false;
         self.0.retain(|fact, dependencies| {
             let Some(incoming) = incoming.0.get(fact) else {
+                changed = true;
                 return false;
             };
-            combine_dependencies(dependencies, incoming);
+            changed |= combine_dependencies(dependencies, incoming);
             true
         });
-        *self != before
+        changed
     }
 }
 
@@ -1464,6 +1473,8 @@ impl<'m> BodyMemberships<'m> {
 
 struct MachineMembershipFacts {
     machine: MachineId,
+    #[cfg(test)]
+    peak_incoming_states: usize,
     before: Vec<(DescriptorPosition, Facts)>,
     edges: Vec<(EdgeId, DescriptorPosition)>,
     cast_sources: Vec<CastMembershipSource>,
@@ -1892,6 +1903,8 @@ fn analyze_observations(
         })?;
         let mut machine_facts = MachineMembershipFacts {
             machine: machine.id,
+            #[cfg(test)]
+            peak_incoming_states: 0,
             before: Vec::new(),
             edges: Vec::new(),
             cast_sources: Vec::new(),
@@ -1900,6 +1913,9 @@ fn analyze_observations(
         let mut arrivals = BTreeMap::new();
         let mut returns = BTreeMap::new();
         let mut declarations = Vec::new();
+        // Only block entries can receive multiple edges. Count the initial
+        // call as an arrival so a back edge also meets the entry facts.
+        let mut entries = vec![machine.entry];
         declared_roots(seed_entry(module, machine)?, &mut declarations);
         for block in &machine.blocks {
             let mut declared = scalar_declarations(module, &block.parameters)?;
@@ -1963,6 +1979,9 @@ fn analyze_observations(
                     },
                 );
             }
+            if let Some(step) = flow.get(&cut) {
+                entries.extend(step.successors.iter().map(|edge| edge.target.0));
+            }
             for edge in block.terminator.edges() {
                 machine_facts.edges.push((edge, cut));
             }
@@ -1970,6 +1989,12 @@ fn analyze_observations(
                 returns.insert(cut, binding);
             }
         }
+        entries.sort_unstable();
+        let joins: Vec<_> = entries
+            .chunk_by(|a, b| a == b)
+            .filter(|incoming| incoming.len() > 1)
+            .map(|incoming| (incoming[0], 0))
+            .collect();
         declarations.sort_by_key(|(root, _)| *root);
         let first_promise = promises.partition_point(|(id, _)| *id < machine.id);
         let end_promise = promises.partition_point(|(id, _)| *id <= machine.id);
@@ -2010,13 +2035,31 @@ fn analyze_observations(
         let mut completed = BTreeMap::new();
         let mut unsatisfied_calls = BTreeMap::new();
         let mut pending = BTreeSet::from([graph.entry]);
-        while let Some(position) = pending.pop_first() {
+        let mut straight_line = None;
+        loop {
+            let (position, mut incoming) = if let Some(next) = straight_line.take() {
+                next
+            } else if let Some(position) = pending.pop_first() {
+                let incoming = if joins.binary_search(&position).is_ok() {
+                    before.get(&position).cloned()
+                } else {
+                    before.remove(&position)
+                }
+                .ok_or_else(|| {
+                    unavailable(machine.id, "membership point lost its incoming facts")
+                })?;
+                (position, incoming)
+            } else {
+                break;
+            };
             let step = flow
                 .get(&position)
                 .ok_or_else(|| unavailable(machine.id, "membership point has no storage event"))?;
-            let mut incoming = before.get(&position).cloned().ok_or_else(|| {
-                unavailable(machine.id, "membership point lost its incoming facts")
-            })?;
+            #[cfg(test)]
+            {
+                machine_facts.peak_incoming_states =
+                    machine_facts.peak_incoming_states.max(before.len() + 1);
+            }
             if let Some(declared) = arrivals.get(&position) {
                 introduce(
                     module,
@@ -2123,7 +2166,7 @@ fn analyze_observations(
             for (destination, source) in &step.scalar_value_stores {
                 transferred.extend(incoming.scalar_store(*source, destination));
             }
-            let mut after = incoming.clone();
+            let mut after = incoming;
             if let Some(binding) = returns.get(&position) {
                 capture_return(&mut after, binding);
             }
@@ -2137,7 +2180,10 @@ fn analyze_observations(
             }
             after.accept_transfers(transferred, writes.as_deref());
             if !goals.is_empty() {
-                completed.insert(position, (goals, after.clone()));
+                completed.insert(
+                    position,
+                    goals.iter().all(|goal| after.proves(module, goal)),
+                );
             }
             for (edge_ordinal, edge) in step.successors.iter().enumerate() {
                 let transfers = edge
@@ -2150,7 +2196,16 @@ fn analyze_observations(
                     })
                     .collect::<Vec<_>>();
                 let transported = after.transferred(&transfers);
-                let mut next = after.clone();
+                let scalar_transfers = graph
+                    .payload_scalar_bindings
+                    .get(&position)
+                    .and_then(|rows| rows.get(edge_ordinal))
+                    .map(|bindings| transport_scalar_bindings(&after, bindings));
+                let mut next = if edge_ordinal + 1 == step.successors.len() {
+                    std::mem::take(&mut after)
+                } else {
+                    after.clone()
+                };
                 let mut defined = edge.definitions.clone();
                 defined.extend(edge.parameters.iter().cloned());
                 next.invalidate(Some(&defined));
@@ -2161,15 +2216,8 @@ fn analyze_observations(
                     next.0.retain(|fact, _| !matches!(fact.subject, Subject::Value(value) if parameters.contains(&value)));
                 }
                 next.accept_transfers(transported, Some(&defined));
-                if let Some(bindings) = graph
-                    .payload_scalar_bindings
-                    .get(&position)
-                    .and_then(|rows| rows.get(edge_ordinal))
-                {
-                    next.accept_transfers(
-                        transport_scalar_bindings(&after, bindings),
-                        Some(&defined),
-                    );
+                if let Some(transfers) = scalar_transfers {
+                    next.accept_transfers(transfers, Some(&defined));
                 }
                 if let Some(event) = events.get(&position) {
                     introduce(
@@ -2180,6 +2228,12 @@ fn analyze_observations(
                         event.declared.iter().chain(&event.produced).cloned(),
                         &mut next,
                     );
+                }
+                // Within a block only the preceding operation can reach the
+                // next cut. Keep its state in hand until the terminator.
+                if edge.target.1 != 0 && step.successors.len() == 1 {
+                    straight_line = Some((edge.target, next));
+                    continue;
                 }
                 let changed = match before.get_mut(&edge.target) {
                     Some(previous) => previous.intersect(&next),
@@ -2199,13 +2253,11 @@ fn analyze_observations(
                 "call does not establish the routed membership of its actual input",
             ));
         }
-        for (_, (goals, state)) in completed {
-            if goals.iter().any(|goal| !state.proves(module, goal)) {
-                return Err(unavailable(
-                    machine.id,
-                    "normal completion does not establish its promised runtime membership",
-                ));
-            }
+        if completed.values().any(|proved| !proved) {
+            return Err(unavailable(
+                machine.id,
+                "normal completion does not establish its promised runtime membership",
+            ));
         }
         for change in module
             .types.structural_qualification_changes
@@ -2287,6 +2339,102 @@ mod tests {
                 location,
             },
             domain: Domain::Structural(StructuralDomainId::new(1).unwrap()),
+        }
+    }
+
+    #[test]
+    fn a_meet_reports_removed_facts_and_new_or_unknown_dependencies() {
+        let shared = fact(location(1, &[]));
+        let removed = fact(location(2, &[]));
+        let image = Dependency::ValueImage(location(1, &[]));
+        let referent = Dependency::Referent(location(3, &[]));
+        let mut state = Facts::default();
+        state.insert(shared.clone(), Some(BTreeSet::from([image.clone()])));
+        state.insert(removed, None);
+        let mut incoming = Facts::default();
+        incoming.insert(shared.clone(), Some(BTreeSet::from([image.clone()])));
+        assert!(state.intersect(&incoming));
+        assert_eq!(state, incoming);
+        incoming.insert(shared.clone(), Some(BTreeSet::from([referent.clone()])));
+        assert!(state.intersect(&incoming));
+        assert_eq!(state.0[&shared], Some(BTreeSet::from([image, referent])));
+        assert!(!state.intersect(&incoming));
+        incoming.insert(shared.clone(), None);
+        assert!(state.intersect(&incoming));
+        assert_eq!(state.0[&shared], None);
+        assert!(!state.intersect(&incoming));
+    }
+
+    #[test]
+    fn straight_line_length_does_not_change_observations_or_retained_states() {
+        use semantic_vocabulary::{DomainSemanticId, OperationId, ScalarQualificationSetId};
+        use terminal_psi::{OperationKind, ScalarDomainDeclaration, ScalarQualificationSet};
+
+        let domain = ScalarDomainId::new(1).unwrap();
+        let set = ScalarQualificationSetId::new(1);
+        let parameter = ValueDeclaration {
+            id: ValueId::new(1).unwrap(),
+            qualifications: set,
+            scalar_type: ScalarType::Boolean,
+        };
+        for length in [4, 512] {
+            let operations = (1..=length)
+                .map(|i| {
+                    Operation::unsuspended(
+                        OperationId::new(i).unwrap(),
+                        OperationResult::Scalar(ValueDeclaration {
+                            id: ValueId::new(i + 1).unwrap(),
+                            qualifications: ScalarQualificationSetId::ZERO,
+                            ..parameter
+                        }),
+                        OperationKind::BooleanConstant { value: true },
+                    )
+                })
+                .collect();
+            let mut body = crate::module_analyses::tests::machine(1, operations);
+            let (id, entry) = (body.id, body.entry);
+            body.contract.parameters.push(parameter);
+            let mut module = TerminalModule::for_entry(id);
+            module.machines.push(body);
+            let catalog = &mut module.types.scalar_qualifications;
+            catalog.domains.push(ScalarDomainDeclaration {
+                id: domain,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                carrier: parameter.scalar_type,
+                predicate: None,
+                establishment_routes: None,
+                required_memberships: None,
+            });
+            catalog.sets.push(ScalarQualificationSet {
+                id: set,
+                domains: vec![domain],
+            });
+            let query = |ordinal, value| MembershipTest {
+                position: (entry, ordinal),
+                subject: TestedMembership::Scalar { value, domain },
+            };
+            let tests = [
+                query(length as u32 / 2, parameter.id),
+                query(length as u32, parameter.id),
+                query(length as u32, ValueId::new(2).unwrap()),
+            ];
+            let mut answers = [false; 3];
+            let facts = analyze_observations(
+                &DescriptorRowSource::new(&module),
+                &[id],
+                &tests,
+                &mut answers,
+            )
+            .unwrap();
+            assert_eq!(answers, [true, true, false]);
+            let row = facts.machine(id).unwrap();
+            assert_eq!(row.peak_incoming_states, 1);
+            assert_eq!(row.before.len(), 2);
+            assert_eq!(
+                facts.scalar_on_edge(&module, id, EdgeId::new(1).unwrap(), parameter.id, domain),
+                Some(true)
+            );
         }
     }
 
@@ -2416,8 +2564,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn scalar_successors_replay_only_when_they_can_observe_an_incoming_fact() {
+    fn scalar_successor_module() -> TerminalModule {
         use semantic_vocabulary::{
             BlockId, ContractId, DomainSemanticId, ScalarQualificationSetId,
         };
@@ -2516,6 +2663,13 @@ mod tests {
                 ),
             ],
         });
+        module
+    }
+
+    #[test]
+    fn scalar_successors_replay_only_when_they_can_observe_an_incoming_fact() {
+        let mut module = scalar_successor_module();
+        let id = module.machines[0].id;
         assert!(analyze(&module).unwrap().machine(id).is_none());
         module.types.scalar_qualifications.returns[0].origins =
             vec![terminal_psi::ScalarReturnOrigin::Forwarded];
@@ -2523,6 +2677,65 @@ mod tests {
         module.types.scalar_qualifications.returns.clear();
         module.types.scalar_qualifications.domains[0].required_memberships = None;
         assert!(analyze(&module).unwrap().machine(id).is_some());
+    }
+
+    #[test]
+    fn loop_observations_meet_the_first_arrival_and_the_back_edge() {
+        let mut module = scalar_successor_module();
+        let catalog = &mut module.types.scalar_qualifications;
+        catalog.coercions.clear();
+        catalog.returns.clear();
+        let domain = catalog.domains[0].id;
+        let body = &mut module.machines[0];
+        let id = body.id;
+        let initial = body.parameters[0];
+        body.parameters[0].qualifications = catalog.sets[0].id;
+        let other = ValueDeclaration {
+            id: ValueId::new(3).unwrap(),
+            ..initial
+        };
+        body.parameters.push(other);
+        let header = &mut body.blocks[1];
+        header.parameters[0].qualifications = initial.qualifications;
+        let back_edge = EdgeId::new(2).unwrap();
+        let carried = header.parameters[0].id;
+        header.terminator = terminal_psi::Terminator::Jump {
+            edge: back_edge,
+            target: header.id,
+            arguments: vec![carried],
+            erased_arguments: vec![],
+            erased_proof_arguments: vec![],
+            structural_arguments: vec![],
+            cleanup_actions: vec![],
+        };
+        let test = MembershipTest {
+            position: (header.id, 0),
+            subject: TestedMembership::Scalar {
+                value: carried,
+                domain,
+            },
+        };
+        for (back_value, expected) in [(carried, true), (other.id, false)] {
+            let terminal_psi::Terminator::Jump { arguments, .. } =
+                &mut module.machines[0].blocks[1].terminator
+            else {
+                unreachable!()
+            };
+            arguments[0] = back_value;
+            let mut answers = [false];
+            let facts = analyze_observations(
+                &DescriptorRowSource::new(&module),
+                &[id],
+                std::slice::from_ref(&test),
+                &mut answers,
+            )
+            .unwrap();
+            assert_eq!(answers, [expected]);
+            assert_eq!(
+                facts.scalar_on_edge(&module, id, back_edge, carried, domain),
+                Some(expected)
+            );
+        }
     }
 
     #[test]

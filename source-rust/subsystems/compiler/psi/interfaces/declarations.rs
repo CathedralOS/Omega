@@ -11,6 +11,7 @@ pub struct ProgramInterfaces {
     pub service_schemas: Vec<crate::TerminalServiceSchema>,
     pub program_entry_contracts: Vec<crate::TerminalProgramEntryContract>,
     pub provider_selections: Vec<crate::TerminalProviderSelection>,
+    pub provider_exports: Vec<crate::TerminalProviderExport>,
     pub external_providers: Vec<ExternalProviderConformance>,
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub provider_instance_requirements: Vec<ProviderInstanceRequirements>,

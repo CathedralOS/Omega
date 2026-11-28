@@ -1250,25 +1250,41 @@ pub(crate) mod byte_buffers {
     }
 
     impl BoundaryArguments {
-        pub(crate) fn opaque_values(
-            &self,
+        /// Extract immutable byte descriptors with self-contained shared backing.
+        /// Every other companion needs its own checked cross-instance carrier.
+        pub(crate) fn take_component_byte_views(
+            &mut self,
             original_identity_cursor: Option<u64>,
-        ) -> Result<&[TerminalStructuralValue], TerminalInterpretError> {
+        ) -> Result<std::collections::BTreeMap<usize, ByteSequenceView>, TerminalInterpretError>
+        {
             if self.local_identity_cursor != original_identity_cursor
                 || self.aggregate_backings.iter().any(Option::is_some)
                 || self.bytes.iter().any(Option::is_some)
                 || !self.buffers.is_empty()
                 || !self.bindings.is_empty()
                 || !self.storage_inputs.is_empty()
-                || self.byte_sequences.iter().any(Option::is_some)
                 || self.primitive_loans.iter().any(Option::is_some)
                 || self.element_views.iter().any(Option::is_some)
             {
                 return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "opaque argument transport cannot discard storage or loan companions",
+                    "component argument transport cannot discard storage or loan companions",
                 ));
             }
-            Ok(&self.values)
+            let mut views = std::collections::BTreeMap::new();
+            for (index, binding) in self.byte_sequences.iter_mut().enumerate() {
+                match binding.take() {
+                    None => {}
+                    Some(ByteSequenceBinding::Immutable(view)) => {
+                        views.insert(index, view);
+                    }
+                    Some(_) => {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "component byte view requires its original storage backing",
+                        ));
+                    }
+                }
+            }
+            Ok(views)
         }
 
         pub(crate) fn reserve_host_result(
@@ -2027,6 +2043,25 @@ pub(crate) mod byte_buffers {
             parameter: &StructuralParameterDeclaration,
             owner: &TerminalStructuralValue,
         ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
+            if !self
+                .structural_declaration(owner.structural_type)?
+                .shape
+                .is_bounded_owned_byte_sequence()
+                || owner.qualifications != parameter.qualifications
+            {
+                return Err(malformed());
+            }
+            if let Some(binding) = self.captured_byte_owner_binding(owner) {
+                binding.validate_mutable_referent(self, owner)?;
+                return Ok(binding.clone());
+            }
+            self.lend_original_byte_owner(owner)
+        }
+
+        pub(crate) fn lend_original_byte_owner(
+            &self,
+            owner: &TerminalStructuralValue,
+        ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
             let coordinate = StructuralRuntimePlace::from(owner);
             let Some(ByteSequenceCarrier::BoundedOwned { capacity }) = self
                 .structural_types()
@@ -2038,13 +2073,6 @@ pub(crate) mod byte_buffers {
             else {
                 return Err(malformed());
             };
-            if owner.qualifications != parameter.qualifications {
-                return Err(malformed());
-            }
-            if let Some(binding) = self.captured_byte_owner_binding(owner) {
-                binding.validate_mutable_referent(self, owner)?;
-                return Ok(binding.clone());
-            }
             let home = if self.structural_byte_storage.contains_key(&coordinate) {
                 crate::storage::byte_sequences::binding::ByteOwnerHome::Storage(coordinate)
             } else {

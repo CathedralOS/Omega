@@ -66,6 +66,8 @@ mod float_integer;
 mod float_meaning;
 #[path = "prove/ieee_float_order.rs"]
 mod ieee_float_order;
+#[path = "prove/linear.rs"]
+mod linear;
 #[path = "prove/mathematical_bounds.rs"]
 mod mathematical_bounds;
 #[path = "prove/premise_order.rs"]
@@ -795,6 +797,29 @@ pub struct ProofSearchActivity {
 }
 
 impl ProofSearchActivity {
+    /// Each result search in an immutable inference batch starts with the
+    /// same spent allowance as the serial search it may replace.
+    pub(crate) fn continuation(&self) -> Self {
+        Self {
+            exhausted_steps: self.exhausted_steps,
+            ..Self::default()
+        }
+    }
+
+    /// Count every search that ran. Only a continuation used in serial
+    /// order may charge an exhausted goal to the next machine's budget.
+    pub(crate) fn record_continuation_work(&mut self, searched: &mut Self) {
+        let mut work = std::mem::take(searched);
+        searched.exhausted_steps = std::mem::take(&mut work.exhausted_steps);
+        self.merge(work);
+    }
+
+    pub(crate) fn finish_continuation(&mut self, searched: Self) -> bool {
+        let spent = self.exhausted_steps != searched.exhausted_steps;
+        self.exhausted_steps = searched.exhausted_steps;
+        spent
+    }
+
     #[cfg(any(test, feature = "test-support"))]
     pub fn started(&self) -> usize {
         self.started
@@ -2644,7 +2669,10 @@ impl<'a> Prover<'a> {
                         "integer order antisymmetry requires one non-address integer carrier",
                     );
                 }
-                if let Some(proof) = self.equal_through_equations(goal) {
+                if let Some(proof) = self
+                    .equal_through_equations(goal)
+                    .or_else(|| self.linear_equality(goal))
+                {
                     return Ok(proof);
                 }
                 self.antisymmetry(
@@ -2680,6 +2708,7 @@ impl<'a> Prover<'a> {
                     .reflexive(goal.clone())
                     .or_else(|| self.closed(goal.clone()))
                     .or_else(|| self.by_transport(goal))
+                    .or_else(|| self.linear_equality(goal))
                 {
                     return Ok(proof);
                 }

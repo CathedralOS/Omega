@@ -92,7 +92,7 @@ pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
 
 fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
     fn target(machine: MachineId, target: &Target) -> Checked<()> {
-        if let Target::Value(value) = target {
+        if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
             expression(machine, value)?;
         }
         Ok(())
@@ -137,7 +137,9 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
                 }
                 target(machine, arm)?;
             }
-            Statement::Declare { .. } | Statement::CaptureReference { .. } => {}
+            Statement::AssemblyAdjacent { .. }
+            | Statement::Declare { .. }
+            | Statement::CaptureReference { .. } => {}
         }
     }
     Ok(())
@@ -172,6 +174,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         ExpressionKind::OwnedTemporary { value: operand, .. }
         | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::NativeBorrow { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)

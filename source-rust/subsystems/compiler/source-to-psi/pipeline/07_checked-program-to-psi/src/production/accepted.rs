@@ -5,6 +5,7 @@
 use crate::source_state::FrozenTypedTrees;
 use checked_program::CheckedProgram;
 use diagnostics::Diagnostic;
+use prepared_source::ConstantRead;
 use std::sync::Arc;
 use terminal_check_tables::program::Elaboration;
 
@@ -14,9 +15,48 @@ pub struct AcceptedTerminalSource {
     closure: Arc<CheckedProgram>,
     correspondence: lowered_source_publication::SourceCorrespondence,
     requirement_reviews: Vec<lowered_source_publication::RequirementReview>,
-    generic_callables: Vec<(symbols::SymbolHandle, Arc<Elaboration>)>,
+    generic_callables: Vec<GenericCallableForm>,
     publication: terminal_codec::TerminalPublication,
     pub(crate) package_review_numeric: crate::source::package_review::NumericReviewInventory,
+}
+
+/// The checked module and entry facts used to review one generic alternative.
+#[derive(Debug)]
+pub struct GenericCallableForm {
+    declaration: symbols::SymbolHandle,
+    pub module: terminal_psi::TerminalModule,
+    pub entry_owner: Option<symbols::SymbolHandle>,
+    pub entry_has_static_reach_parameters: bool,
+    pub entry_value_parameters: Option<usize>,
+}
+
+impl GenericCallableForm {
+    fn from_checked(declaration: symbols::SymbolHandle, program: Arc<Elaboration>) -> Self {
+        let entry = match program.module.entry {
+            Some(terminal_psi::TargetMachineCallable::Machine(entry)) => Some(entry),
+            _ => None,
+        };
+        let entry_owner = entry.and_then(|entry| program.machines.get(entry).copied());
+        let entry_value_parameters =
+            entry.and_then(|entry| program.value_parameters.get(entry).copied());
+        let entry_has_static_reach_parameters = entry.is_some_and(|entry| {
+            program
+                .static_reach_summaries
+                .iter()
+                .any(|row| row.machine == entry && !row.term.parameters.is_empty())
+        });
+        let module = match Arc::try_unwrap(program) {
+            Ok(program) => program.module,
+            Err(shared) => shared.module.clone(),
+        };
+        Self {
+            declaration,
+            module,
+            entry_owner,
+            entry_has_static_reach_parameters,
+            entry_value_parameters,
+        }
+    }
 }
 
 /// The checked module and the owned declarations, source locations and Build
@@ -100,146 +140,6 @@ impl PreparedTerminalPublication {
             source_records: self.source_records,
             source_selections: Some(Arc::new(source_selections)),
         })
-    }
-}
-
-/// One constant the declarations of an accepted module name.
-///
-/// `declaration` is where the constant is declared, kept as source so a
-/// frontier typed later can find the same declaration; `None` when the
-/// constant has no authored source to rejoin. `value` is what the judged
-/// source recorded for it, `None` when no stage had evaluated it. `name` is
-/// for messages only.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConstantRead {
-    pub name: String,
-    pub declaration: Option<source_admission::RetainedDeclaration>,
-    pub value: Option<numeric_literals::EvaluatedConstant>,
-}
-
-impl ConstantRead {
-    pub fn from_preparation(prepared: &prepared_source::PreparedTypedTrees) -> Vec<Self> {
-        let source = prepared.trees();
-        prepared
-            .constants()
-            .filter_map(|constant| {
-                let declaration =
-                    crate::source_symbols::retain_declaration(&source.symbols, constant.symbol)
-                        .ok();
-                if declaration.as_ref().is_some_and(|declaration| {
-                    is_immutable_toolchain_build_file(declaration.source())
-                        && is_immutable_toolchain_literal(source, constant)
-                }) {
-                    return None;
-                }
-                Some(Self {
-                    name: source.symbols.name(constant.symbol).to_owned(),
-                    declaration,
-                    value: constant.evaluated_value.clone(),
-                })
-            })
-            .collect()
-    }
-}
-
-/// Pure literal or constructor constants in compiler-owned Build toolchain
-/// sources (`<build-prelude>`, `<default-build>`, and `core`) cannot change on
-/// rejoin, so Build rechecks do not owe constant settlement for them alone.
-fn is_immutable_toolchain_literal(
-    source: &FrozenTypedTrees,
-    constant: &crate::source_state::constant::ConstDeclaration,
-) -> bool {
-    if constant.evaluated_value.is_none()
-        || constant.pending_target_observation
-        || constant.evaluation_entry.is_valid()
-        || source.tables.machines.is_valid(constant.evaluation_entry)
-        || constant.evaluation_expression.is_valid()
-        || !constant.authored_initializer.is_valid()
-        || !source
-            .expression_table
-            .expression_is_valid(constant.authored_initializer)
-    {
-        return false;
-    }
-    is_pure_literal_initializer(source, constant.authored_initializer)
-}
-
-fn is_immutable_toolchain_build_file(file: &source_admission::SourceFile) -> bool {
-    file.origin == source_admission::SourceOrigin::Toolchain
-        && file.package_identity.is_none()
-        && file.dependency_scope == source_provenance::DependencyScope::Build
-        && file.resolution_stratum == source_admission::SourceResolutionStratum::Base
-        && (source_admission::source_identity::is_build_prelude_path(&file.path)
-            || file.path
-                == std::path::Path::new(source_admission::source_identity::DEFAULT_BUILD_PATH)
-            || file.package_root.file_name().and_then(|name| name.to_str()) == Some("core"))
-}
-
-fn is_immutable_toolchain_build_symbol(
-    source: &FrozenTypedTrees,
-    symbol: symbols::SymbolHandle,
-) -> bool {
-    source
-        .symbols
-        .symbol_provenance_source_span(symbol)
-        .and_then(|span| source.symbols.source_file(span))
-        .is_some_and(is_immutable_toolchain_build_file)
-}
-
-fn is_pure_literal_initializer(
-    source: &FrozenTypedTrees,
-    handle: crate::source_state::expression::ExpressionHandle,
-) -> bool {
-    use crate::source_state::expression::{ExpressionNode, UnaryOperator};
-    if !handle.is_valid() || !source.expression_table.expression_is_valid(handle) {
-        return false;
-    }
-    match source.expression_table.expression(handle) {
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::String(_) => true,
-        ExpressionNode::Unary(unary)
-            if matches!(
-                unary.operator,
-                UnaryOperator::BitwiseNot | UnaryOperator::LogicalNot
-            ) =>
-        {
-            is_pure_literal_initializer(source, unary.operand)
-        }
-        ExpressionNode::Binary(binary) if binary.negation => {
-            is_pure_literal_initializer(source, binary.left)
-                && is_pure_literal_initializer(source, binary.right)
-        }
-        ExpressionNode::ArrayLiteral(elements) => source
-            .expression_table
-            .expression_handles(*elements)
-            .iter()
-            .all(|&element| is_pure_literal_initializer(source, element)),
-        ExpressionNode::StructLiteral(literal) => {
-            !literal.zero_omitted_fields
-                && literal.type_symbol.is_valid()
-                && is_immutable_toolchain_build_symbol(source, literal.type_symbol)
-                && literal
-                    .case_symbol
-                    .is_none_or(|case| is_immutable_toolchain_build_symbol(source, case))
-                && source
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .all(|field| is_pure_literal_initializer(source, field.value))
-        }
-        ExpressionNode::Name(path)
-            if !path.static_application.is_valid() && !path.reserved_result_of.is_valid() =>
-        {
-            path.resolved_symbol().is_some_and(|symbol| {
-                source.symbols.symbols().nodes().is_valid(symbol)
-                    && source.symbols.get(symbol).kind == symbols::SymbolKind::Variant
-                    && is_immutable_toolchain_build_symbol(source, symbol)
-            })
-        }
-        _ => false,
     }
 }
 
@@ -332,7 +232,12 @@ impl AcceptedTerminalSource {
         let generic_callables = source.correspondence.forms[1..]
             .iter()
             .zip(further_forms)
-            .filter_map(|(form, program)| Some((form.as_ref()?.generic_callable?, program)))
+            .filter_map(|(form, program)| {
+                Some(GenericCallableForm::from_checked(
+                    form.as_ref()?.generic_callable?,
+                    program,
+                ))
+            })
             .collect();
         let mut requirement_reviews: Vec<_> = source
             .correspondence
@@ -721,25 +626,28 @@ impl AcceptedTerminalSource {
         &self,
     ) -> Result<semantic_vocabulary::dependency_reach::UnsafeServices, Vec<Diagnostic>> {
         let typed = self.source();
+        let module = self.module();
         let mut identities = std::collections::BTreeMap::new();
         for (id, row) in typed.service_reaches.all_definitions() {
             if let Some(language_core::core_vocabulary::CoreVocabulary::UnsafeAtom(atom)) =
                 typed.core_vocabulary(row.symbol)
             {
-                let identity = typed
-                    .service_reach_application_identity(id)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "core Unsafe service lost its application identity",
-                        )]
+                if let Some(identity) = typed.service_reach_application_identity(id) {
+                    identities.insert(identity, atom);
+                } else if let Some(service) = module
+                    .retained_core_unsafe_service(atom)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                {
+                    let identity = module.identities.text(service.identity).ok_or_else(|| {
+                        vec![Diagnostic::error("missing retained Core service identity")]
                     })?;
-                identities.insert(identity, atom);
+                    identities.insert(identity.to_owned(), atom);
+                }
             }
         }
         if identities.is_empty() {
             return Ok(Default::default());
         }
-        let module = self.module();
         semantic_vocabulary::dependency_reach::UnsafeServices::from_rows(
             module.interfaces.services.iter().map(|row| {
                 let atom = module.identities.text(row.identity)
@@ -766,10 +674,10 @@ impl AcceptedTerminalSource {
     pub fn generic_callable_forms(
         &self,
         declaration: symbols::SymbolHandle,
-    ) -> impl Iterator<Item = &Elaboration> {
+    ) -> impl Iterator<Item = &GenericCallableForm> {
         self.generic_callables
             .iter()
-            .filter_map(move |(owner, program)| (*owner == declaration).then_some(program.as_ref()))
+            .filter(move |form| form.declaration == declaration)
     }
 
     /// Facts from the requirement's own accepted declaration form. Equal

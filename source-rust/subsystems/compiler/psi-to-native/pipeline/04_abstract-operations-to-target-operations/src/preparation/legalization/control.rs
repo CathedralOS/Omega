@@ -246,6 +246,7 @@ pub(crate) fn project(
                 .collect::<Vec<_>>();
             actuals.extend(structural_arguments(machine, *psi_edge, arguments, facts)?);
             let call = LegalizedScalarCall {
+                suspension_crossing: None,
                 descriptor_origins: Vec::new(),
                 access_bindings: access_bindings.clone(),
                 source: target_operations::NativeCallOrigin::Authored,
@@ -417,6 +418,7 @@ pub(crate) fn project(
         calls.push((
             *owner,
             LegalizedScalarCall {
+                suspension_crossing: None,
                 descriptor_origins: Vec::new(),
                 access_bindings: Vec::new(),
                 source: target_operations::NativeCallOrigin::Authored,

@@ -1,6 +1,5 @@
 //! Check layout optimization records against their independently retained inputs.
 use machine_code::ResolvedMachineLayout;
-use machine_code::layout::X86BranchRelaxationRecord;
 use machine_code::layout::evidence::X86BranchRelaxationPolicy;
 use machine_code::layout::evidence::relaxation_identity::{
     RevisionRoots, artifact_identity, revision_identity,
@@ -9,6 +8,7 @@ use machine_code::layout::relaxation_policy::{
     OptimizedX86BranchRelaxationError, ResolvedLayoutOptimizationError, ensure_x86_target,
     validate_roots, x86_rel8_selected,
 };
+use machine_code::layout::{X86BranchRelaxationAudit, X86BranchRelaxationRecord};
 use optimization_selections::{OptimizationExecutionPhase, OptimizationPhaseSelections};
 use register_model::ValidatedPhysicalRegisterModel;
 use target::NativeTarget;
@@ -18,11 +18,16 @@ pub fn validate_optimized_x86_branch_relaxation(
     artifact: &X86BranchRelaxationRecord,
 ) -> Result<(), OptimizedX86BranchRelaxationError> {
     validate_roots(source, physical)?;
-    validate_current_x86_branch_relaxation(physical, &source.roots(), source.target(), artifact)?;
+    let audit = validate_current_x86_branch_relaxation(
+        physical,
+        &source.roots(),
+        source.target(),
+        artifact,
+    )?;
     // The record must start from this baseline's rows. Every attempt in the
     // first sweep names the revision of the rows it inspected; with no
     // conditional branch to inspect, the sweep leaves the rows unchanged.
-    let started_from_source = match artifact.attempts().first() {
+    let started_from_source = match audit.attempts.first() {
         None => artifact.functions() == source.functions(),
         Some(first) => {
             first.iteration == 1
@@ -40,12 +45,12 @@ fn revision_roots(target: NativeTarget) -> RevisionRoots {
     RevisionRoots { target }
 }
 
-fn validate_current_x86_branch_relaxation(
+fn validate_current_x86_branch_relaxation<'a>(
     physical: &ValidatedPhysicalRegisterModel,
     source: &machine_code::ResolvedLayoutRoots,
     target: NativeTarget,
-    artifact: &X86BranchRelaxationRecord,
-) -> Result<(), OptimizedX86BranchRelaxationError> {
+    artifact: &'a X86BranchRelaxationRecord,
+) -> Result<&'a X86BranchRelaxationAudit, OptimizedX86BranchRelaxationError> {
     ensure_x86_target(target, physical)?;
     if artifact.machine != source.machine
         || artifact.pre_layout != source.pre_layout
@@ -55,23 +60,27 @@ fn validate_current_x86_branch_relaxation(
     {
         return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
     }
+    let audit = artifact
+        .audit
+        .as_deref()
+        .ok_or(OptimizedX86BranchRelaxationError::ArtifactMismatch)?;
     let roots = revision_roots(target);
-    if artifact.output_revision != revision_identity(roots, artifact.functions())
-        || artifact.identity
+    if audit.output_revision != revision_identity(roots, artifact.functions())
+        || audit.identity
             != artifact_identity(
                 roots,
                 artifact.policy,
                 artifact.budget,
                 artifact.usage,
-                artifact.output_revision,
-                &artifact.attempts,
-                &artifact.actions,
+                audit.output_revision,
+                &audit.attempts,
+                &audit.actions,
                 artifact.functions(),
             )
     {
         return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
     }
-    Ok(())
+    Ok(audit)
 }
 
 pub fn validate_resolved_layout_optimization(
@@ -80,13 +89,11 @@ pub fn validate_resolved_layout_optimization(
     selections: &OptimizationPhaseSelections,
     current: &machine_code::OptimizedMachineLayout,
 ) -> Result<(), ResolvedLayoutOptimizationError> {
-    let relaxation = current.trace.as_deref();
+    let relaxation = current.relaxation.as_deref();
     if &current.selections != selections {
         return Err(ResolvedLayoutOptimizationError::SelectionMismatch);
     }
-    if current.baseline != baseline.roots()
-        || current.relaxation != relaxation.map(X86BranchRelaxationRecord::identity)
-    {
+    if current.baseline != baseline.roots() {
         return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);
     }
     let enabled = x86_rel8_selected(selections, baseline.target().architecture)
@@ -115,7 +122,7 @@ pub fn validate_resolved_layout_optimization(
 pub fn validate_current_layout_optimization(
     current: &machine_code::OptimizedMachineLayout,
 ) -> Result<(), ResolvedLayoutOptimizationError> {
-    let relaxation = current.trace.as_deref();
+    let relaxation = current.relaxation.as_deref();
     let program = &current.program;
     let facts = &program.context.publication;
     let selections = facts
@@ -123,7 +130,6 @@ pub fn validate_current_layout_optimization(
         .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
     if current.selections != selections
         || current.budget != facts.budget()
-        || current.relaxation != relaxation.map(X86BranchRelaxationRecord::identity)
         || current.baseline.machine != program.context.plan
         || !current.baseline.pre_layout.names(&program.encoding)
     {

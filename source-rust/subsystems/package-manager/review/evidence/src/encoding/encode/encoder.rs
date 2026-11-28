@@ -83,6 +83,7 @@ impl<'text> Encoder<'text> {
         Ok(bytes)
     }
 
+    #[cfg(any(test, feature = "full-policy-recovery"))]
     pub(super) fn policy_preallocated(
         expected_length: usize,
     ) -> Result<Self, PackageReviewEncodingError> {

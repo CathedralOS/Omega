@@ -361,6 +361,7 @@ mod tests {
                 )
                 .unwrap();
                 let mut call = LegalizedScalarCall {
+                    suspension_crossing: None,
                     descriptor_origins: Vec::new(),
                     access_bindings: Vec::new(),
                     structural_result: None,

@@ -1,0 +1,17 @@
+[package]
+name = "provider-choice-inputs"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "provider_choice_inputs.rs"
+
+[dependencies]
+arena = { path = "../../../../../foundation/arena" }
+build-model = { path = "../../../build/model" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+source-declarations = { path = "../symbol-resolved-trees/declarations" }
+source-text = { path = "../../../../../foundation/source-text" }
+symbols = { path = "../../../foundation/declaration-identity" }
+typed-trees = { path = "../typed-trees" }

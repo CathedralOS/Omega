@@ -13,6 +13,8 @@ Build, see
 
 Each emitted Psi machine carries the instruction catalog target required by its source body. When recursive transitions share a machine, their bodies must admit a common target.
 
+For a supplier export, this stage records which checked implementation supplies each member of the exported requirement. A target's private provider selection is separate, even when the two records satisfy the same requirement.
+
 Data that contains itself by value has no storage, so a machine over it never
 runs. Such declarations take a second route: [mathematics.rs](src/mathematics.rs)
 reads them with the same reader, in a reader of its own so none of them is
@@ -415,8 +417,20 @@ specialization selected (`StaticRequirementDispatch`) and is read as that
 implementation's row (`dispatched_row`); `Identity::<T>` there is the type
 the copy's specialization binds `T` to; and a law cited as
 `E::identity_of_equal` has the requirement's header at the implementation's
-own arguments. What an
-operation ensures does not stop a clause naming it; a precondition does.
+own arguments. A row the compiler synthesized for an implementation that
+authors no `equals` is instead read as its checked body, however a clause
+names it: `CoinEq::equals(@a, @b)`, the requirement's `equals(@left,
+@right)` read for a member, or `E::equals` in a copy
+(`synthesized_comparison`, `unfold_synthesized_comparison`). That body is
+stage 03's field-by-field expansion, so the clause states the field
+comparisons `a == b` does ([contracts](../../../../../../wiki/spec/proofs/contracts.md#equality-bridges-and-comparison-facts):
+"Compiler-synthesized structural equality is proof-transparent through its
+ordinary checked body"). Each operand must lend a formal in scope, as
+`@a` of a by-value formal or a shared borrowed formal. A copied
+requirement's `Identity::<T>` names the implementation's type at the
+implementation's header, where stage 02 wrote it (`copied_requirement`).
+What an operation ensures does not stop a clause naming it; a precondition
+does.
 `tools/ratchets/clause_term_readers.txt` counts the functions in `read/` that
 return a clause term, so the number can only fall.
 
@@ -475,6 +489,16 @@ unserved forms are refused explicitly. Callable values and boundary calls keep
 their complete declared contracts; retaining one does not supply an executable
 implementation or prove its obligations. A
 refusal anywhere in the compilation refuses the whole compilation.
+For an [assembly-bodied machine](../../../../../../wiki/spec/language/assembly.md#explicit-control-flow),
+[the instruction reader](src/read/assembly.rs) tracks which working-register
+slots a reached move has initialized. An explicit `transition -> finish;`
+carries those values as scalar parameters of the next Psi block. A local
+`requires` becomes an ordinary block invariant. Every incoming edge must prove
+it. `ret;` identifies the returned scalar and its register view for the
+selected calling plan. The current body reader serves a straight-line chain
+with one initialized result register. Conditional branches, register entry
+bindings, and hardware flag restoration still require additional lowering.
+
 The base subset is machines with one state and a complete body whose
 formals, locals and result are builtin integers (`i8` to `u64`) or `bool`.
 Such a body may use:

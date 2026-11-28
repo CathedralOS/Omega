@@ -3307,6 +3307,13 @@ pub(crate) mod payloads {
                     expression::ExpressionNode::StructLiteral(mut literal) => {
                         literal.application_type =
                             self.type_reference(program, literal.application_type)?;
+                        for reference in literal
+                            .package
+                            .iter_mut()
+                            .flat_map(|package| package.type_references_mut())
+                        {
+                            *reference = self.type_reference(program, *reference)?;
+                        }
                         Some(expression::ExpressionNode::StructLiteral(literal))
                     }
                     // The block's statements are applied with the body's.
@@ -3358,7 +3365,7 @@ pub(crate) mod payloads {
                             runtime.contract = self.runtime_contract(program, runtime.contract)?;
                         }
                         if let Some(request) = &mut call.installed_interrupt_operation {
-                            request.invalidate_preparation();
+                            request.prepared = None;
                         }
                         call.requirement_application =
                             self.type_reference(program, call.requirement_application)?;
@@ -3596,7 +3603,7 @@ mod declaration_invocations {
             application: StaticMachineApplicationHandle,
             target: SymbolHandle,
         ) -> Result<bool, &'static str> {
-            let Some((declaration, source)) = self.bodyless_declaration(target)? else {
+            let Some((declaration, source)) = self.preparable_bodyless_declaration(target)? else {
                 return Ok(false);
             };
             if !self
@@ -4020,7 +4027,7 @@ mod declaration_invocations {
             application: StaticMachineApplicationHandle,
             target: SymbolHandle,
         ) -> Result<Option<&StateSignature>, &'static str> {
-            let Some((declaration, source)) = self.bodyless_declaration(target)? else {
+            let Some((declaration, source)) = self.preparable_bodyless_declaration(target)? else {
                 return Ok(None);
             };
             if !self
@@ -4148,6 +4155,41 @@ mod declaration_invocations {
             {
                 return Ok(None);
             }
+            self.bodyless_machine_signature_for(machine, target)
+                .map(Some)
+        }
+
+        /// Close the complete header of an imported boundary or a compiler-supplied
+        /// native borrow. Compiler-provided operations never become provider slots.
+        pub fn preparable_bodyless_declaration(
+            &self,
+            target: SymbolHandle,
+        ) -> Result<Option<(SymbolHandle, StateSignature)>, &'static str> {
+            if let Some(source) = self.bodyless_declaration(target)? {
+                return Ok(Some(source));
+            }
+            let Some(machine) = self
+                .machine_by_symbol(target)
+                .or_else(|| self.machine_holding_state(target))
+            else {
+                return Ok(None);
+            };
+            if !machine.has_bodyless_signature()
+                || !matches!(
+                    self.symbols
+                        .sealed_declaration(machine.symbol, machine.name.as_str()),
+                    Some(
+                        language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+                            language_core::sealed_intrinsics::CompilerPrimitive::NativeBorrow(_)
+                        )
+                    )
+                )
+            {
+                return Ok(None);
+            }
+            self.compiler_primitive_schema(machine.symbol)
+                .map_err(|_| "invalid native borrow declaration")?
+                .ok_or("native borrow has no checked declaration")?;
             self.bodyless_machine_signature_for(machine, target)
                 .map(Some)
         }
@@ -9563,7 +9605,7 @@ impl TypedTrees {
                                 application.runtime_contract(self, runtime.contract)?;
                         }
                         if let Some(request) = &mut call.installed_interrupt_operation {
-                            request.invalidate_preparation();
+                            request.prepared = None;
                         }
                         application.static_arguments(self, &mut call.machine_arguments)?;
                         application.apply_call_application(

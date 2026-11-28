@@ -630,7 +630,8 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body,
                 expression(value, false, sites);
             }
             // Declarations, erased terms and reference captures call nothing.
-            Statement::Declare { .. }
+            Statement::AssemblyAdjacent { .. }
+            | Statement::Declare { .. }
             | Statement::Witness { .. }
             | Statement::CaptureReference { .. } => {}
             Statement::Dispatch {
@@ -713,7 +714,7 @@ fn cyclic_theorems(
 fn target<'body>(target: &'body Target, sites: &mut BodyWalk<'body, '_>) {
     match target {
         Target::Unit | Target::Crash(_) => {}
-        Target::Value(value) => expression(value, true, sites),
+        Target::Value(value) | Target::AssemblyReturn(_, value) => expression(value, true, sites),
     }
 }
 
@@ -770,6 +771,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::NativeBorrow { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }

@@ -30,8 +30,8 @@ use service_surface::{
 use service_surface::{ServiceSurface, ServiceSynchronousInvocation};
 use std::sync::Arc;
 use terminal_psi::{
-    TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
-    TerminalServiceSchema,
+    ProviderExportMember, TerminalProgramEntryContract, TerminalProviderExport,
+    TerminalProviderSelection, TerminalSealedNativeIntrinsic, TerminalServiceSchema,
 };
 
 wire_record! {
@@ -235,6 +235,17 @@ wire_record! {
         provider_application: Optional<Index>,
         provider_package: BoundaryPackage,
         provider_custody: Custody,
+    }
+    ExportMember: ProviderExportMember {
+        boundary: Id,
+        machine: Id,
+    }
+    ProviderExport: TerminalProviderExport {
+        schema_declaration: Index,
+        schema_application: Index,
+        provider_declaration: Index,
+        provider_identity: Index,
+        members: List<ExportMember>,
     }
 }
 

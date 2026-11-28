@@ -509,6 +509,14 @@ pub(crate) mod canonical_order {
             );
         }
         check_order!(
+            module
+                .interfaces
+                .provider_exports
+                .iter()
+                .map(|row| (row.schema_declaration, row.schema_application)),
+            "provider exports by exact schema"
+        );
+        check_order!(
             module.interfaces.provider_candidates.iter().map(|c| (
                 c.boundary,
                 module
@@ -3993,6 +4001,7 @@ pub(crate) mod entry_tests {
             content_partition_compositions: Vec::new(),
             entry: block,
             blocks: vec![Block {
+                assembly_exit: None,
                 id: block,
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
@@ -4079,7 +4088,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 306 distinguishes nominal preconditions on exact formals from normal results.
+// Marker 308 distinguishes nominal preconditions on exact formals from normal results.
+// Marker 306 adds native reference formation and checked mutability-upgrade origins.
+// Marker 305 records the supplier's exported provider records separately from local selections.
+// Marker 304 appends the optional assembly exit constraint to each block.
 // Marker 303 makes task activation storage refer to the ordinary program declarations.
 // Marker 302 adds each theorem application's sum arguments after its scalar
 // subjects.
@@ -4092,7 +4104,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 306;
+pub(crate) const FORMAT_MARKER: u16 = 308;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

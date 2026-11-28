@@ -112,7 +112,11 @@ impl Program<'_> {
                 let previous = std::mem::replace(&mut self.source_scope, source.scope.clone());
                 let formed = self.value_type(machine, source.reference);
                 self.source_scope = previous;
-                formed?;
+                // Storage identities erase lifetimes. A formed occurrence
+                // that carries one needs a separate lifetime equation.
+                if formed?.regions() != crate::body::Regions::NONE {
+                    return Ok(None);
+                }
             }
             if !left_id.is_valid() || !right_id.is_valid() {
                 return Ok(None);

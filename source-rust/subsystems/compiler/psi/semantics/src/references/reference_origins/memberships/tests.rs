@@ -183,6 +183,7 @@ fn mapping(extent: ReferenceOriginExtent) -> ReferenceCallResult {
                     access: StructuralAccess::SharedBorrow,
                 },
                 transfers_existing: false,
+                upgraded_mutability: false,
             },
             suffix: Vec::new(),
             endpoint: StructuralTypeId::new(1).unwrap(),

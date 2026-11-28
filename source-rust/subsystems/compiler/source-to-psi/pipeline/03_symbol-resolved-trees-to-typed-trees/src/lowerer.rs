@@ -2073,6 +2073,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::expressions::package_openings::open_cohort(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        cohort,
+    )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
     let mut callable_admission = crate::expressions::runtime_callables::bind_calls_in_cohort(
@@ -2143,6 +2148,10 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::declarations::package_fields::validate_in_cohort(
+        &lowerer.typed_trees,
+        cohort.data_definitions,
+    )?;
     crate::types::type_reference::domain_aliases::retain_member_applications(
         &mut lowerer.typed_trees,
         cohort.domain_definitions,
@@ -2203,12 +2212,11 @@ pub(crate) fn close_typed_cohort(
     {
         validate_computed_arguments(lowerer.source_trees)?;
     }
-    let owners = collect_owners(&lowerer.typed_trees);
     crate::expressions::equality_preparation::prepare_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.conformances,
-        &owners,
+        collect_owners,
     )?;
     crate::declarations::items::provider_defaults::finalize_provider_default_calls_in_cohort(
         &mut lowerer.typed_trees,
@@ -2242,11 +2250,13 @@ pub(crate) fn close_typed_cohort(
     )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
-    let owners = collect_owners(&lowerer.typed_trees);
     crate::types::typing_queries::defer_unbound_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
-        &owners,
+        collect_owners,
+    )?;
+    crate::expressions::package_escapes::check_cohort(
+        lowerer.source_trees, &lowerer.typed_trees, cohort,
     )?;
     crate::types::undeclared_type_names::defer_undeclared_type_names_in_cohort(
         lowerer.source_trees,
@@ -2602,6 +2612,8 @@ impl Lowerer<'_> {
 
 fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) -> TypedTrees {
     let TypedTrees {
+        package_openings,
+        package_projections,
         identity: _,
         build_invocation_entry: _,
         excluded_authored_selection_occurrences,
@@ -2644,6 +2656,8 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     } = typed;
     let mut trees = TypedTrees::with_roots(roots, tables, symbols);
     trees.type_identities = type_identities;
+    trees.package_openings = package_openings;
+    trees.package_projections = package_projections;
     // A request recorded on a declaration stays recorded while the program
     // is extended: its declaration is still unserved, and recording again
     // adds nothing.

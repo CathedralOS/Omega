@@ -37,6 +37,10 @@ pub const fn build_companion_bytes(file: BuildCompanionFile) -> &'static [u8] {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../../../source/library/build/program.omg"
         )),
+        BuildCompanionFile::SandboxDatagram => include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../../source/library/core/sandbox/datagram.omg"
+        )),
         BuildCompanionFile::SystemFilesystem => include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../../../../source/library/system/filesystem.omg"

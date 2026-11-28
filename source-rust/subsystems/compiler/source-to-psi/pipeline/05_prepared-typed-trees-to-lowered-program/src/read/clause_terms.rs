@@ -1416,6 +1416,18 @@ impl Program<'_> {
             }
             return Err(unavailable("expected a proof-relevant mathematical type"));
         }
+        // A compiler-synthesized structural comparison is proof-transparent
+        // through its checked body (contracts.md, "Equality bridges and
+        // comparison facts"): a clause naming it states its field
+        // comparisons, as `a == b` does.
+        if matches!(usage, ClauseUse::Proposition)
+            && let ExpressionNode::Call(call) = table.expression(expression)
+            && let Some(realization) = self.synthesized_comparison(id, scope, call)
+        {
+            return self
+                .unfold_synthesized_comparison(id, scope, call, realization)
+                .map(ClauseTerm::Proposition);
+        }
         let bodyless = match table.expression(expression) {
             ExpressionNode::Call(call) if !call.receiver.is_valid() => typed
                 .bodyless_machine_signature(call.target_symbol)
@@ -1947,7 +1959,13 @@ impl Program<'_> {
                         arguments,
                     }
                 }
-                (_, Some(expected)) if expected.scalar().is_some() => {
+                // A mathematical function argument is the bound term, or the
+                // projection holding it. It has no integer-like scalar read.
+                (_, Some(expected))
+                    if expected.scalar().is_some()
+                        && !(self.mathematical
+                            && matches!(expected.scalar(), Some(ScalarType::Callable(_)))) =>
+                {
                     let (term, actual) = self
                         .clause_term(id, scope, expression, ClauseUse::Scalar(expected.scalar()))?
                         .scalar(id)?;
@@ -2008,7 +2026,10 @@ impl Program<'_> {
                             "Identity operand has no exact input observation",
                         ));
                     }
-                    if matches!(expected, ValueType::Rigid(_)) {
+                    if matches!(
+                        expected,
+                        ValueType::Rigid(_) | ValueType::Scalar(ScalarType::Callable(_), _)
+                    ) {
                         ClauseOperand::Formal(
                             u32::try_from(position)
                                 .map_err(|_| unavailable("formal ordinal overflow"))?,
@@ -2189,7 +2210,9 @@ impl Program<'_> {
                     let receiver = if generic {
                         self.clause_receiver_type(id, scope, member.receiver)?
                             .ok_or_else(|| {
-                                unavailable("field of generic data whose receiver has no known type")
+                                unavailable(
+                                    "field of generic data whose receiver has no known type",
+                                )
                             })?
                     } else if selected.is_valid() {
                         self.record(id, owner)?
@@ -2451,6 +2474,55 @@ impl Program<'_> {
                     && row.requirement == selected
             })
             .map(|row| (row.requirement, conformance.symbol))
+    }
+
+    /// The realization of a synthesized structural `equals` row a clause
+    /// call names, however it names the row: the member itself, its
+    /// requirement read for a member of the same implementation, or an
+    /// implementation parameter's dispatch at a closed copy.
+    pub(super) fn synthesized_comparison(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &crate::source_state::expression::TableCallExpression,
+    ) -> Option<SymbolHandle> {
+        let typed = self.typed;
+        let realization = if let Some(dispatch) = &call.static_requirement_dispatch {
+            dispatch.realization_machine
+        } else if call.receiver.is_valid() {
+            // `CoinEq::equals(@a, @b)`: the receiver names the implementation.
+            let receiver = typed.expression_table.name_path_node(call.receiver)?.symbol;
+            let requirement = typed
+                .closed_requirement_application(call.target_symbol)
+                .map_or(call.target_symbol, |row| row.template);
+            typed
+                .conformance_by_symbol(receiver)?
+                .rows
+                .iter()
+                .find(|row| row.requirement == requirement && row.source.owns_realization())?
+                .realization_machine
+        } else if let Some((requirement, conformance)) = self
+            .contract_operator_owner(id, scope)
+            .ok()
+            .and_then(|owner| {
+                self.sibling_row(owner, call.target_symbol, call.authored_call_selection)
+            })
+            .or_else(|| self.witness_conformance_row(call.target_symbol))
+        {
+            typed
+                .conformance_by_symbol(conformance)?
+                .rows
+                .iter()
+                .find(|row| row.requirement == requirement && row.source.owns_realization())?
+                .realization_machine
+        } else {
+            self.entered_machine(call.target_symbol)?
+        };
+        let (_, row) = typed.owned_conformance_realization(realization)?;
+        (row.source == crate::source_state::trait_definition::ConformanceRowSource::Synthesized
+            && typed.symbols.sealed_intrinsic(row.declaring_trait)
+                == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol))
+        .then_some(realization)
     }
 
     /// The requirement and implementation a copied clause names when it

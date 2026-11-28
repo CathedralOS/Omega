@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+component-description = { path = "../../compiler/psi-to-native/verification/component-description" }
 platform-custody = { path = "../../../foundation/filesystem" }
 psi-publication-records = { path = "../../compiler/psi/artifact/publication" }
 interpreter-numeric-imports = { path = "../numeric-imports" }

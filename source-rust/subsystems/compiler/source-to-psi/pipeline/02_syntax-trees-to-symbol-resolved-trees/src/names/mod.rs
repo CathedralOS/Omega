@@ -176,12 +176,34 @@ fn assign_program_symbols(
     runtime_callable_contracts: &[crate::source_resolved::callable_values::RuntimeCallableContractHandle],
 ) -> Vec<Diagnostic> {
     let mut diagnostics = assign_top_level_symbols(program, symbols);
+    // Parameter symbols exist after declaration assignment. A witness is a child of its
+    // exact binding, and becomes visible only to that binding's lexical successors.
+    let symbols_with_openings = if !program
+        .tables
+        .declarations
+        .child_type_references
+        .package_openings
+        .is_empty()
+    {
+        if let Err(error) = symbol_table::bind_package_openings(program) {
+            diagnostics.push(error);
+            return diagnostics;
+        }
+        Some(program.symbols.clone())
+    } else {
+        None
+    };
+    let symbols = symbols_with_openings.as_ref().unwrap_or(symbols);
     if let Err(error) = runtime_callable_scopes.bind_program(program) {
         diagnostics.push(error);
         return diagnostics;
     }
+    let callable_openings = match runtime_callable_types::CallableOpenings::of(program, runtime_callable_contracts) {
+        Ok(openings) => openings,
+        Err(errors) => { diagnostics.extend(errors); return diagnostics; }
+    };
     if let Err(errors) =
-        runtime_callable_types::assign_signatures(program, symbols, runtime_callable_contracts)
+        runtime_callable_types::assign_signatures(program, symbols, runtime_callable_contracts, &callable_openings)
     {
         diagnostics.extend(errors);
         return diagnostics;
@@ -192,7 +214,9 @@ fn assign_program_symbols(
     propositions::assign_proposition_expression_symbols(program, symbols);
     mathematical::assign_mathematical_expression_symbols(program, symbols);
     measures::assign_measure_expression_symbols(program, symbols);
-    if let Err(errors) = assign_contract_reference_symbols(program, symbols) {
+    if let Err(errors) =
+        assign_contract_reference_symbols(program, symbols, runtime_callable_contracts, &callable_openings)
+    {
         diagnostics.extend(errors);
     }
     assign_domain_fact_symbols(program, symbols);
@@ -518,6 +542,8 @@ pub(crate) fn assign_body_symbols(
     selected_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
+    symbol_table::bind_package_openings(&mut lowerer.symbol_resolved_trees)
+        .map_err(|error| vec![error])?;
     let runtime_callable_contracts =
         symbol_table::append_runtime_callable_symbols(&mut lowerer.symbol_resolved_trees);
     lowerer
@@ -525,10 +551,12 @@ pub(crate) fn assign_body_symbols(
         .bind_program(&mut lowerer.symbol_resolved_trees)
         .map_err(|error| vec![error])?;
     let symbols = lowerer.symbol_resolved_trees.symbols.clone();
+    let callable_openings = runtime_callable_types::CallableOpenings::of(&lowerer.symbol_resolved_trees, &runtime_callable_contracts)?;
     runtime_callable_types::assign_signatures(
         &mut lowerer.symbol_resolved_trees,
         &symbols,
         &runtime_callable_contracts,
+        &callable_openings,
     )?;
     assign_generic_application_origin_symbols(
         &mut lowerer.symbol_resolved_trees,
@@ -546,7 +574,12 @@ pub(crate) fn assign_body_symbols(
         &symbols,
         selected_machines,
     )?;
-    assign_contract_reference_symbols(&mut lowerer.symbol_resolved_trees, &symbols)?;
+    assign_contract_reference_symbols(
+        &mut lowerer.symbol_resolved_trees,
+        &symbols,
+        &runtime_callable_contracts,
+        &callable_openings,
+    )?;
     contracts::finalize_outcome_specific_contract_symbols(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_outcome_specific_contracts,

@@ -264,11 +264,18 @@ fn establishment_routes(
             .map_err(|_| unavailable("domain issuer ordinal overflow"))?;
         match route {
             source_declarations::DomainEstablishmentRoute::ExactMachine { machine } => {
-                issuers.extend(
-                    source.symbols.iter().filter_map(|(body, symbol)| {
-                        (*symbol == *machine).then_some((body, ordinal))
-                    }),
-                );
+                for (body, symbol) in source.symbols.iter() {
+                    // The checked callable declaration names this same template
+                    // for a specialization. A nested body has its own template.
+                    if symbol == machine
+                        || typed
+                            .executable_application_template(*symbol)
+                            .map_err(unavailable)?
+                            == Some(*machine)
+                    {
+                        issuers.push((body, ordinal));
+                    }
+                }
                 let declaration = crate::declare::semantic_identity(typed, *machine, builder)
                     .map_err(unavailable)?;
                 let machine = typed

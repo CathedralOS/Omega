@@ -171,6 +171,14 @@ fn desugar_generic_data_instances_in(
         }
         let definition_parameters =
             syntax_items(syntax).type_parameters(definition.type_parameters);
+        // A package's field witnesses stay on its declaration. They are never
+        // arguments with which to synthesize an externally visible type.
+        if definition_parameters
+            .iter()
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::SomeType))
+        {
+            continue;
+        }
         // A value binder is an index like a `const` one (`Index<Limit: u32>`
         // applied as `Index<5>`); only a machine binder has no instance here.
         if definition_parameters

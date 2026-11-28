@@ -238,10 +238,11 @@ The sample at index `n` is `At(s.state, n)`. Each selection must admit a
 [mathematical denotation](../language/evaluation.md#invocation-admission)
 on all its inputs. For a constant sequence, the state is a rational `q` and
 the named machine `repeat(q, n)` returns `q`. The same selection works for
-every `q`. For an arbitrary mathematical function `f: Nat -> Rat` supplied
-to a theorem, the state is `f` itself. Core's proof-side sampling machine
-`apply(f, n)` returns the mathematical value `f(n)`. Here `apply` occupies
-the static machine slot and `f` occupies the ordinary generic field.
+every `q`. In a proof, a theorem may supply a mathematical function from
+natural numbers to rationals as the state. The named sampler `apply` then
+returns that function's value at the given index. The source declaration
+above expresses these two roles with the field type `S` and the named
+sampler parameter `At`.
 [Mathematical function types](mathematical_bindings.md#universes-and-mathematical-function-types)
 
 To project a sequence into `Real`, establish regularity for those exact

@@ -65,56 +65,29 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. May core `Real` be the quotient of one regular function sequence type?
+<a id="run-partition-declarations"></a>
+### 1. Which declarations in core own the trusted split and merge of a live run?
 
-The Real ruling leaves two things without a source form. Every regular
-`Sequence<S, At>` must project into one `Real`, but no declaration names a
-quotient over a whole carrier family. The ruling also requires regularity
-before projection, yet `as Quotient` takes no premise. Take
-`Sequence<Rat, repeat>` for a constant and `Sequence<Nat -> Rat, apply>` for
-a theorem's `f`. Both must give values of one `Real`.
+A vector needs to split and rejoin its initialized cells while preserving each
+cell's ownership and the backing from which it was borrowed. Both the caller
+and the compiler need to select the same public declaration for each transfer.
+An ordinary helper cannot establish the result from counts and byte ranges.
 
-Read literally, the carrier is the total family
-`Σ (S: Type<0>). Σ (At: Sampler<S>). Sequence<S, At>`, restricted to regular
-values. A sum over every state type is a large type, so `Real` would live in
-`Type<1>`. The spec forbids resizing it. `Identity::<Real>` would then sit at
-level 1. A sequence or quotient of reals would also need a level above that.
+[Split and merge contracts](wiki/spec/resources/typed_runs.md#split-and-merge-contracts)
+names `Run::split<P, T>` and `Run::merge<P, T>` as the two public, sealed
+machines and specifies their exact declaration identities as the trust boundary.
+[Static declarations and explicit state](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+says “A data declaration is not a machine owner or namespace.” The lowered-form
+checker rejects such declarations. Core declares `Run` as data. Neither
+partition machine has a catalog entry or an authored caller in the current tree.
 
-Checked and found silent:
-[Cauchy sequences and the Real quotient](wiki/spec/proofs/quotients.md#cauchy-sequences-and-the-real-quotient)
-names the carrier but no declaration.
-[Families, relations, and evidence](wiki/spec/proofs/quotients.md#families-relations-and-evidence)
-interprets a family through `A = Σ (I : IndexPack). C<I>` but gives no
-source spelling. [Formation and representation](wiki/spec/proofs/quotients.md#formation-and-representation)
-declares `data Q = C % R` over one carrier, with `as Q` as the sole
-construction route. [Generics](wiki/spec/language/generics.md) and
-[proof contracts](wiki/spec/proofs/contracts.md) state the projection
-requirement but no form for it.
+Should the sealed catalog and the establishment routes of `Run::Live` name two
+free machines in `core/run.omg`, selected by callers as `|run|::split` and
+`|run|::merge`? If the carrier-qualified names are required, which declaration
+owns them under the static machine rules?
 
-Recommendation: yes, with ordinary declarations only.
-
-```omega
-data Regular {
-    samples: Sequence<Nat -> Rat, apply>;
-}
-requires regular::<Nat -> Rat, apply>(value.samples);
-
-data Real = Regular % converge_together
-requires converge_together satisfies MereEquivalence<Regular, converge_together>
-    as Together;
-
-machine project<S, const At: Sampler<S>>(s: Sequence<S, At>) -> Real
-requires regular::<S, At>(s)
-{
-    // the representative with state `λn. At(s.state, n)`
-}
-```
-
-The data predicate keeps every representative regular, so the convergence
-relation is an equivalence on the whole carrier. A sequence enters `Real`
-only through `project`, whose `requires` checks regularity for those exact
-samples. Two projections are equal when their
-samples converge together, whatever their `S` and `At`. `Real` stays in
-`Type<0>`. The alternative is a new family-quotient declaration with a
-carrier premise on `as`. That costs a large `Real`, a new surface, and Σ
-over types in the checker.
+**Proposed specification text if free machines are selected.** “The public,
+bodyless machines `split<P, T>` and `merge<P, T>` in `core/run.omg` are
+compiler supplied. The sealed catalog and the establishment routes of
+`Run::Live` select those exact declarations.” The existing bounds, custody,
+backing, loan and constant-work requirements apply to both operations.

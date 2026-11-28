@@ -91,7 +91,7 @@ The runtime host's bindings, reviewed one by one:
 | Descriptor I/O | With output limits, and with no filesystem, standard streams alone or mapped directories | Finite replay input and capped private output. A standard-streams namespace answers every other descriptor with `EBADF`. A mapped namespace reaches only descriptors its own confined opens issued, and never the host's standard streams. Host-namespace descriptors reach the host kernel. |
 | Clock | Snapshot, or live time under a granted wait ceiling | Snapshot time is private and modeled. `TerminalClockEnvironment::HostWithin` refuses any wait past what remains of its ceiling before it sleeps; unbounded `Host` time does not serve. `a_live_wait_ceiling_refuses_waits_past_what_remains` |
 | Allocation emulation | Yes, charged to the invocation account | Each `calloc` reserves one cell and its bytes on the contained guest's account, and returns null when the account cannot cover it. `free` returns the bytes; the cell stays because addresses never recycle. `a_charged_ledger_bounds_live_allocation_by_its_account` |
-| Linux filesystem over mapped directories | Yes | Every path resolves beneath a retained directory handle, component by component, without following symbolic links. A leaf that is a symbolic link is refused, only regular files and directories open, operations outside an allowlist return `EOPNOTSUPP`, renames and links cannot cross mappings, and a read-only mapping refuses every write. Failures return to the guest as Linux errno. `a_readonly_fd_does_not_authorize_metadata_writes_or_symlink_escape`, `a_contained_run_gets_its_working_directory_or_the_explicit_mappings` |
+| Linux filesystem over mapped directories | Yes | Every path resolves beneath a retained directory handle, component by component, without following symbolic links. A name relative to an issued directory descriptor must be one normal component. The binding resolves it through the guest mounts and checks that the retained parent still matches the issued directory. It refuses a child mount root or a replaced parent. `fchmodat` changes only the pinned regular file or directory. A leaf that is a symbolic link is refused, only regular files and directories open, operations outside an allowlist return `EOPNOTSUPP`, renames and links cannot cross mappings, and a read-only mapping refuses every write. Failures return to the guest as Linux errno. `a_readonly_fd_does_not_authorize_metadata_writes_or_symlink_escape`, `a_directory_descriptor_names_only_its_own_children`, `a_mapped_chmod_changes_only_the_granted_object`, `a_contained_run_gets_its_working_directory_or_the_explicit_mappings` |
 | Linux filesystem over the host namespace or a host directory | No | Kernel calls on the host's namespace. |
 | Native provider | No | Runs foreign native code. |
 
@@ -114,9 +114,11 @@ producer trust.
 
 ## Remaining
 
-1. Apply the same standalone grant to a source run. `omega run main.omg`
-   still supplies the host namespace and matching-host adapters when it has no
-   explicit run directory mappings.
-2. Bound what a contained guest writes to its mounts. Output to standard
-   streams is capped, but file writes through a read/write mapping are limited
-   only by the host filesystem.
+The Rust CLI enforces the default working-directory grant for source and
+trusted saved programs on a matching Linux host without a native provider.
+On Windows and other targets outside that path, or with a native provider,
+omitting explicit mappings still selects the host filesystem. Track the repair
+under [standalone filesystem grants](../../../TASKS.md#psi-untrusted-interpretation).
+The [standalone contract](../../spec/build/embedding.md#standalone-interpretation)
+requires refusal before guest effects if a required provider cannot honor the
+granted directories.

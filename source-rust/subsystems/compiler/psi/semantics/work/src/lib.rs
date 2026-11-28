@@ -119,6 +119,8 @@ impl WorkSchedule {
             | OperationKind::FloatResultPolicy { .. }
             | OperationKind::StorageAddress { .. }
             | OperationKind::StorageAlignment { .. }
+            | OperationKind::BorrowAt { .. }
+            | OperationKind::UpgradeMutability { .. }
             | OperationKind::GlobalDescriptorTable { .. }
             | OperationKind::ActivateTaskRegister { .. }
             | OperationKind::ReadTaskRegister { .. }

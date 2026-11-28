@@ -138,6 +138,8 @@ ensures |proof|::Identity::<N>(repeat(s.state, n), N::Z)
     );
 }
 
+const SAMPLER_RULE: &str = "a static machine argument must have its parameter's formals and result";
+
 #[test]
 fn a_sampler_must_take_the_state_and_an_index() {
     // `Sampler<N>` takes a state and an index; a machine of the state
@@ -153,9 +155,7 @@ ensures |proof|::Identity::<N>(repeat(s.state), s.state)
     ));
     let violations = violations(&verdicts);
     assert!(
-        violations
-            .iter()
-            .any(|rule| rule.contains("a static machine argument must have its parameter's formals and result")),
+        violations.iter().any(|rule| rule.contains(SAMPLER_RULE)),
         "{verdicts:?}"
     );
 }
@@ -175,9 +175,130 @@ ensures |proof|::Identity::<N>(N::Z, N::Z)
     ));
     let violations = violations(&verdicts);
     assert!(
-        violations
+        violations.iter().any(|rule| rule.contains(SAMPLER_RULE)),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_conditional_sampler_needs_evidence_even_to_form_its_sequence() {
+    let verdicts = judged(&sequences(
+        "machine only_zero(state: N, n: N) -> N
+requires |proof|::Identity::<N>(n, N::Z)
+{ state }",
+        "machine holds_state(s: Sequence<N, only_zero>)
+ensures |proof|::Identity::<N>(s.state, s.state)
+{}",
+    ));
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::FallBack(refusal)
+                if refusal.detail.contains("record machine argument with an unproved premise")
+        )),
+        "{verdicts:?}"
+    );
+    assert!(
+        !verdicts
             .iter()
-            .any(|rule| rule.contains("a static machine argument must have its parameter's formals and result")),
+            .any(|verdict| matches!(verdict, RouteVerdict::Laws(_)))
+    );
+}
+
+const FUNCTION_STATE: &str = "data Fn = machine(n: N) -> N reaches none crashes none terminates;
+machine apply(f: Fn, n: N) -> N { f(n) }
+machine pack(f: Fn) -> Sequence<Fn, apply> { Sequence { state: f } }
+machine sample(s: Sequence<Fn, apply>, n: N) -> N { apply(s.state, n) }";
+
+#[test]
+fn the_named_sampler_applies_the_projected_function_state() {
+    let accepted = sequences(
+        FUNCTION_STATE,
+        "machine law(f: Fn, n: N)
+ensures |proof|::Identity::<N>(sample(pack(f), n), apply(f, n)) {}",
+    );
+    use proof_admission::Term;
+    let verdicts = judged(&accepted);
+    assert!(judged_laws(&verdicts).iter().any(|law| law == "law"));
+    let law = verdicts
+        .iter()
+        .find_map(|part| match part {
+            RouteVerdict::Laws(judgment) => judgment.laws.iter().find(|law| law.machine == "law"),
+            _ => None,
+        })
+        .unwrap();
+    let MathematicalCoreDecision::Judged(receipt) = law.decision;
+    assert_eq!((receipt.context_depth, receipt.assumption_closure), (0, 0));
+    let mut proof = terminal_codec::decode_mathematical_certificate(&law.certificate).unwrap();
+    let check = |arena: &mut _, certificate: &_| {
+        proof_admission::verify_mathematical_certificate(
+            arena,
+            certificate,
+            &mut Default::default(),
+        )
+        .unwrap();
+    };
+    check(&mut proof.arena, &proof.certificate);
+    // Replay the same proof at the explicit statement about every function
+    // and index. Both sampler applications must compute to f(n).
+    let arena = &mut proof.arena;
+    let Term::Pi {
+        domain: function,
+        codomain,
+    } = arena.get(proof.certificate.expected)
+    else {
+        panic!("the function formal")
+    };
+    let Term::Pi {
+        domain: index,
+        codomain: goal,
+    } = arena.get(codomain)
+    else {
+        panic!("the index formal")
+    };
+    let Term::Id { ty, .. } = arena.get(goal) else {
+        panic!("the sample equality")
+    };
+    assert!(matches!(arena.get(function), Term::Pi { .. }));
+    let f = arena.insert(Term::Variable(1));
+    let n = arena.insert(Term::Variable(0));
+    let sample = arena.apply_arguments(f, &[n]);
+    let goal = arena.insert(Term::Id {
+        ty,
+        left: sample,
+        right: sample,
+    });
+    let body = arena.insert(Term::Pi {
+        domain: index,
+        codomain: goal,
+    });
+    proof.certificate.expected = arena.insert(Term::Pi {
+        domain: function,
+        codomain: body,
+    });
+    check(arena, &proof.certificate);
+    let wrong = accepted.replace("apply(f, n)) {}", "N::Z) {}");
+    assert!(
+        judged(&wrong)
+            .iter()
+            .any(|v| matches!(v, RouteVerdict::UnprovedLaws(_)))
+    );
+}
+
+#[test]
+fn a_function_state_requires_unconditional_termination() {
+    let partial = FUNCTION_STATE.replace("crashes none terminates", "crashes none");
+    let verdicts = judged(&sequences(
+        &partial,
+        "machine law(f: Fn, n: N)
+ensures |proof|::Identity::<N>(sample(pack(f), n), apply(f, n)) {}",
+    ));
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict,
+            RouteVerdict::FallBack(refusal)
+                if refusal.detail.contains("without an unconditional mathematical denotation")
+        )),
         "{verdicts:?}"
     );
 }

@@ -120,6 +120,21 @@ fn parse_data_definition<'tokens, 'source>(
             parse_type_reference_handle(syntax_trees, input)?
         };
         if next.at_punctuation(PunctuationKind::Semicolon) {
+            if syntax_trees
+                .items
+                .type_parameters(type_parameters)
+                .iter()
+                .any(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        syntax_trees::item::TypeParameterKind::SomeType
+                    )
+                })
+            {
+                return Err(
+                    next.error_here("a transparent type alias cannot introduce a `some` binder")
+                );
+            }
             // Typing checks an alias's asserted multiplicity. Cleanup belongs to its expansion.
             if cleanup_selection.is_some() {
                 return Err(next.error_here(

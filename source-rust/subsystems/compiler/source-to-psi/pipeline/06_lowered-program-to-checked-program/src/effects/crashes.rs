@@ -368,8 +368,13 @@ pub(crate) fn infer(
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let order = callees_first_inferred(scope.source())?;
+    if order.is_empty() {
+        return Ok(());
+    }
+    let callers = IncomingCalls::index(scope.source());
     for id in order {
-        narrow_machine(scope, id, unreached, inhabitation, activity)?;
+        let incoming = terminal_check_tables::row(&callers, id, id, Construct::Machine)?;
+        narrow_machine(scope, id, incoming, unreached, inhabitation, activity)?;
     }
     Ok(())
 }
@@ -446,24 +451,71 @@ fn callees_first_inferred(
     Ok(order)
 }
 
-fn has_direct_callers(
-    elaboration: &terminal_check_tables::program::Elaboration,
-    target: MachineId,
-) -> bool {
-    use terminal_check_tables::edges::Callee;
-    use terminal_psi::TargetMachineCallable;
-    elaboration
-        .tables
-        .machines
-        .iter()
-        .any(|(_, machine_tables)| {
-            machine_tables.invocations.iter().any(|(_, row)| {
-                matches!(
-                    row.callee,
-                    Callee::Declared(TargetMachineCallable::Machine(callee)) if callee == target
-                )
-            })
-        })
+#[derive(Default)]
+pub(crate) struct IncomingCalls {
+    // Cleanup invocations also keep an impossible cause in the callee's contract,
+    // but only ordinary calls and no-normal terminators carry routes to rewrite.
+    called: bool,
+    sites: Vec<CallerSite>,
+}
+
+struct CallerSite {
+    machine: usize,
+    block: usize,
+    // None denotes the block's no-normal terminator.
+    operation: Option<usize>,
+}
+
+impl IncomingCalls {
+    pub(crate) fn index(
+        elaboration: &terminal_check_tables::program::Elaboration,
+    ) -> IdTable<MachineId, Self> {
+        use terminal_check_tables::edges::Callee;
+        use terminal_psi::TargetMachineCallable;
+
+        let tables = &elaboration.tables.machines;
+        let mut incoming = tables.map(|_, _| Self::default());
+        for machine in tables.values() {
+            for row in machine.invocations.values() {
+                if let Callee::Declared(TargetMachineCallable::Machine(callee)) = row.callee
+                    && let Some(calls) = incoming.get_mut(callee)
+                {
+                    calls.called = true;
+                }
+            }
+        }
+
+        // Index actual operands independently of the invocation rows. The checker
+        // can still refuse a forged row when it prepares the caller.
+        for (machine, caller) in elaboration.module.machines.iter().enumerate() {
+            if tables.get(caller.id).is_none() {
+                continue;
+            }
+            for (block, body) in caller.blocks.iter().enumerate() {
+                for (operation, op) in body.operations.iter().enumerate() {
+                    if let Some(callee) = op.kind.direct_callee()
+                        && let Some(calls) = incoming.get_mut(callee)
+                    {
+                        calls.sites.push(CallerSite {
+                            machine,
+                            block,
+                            operation: Some(operation),
+                        });
+                    }
+                }
+                if let Terminator::InvokeNoNormal { callee, .. } = body.terminator
+                    && let Some(calls) = incoming.get_mut(callee)
+                {
+                    calls.sites.push(CallerSite {
+                        machine,
+                        block,
+                        operation: None,
+                    });
+                }
+            }
+        }
+        incoming
+    }
 }
 
 fn site_call_continuations(
@@ -525,6 +577,7 @@ fn site_call_continuations(
 fn narrow_machine(
     scope: &mut crate::ReplayScope<'_>,
     id: MachineId,
+    incoming: &IncomingCalls,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     activity: &mut crate::ProofSearchActivity,
@@ -544,7 +597,6 @@ fn narrow_machine(
     let Ok(entry_context) = lowered.entry_proposition_context() else {
         return Ok(());
     };
-    let called = has_direct_callers(elaboration, id);
 
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
@@ -649,7 +701,7 @@ fn narrow_machine(
                 if keep_truth {
                     alternatives.push((bucket.cause, CrashRouteGuard::Truth));
                 } else if cause_guards.is_empty() {
-                    if called {
+                    if incoming.called {
                         alternatives.push((
                             bucket.cause,
                             CrashRouteGuard::Predicate(CrashPredicateTerm::new(
@@ -701,7 +753,7 @@ fn narrow_machine(
         },
     )?;
     match narrowed {
-        Some(routes) => scope.publish_crash_routes(id, routes, activity),
+        Some(routes) => scope.publish_crash_routes(id, routes, incoming, activity),
         None => Ok(()),
     }
 }
@@ -710,6 +762,7 @@ pub(crate) fn publish(
     elaboration: &mut terminal_check_tables::program::Elaboration,
     id: MachineId,
     routes: Vec<CrashRouteBucket>,
+    incoming: &IncomingCalls,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     use terminal_psi::OperationKind;
@@ -721,110 +774,32 @@ pub(crate) fn publish(
 
     // Recompute every caller's substituted crash continuations before mutating
     // the module so any un-substitutable call leaves the module untouched.
-    enum CallerSite {
-        Operation {
-            machine: usize,
-            block: usize,
-            operation: usize,
-            routes: Vec<CrashRouteBucket>,
-        },
-        Terminator {
-            machine: usize,
-            block: usize,
-            routes: Vec<CrashRouteBucket>,
-        },
-    }
-    let mut updates = Vec::new();
-    for (machine_idx, caller) in elaboration.module.machines.iter().enumerate() {
-        let Some(caller_tables) = elaboration.tables.machines.get(caller.id) else {
-            continue;
-        };
-        for (block_idx, block) in caller.blocks.iter().enumerate() {
-            for (op_idx, op) in block.operations.iter().enumerate() {
-                let (callee, arguments, structural_arguments): (
-                    MachineId,
-                    &[ValueId],
-                    &[terminal_psi::StructuralArgument],
-                ) = match &op.kind {
-                    OperationKind::Call {
-                        callee, arguments, ..
-                    } => (*callee, arguments.as_slice(), &[]),
-                    OperationKind::CallUnit {
-                        callee,
-                        arguments,
-                        structural_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralScalar {
-                        callee,
-                        arguments,
-                        structural_arguments,
-                        ..
-                    }
-                    | OperationKind::CallStructuralWithScalarArguments {
-                        callee,
-                        arguments,
-                        structural_arguments,
-                        ..
-                    } => (
-                        *callee,
-                        arguments.as_slice(),
-                        structural_arguments.as_slice(),
-                    ),
-                    OperationKind::CallStructural {
-                        callee,
-                        structural_arguments,
-                        ..
-                    } => (*callee, &[], structural_arguments.as_slice()),
-                    _ => continue,
-                };
-                if callee != id {
-                    continue;
-                }
-                let places = terminal_codec::contract_forms::call_storage(
-                    &elaboration.module.types.structural_types,
-                    |place| caller.structural_place_type(place),
-                    |value| caller_tables.values.get(value).map(|row| row.scalar_type),
-                    structural_arguments,
-                );
-                let Ok(substituted) =
-                    terminal_codec::contract_forms::substituted_routes(&routes, arguments, &places)
-                else {
-                    return Ok(());
-                };
-                updates.push(CallerSite::Operation {
-                    machine: machine_idx,
-                    block: block_idx,
-                    operation: op_idx,
-                    routes: substituted,
-                });
-            }
-            if let Terminator::InvokeNoNormal {
-                callee,
-                arguments,
-                structural_arguments,
-                ..
-            } = &block.terminator
-                && *callee == id
-            {
-                let places = terminal_codec::contract_forms::call_storage(
-                    &elaboration.module.types.structural_types,
-                    |place| caller.structural_place_type(place),
-                    |value| caller_tables.values.get(value).map(|row| row.scalar_type),
-                    structural_arguments,
-                );
-                let Ok(substituted) =
-                    terminal_codec::contract_forms::substituted_routes(&routes, arguments, &places)
-                else {
-                    return Ok(());
-                };
-                updates.push(CallerSite::Terminator {
-                    machine: machine_idx,
-                    block: block_idx,
-                    routes: substituted,
-                });
-            }
+    let mut updates = Vec::with_capacity(incoming.sites.len());
+    for site in &incoming.sites {
+        let caller = &elaboration.module.machines[site.machine];
+        let caller_tables = elaboration
+            .tables
+            .machines
+            .get(caller.id)
+            .expect("indexed caller");
+        let block = &caller.blocks[site.block];
+        let call = match site.operation {
+            Some(position) => block.operations[position].module_invocation(),
+            None => block.terminator.module_invocation(),
         }
+        .expect("crash inference preserves call sites");
+        let places = terminal_codec::contract_forms::call_storage(
+            &elaboration.module.types.structural_types,
+            |place| caller.structural_place_type(place),
+            |value| caller_tables.values.get(value).map(|row| row.scalar_type),
+            call.structural_arguments,
+        );
+        let Ok(substituted) =
+            terminal_codec::contract_forms::substituted_routes(&routes, call.arguments, &places)
+        else {
+            return Ok(());
+        };
+        updates.push(substituted);
     }
 
     let position = usize::try_from(id.get() - 1).map_err(|_| {
@@ -850,54 +825,41 @@ pub(crate) fn publish(
         })?;
     target_machine.contract.crash_routes = routes;
 
-    for update in updates {
-        match update {
-            CallerSite::Operation {
-                machine,
-                block,
-                operation,
-                routes,
-            } => {
-                match &mut elaboration.module.machines[machine].blocks[block].operations[operation]
-                    .kind
-                {
-                    OperationKind::Call {
-                        crash_continuations,
-                        ..
-                    }
-                    | OperationKind::CallUnit {
-                        crash_continuations,
-                        ..
-                    }
-                    | OperationKind::CallStructuralScalar {
-                        crash_continuations,
-                        ..
-                    }
-                    | OperationKind::CallStructural {
-                        crash_continuations,
-                        ..
-                    }
-                    | OperationKind::CallStructuralWithScalarArguments {
-                        crash_continuations,
-                        ..
-                    } => *crash_continuations = routes,
-                    _ => {}
-                }
-            }
-            CallerSite::Terminator {
-                machine,
-                block,
-                routes,
-            } => {
-                if let Terminator::InvokeNoNormal {
+    for (site, routes) in incoming.sites.iter().zip(updates) {
+        let block = &mut elaboration.module.machines[site.machine].blocks[site.block];
+        let continuations = match site.operation {
+            Some(position) => match &mut block.operations[position].kind {
+                OperationKind::Call {
                     crash_continuations,
                     ..
-                } = &mut elaboration.module.machines[machine].blocks[block].terminator
-                {
-                    *crash_continuations = routes;
                 }
-            }
-        }
+                | OperationKind::CallUnit {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallStructural {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
+                    crash_continuations,
+                    ..
+                } => crash_continuations,
+                _ => unreachable!("indexed direct call"),
+            },
+            None => match &mut block.terminator {
+                Terminator::InvokeNoNormal {
+                    crash_continuations,
+                    ..
+                } => crash_continuations,
+                _ => unreachable!("indexed no-normal call"),
+            },
+        };
+        *continuations = routes;
     }
     Ok(())
 }

@@ -1,0 +1,9 @@
+[package]
+name = "source-invocation-issuer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[lib]
+path = "issuer.rs"

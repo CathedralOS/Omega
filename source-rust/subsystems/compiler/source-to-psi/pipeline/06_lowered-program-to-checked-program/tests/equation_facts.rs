@@ -31,11 +31,15 @@ fn body(source: &str) -> &str {
 
 /// The one obligation the twin leaves unproved is the call's requirement.
 fn refused_at_the_call(source: &str) {
+    refused_for(source, "CallRequirement");
+}
+
+fn refused_for(source: &str, obligation: &str) {
     let rejection = Program::of(source).judged(|_| {}).rejected();
     let [unproved] = rejection.unproved.as_slice() else {
         panic!("one unproved obligation: {rejection:?}")
     };
-    assert!(unproved.starts_with("CallRequirement"), "{rejection:?}");
+    assert!(unproved.starts_with(obligation), "{rejection:?}");
 }
 
 #[test]
@@ -84,4 +88,61 @@ fn without_the_value_equality_the_equations_do_not_meet() {
         body(UNTRANSPORTED)
     );
     refused_at_the_call(UNTRANSPORTED);
+}
+
+const ADJACENCY: &str = r#"
+machine reset(rb: address, b: address, tb: address, rl: u64, rem: u64, tl: u64, cap: u64)
+requires rb == b, embed(rl) + embed(rem) == embed(cap), rem == tl,
+    tl == 0 || embed(tb) + embed(tl) == embed(b) + embed(cap)
+{
+    join(rb, rl, tb, tl);
+}
+machine join(rb: address, rl: u64, tb: address, tl: u64)
+requires rl == 0 || tl == 0 || embed(tb) == embed(rb) + embed(rl)
+{}
+machine main() {}
+"#;
+
+#[test]
+fn reset_proves_adjacency_in_the_nonempty_case() {
+    Program::of(ADJACENCY).judged(|_| {}).accepted();
+    let weaker = ADJACENCY.replace("embed(rem) == embed(cap)", "embed(rem) <= embed(cap)");
+    let obligation = "cannot prove requires contract for call join from reset:";
+    refused_for(&weaker, obligation);
+    refused_for(&ADJACENCY.replace("rb == b, ", ""), obligation);
+}
+
+#[test]
+fn subtraction_cancels_only_the_matching_length() {
+    let source = r#"
+machine allocate(base: address, next: address, length: u64, tail: u64, rest: u64)
+requires length <= tail, rest == tail - length,
+    rest == 0 || embed(next) == embed(base) + embed(length)
+{
+    ends(base, next, tail, rest);
+}
+machine ends(base: address, next: address, tail: u64, rest: u64)
+requires rest == 0 || embed(next) + embed(rest) == embed(base) + embed(tail)
+{}
+machine main() {}
+"#;
+    Program::of(source).judged(|_| {}).accepted();
+    refused_for(
+        &source.replace("rest == tail - length", "rest <= tail - length"),
+        "cannot prove requires contract for call ends from allocate:",
+    );
+}
+
+#[test]
+fn a_scalar_equality_uses_whole_equations() {
+    let source = r#"
+machine caller(x: u64, y: u64, a: u64, b: u64, c: u64, d: u64)
+requires embed(x) + embed(a) == embed(b), embed(b) + embed(c) == embed(y) + embed(d),
+    embed(a) + embed(c) == embed(d)
+{ same(x, y); }
+machine same(x: u64, y: u64) requires x == y {}
+machine main() {}
+"#;
+    Program::of(source).judged(|_| {}).accepted();
+    refused_at_the_call(&source.replace("embed(b) + embed(c) ==", "embed(b) + embed(c) <="));
 }

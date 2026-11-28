@@ -14,6 +14,20 @@ public machine dependency(builder: @mutable BuildPlan, description: DependencyDe
     Build::request_dependency(builder, description.explicit_alias, description.alias, description.source, options)
 }
 
+public machine dependency(builder: @mutable BuildPlan, source: Source, networking: Networking) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+    Build::request_dependency(builder, false, "", source, Build::network_options(networking))
+}
+
+public machine dependency(builder: @mutable BuildPlan, description: DependencyDescription, networking: Networking) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+    Build::request_dependency(builder, description.explicit_alias, description.alias, description.source, Build::network_options(networking))
+}
+
+machine network_options(networking: Networking) -> DependencyOptions reaches BuildRequestOperations {
+    transition networking {
+        Networking::Inherit -> BuildRequestOperations::inherit_network(),
+    }
+}
+
 // Checking the selected dependency is scheduled after this Build returns.
 public machine validate(builder: @mutable BuildPlan, registered: @DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::validate_dependency(builder, $registered);

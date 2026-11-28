@@ -190,6 +190,8 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
         | abstract_operations::structural_array_or_case_pattern!(..)
         | abstract_operations::establish_byte_literal_triple_pattern!(..)
         | abstract_operations::structural_establish_triple_pattern!(..)
+        | AbstractOperation::BorrowAt { .. }
+        | AbstractOperation::UpgradeMutability { .. }
         | AbstractOperation::EstablishReference { .. }
         | AbstractOperation::ElementViewFixedArray { .. }
         | AbstractOperation::EstablishAccessReference { .. }

@@ -8,6 +8,7 @@ retained object plans equal the exact output constructed from their placed text.
 */
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use super::RelocationFreeObjectError;
 use crate::{
@@ -30,7 +31,7 @@ pub(crate) enum RelocationFreeObjectFromTextError {
 }
 
 pub(crate) fn construct_relocation_free_object_from_text(
-    text: &RelocationFreeTextSectionPlacement,
+    text: &Arc<RelocationFreeTextSectionPlacement>,
     selections: OptimizationSelectionIdentity,
 ) -> Result<RelocationFreeObjectPlan, RelocationFreeObjectFromTextError> {
     let policy = object_target_policy(text.target);
@@ -66,7 +67,7 @@ pub(crate) fn construct_relocation_free_object_from_text(
 }
 
 pub(crate) fn validate_relocation_free_object_from_text(
-    text: &RelocationFreeTextSectionPlacement,
+    text: &Arc<RelocationFreeTextSectionPlacement>,
     selections: OptimizationSelectionIdentity,
     object: &RelocationFreeObjectPlan,
 ) -> Result<(), RelocationFreeObjectFromTextError> {
@@ -80,7 +81,7 @@ pub(crate) fn validate_relocation_free_object_from_text(
 }
 
 fn assemble_object(
-    text: &RelocationFreeTextSectionPlacement,
+    text: &Arc<RelocationFreeTextSectionPlacement>,
     symbols: Vec<RelocationFreeFunctionSymbol>,
     semantic_entry_symbol: ObjectLocalSymbolId,
     text_name: String,
@@ -133,7 +134,7 @@ fn assemble_object(
             name: text_name,
             alignment: text.section_alignment,
             byte_count: text.byte_count,
-            bytes: text.bytes.clone(),
+            placement: Arc::clone(text),
         },
         symbol_policy: RelocationFreeObjectSymbolPolicy::PrivateSemanticMachineSymbolsV1,
         symbols,
@@ -155,46 +156,12 @@ fn assemble_object(
 
 #[cfg(test)]
 mod tests {
+    use super::super::tests::text_with_target;
     use super::construct_relocation_free_object_from_text;
-    use crate::{
-        ObjectLocalSymbolId, PlacedFunctionFragment, RelocationFreeTextSectionPlacement,
-        TextSectionPlacementPolicy, TextSectionRelocationRequirements,
-    };
+    use crate::{ObjectLocalSymbolId, TextSectionRelocationRequirements};
     use optimization_core::OptimizationSelectionIdentity;
-    use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
+    use semantic_vocabulary::MachineId;
     use target::NativeTarget;
-    use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-    fn text_with_target(target: NativeTarget) -> RelocationFreeTextSectionPlacement {
-        let machine = MachineId::new(7).unwrap();
-        RelocationFreeTextSectionPlacement {
-            psi: TerminalPsiIdentity {
-                vocabulary_marker: VocabularyMarker::CURRENT,
-                program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
-            },
-            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-            selected: selected_instructions::test_support::placeholder_plan(5),
-            target,
-            semantic_entry: machine,
-            semantic_entry_offset: 0,
-            policy: TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
-            section_alignment: crate::object_target_policy(target).text_section_alignment,
-            byte_count: 4,
-            bytes: vec![0x20, 0, 0, 0xb5],
-            functions: vec![PlacedFunctionFragment {
-                source_function_index: 0,
-                machine,
-                section_offset: 0,
-                byte_count: 4,
-                blocks: vec![],
-            }],
-            resolved_internal_machine_calls: vec![],
-            relocation_requirements:
-                TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
-            unresolved_normalized_foreign_calls: vec![],
-            unresolved_image_addresses: Vec::new(),
-        }
-    }
 
     #[test]
     fn construction_declares_sorted_imports_and_binds_unresolved_fields() {
@@ -257,6 +224,7 @@ mod tests {
         text.relocation_requirements =
             TextSectionRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1;
 
+        let text = std::sync::Arc::new(text);
         let object = construct_relocation_free_object_from_text(
             &text,
             OptimizationSelectionIdentity::from_bytes([6; 32]),
@@ -267,6 +235,10 @@ mod tests {
             crate::RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1
         );
         assert_eq!(object.relocation_record_count, 2);
+        assert!(std::ptr::eq(
+            object.text_section.bytes(),
+            text.bytes.as_slice()
+        ));
         assert_eq!(
             object
                 .normalized_imports

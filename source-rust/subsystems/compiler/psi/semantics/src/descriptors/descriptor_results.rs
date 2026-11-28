@@ -83,6 +83,7 @@ pub use private_parameters::PrivateObservationInputs;
 pub(crate) mod provider_invocation;
 pub use provider_invocation::provider_invocation;
 pub(crate) use provider_invocation::provider_outputs_cover_writable_slots;
+mod definitions;
 pub(crate) mod terminal_flow;
 pub use invocation::{
     DescriptorMachineSignature, machine_invocation_for_signature, public_invocation,
@@ -102,6 +103,17 @@ pub enum DescriptorCallOrigin {
         projection: Projection,
     },
     AccessFormation {
+        machine: MachineId,
+        operation: semantic_vocabulary::OperationId,
+        place: PlaceId,
+        carrier: StructuralTypeId,
+        projection: Projection,
+    },
+    NativeAddress {
+        /// An independent native alternative has no tracked lifetime source.
+        opaque: bool,
+        exact_parameters: bool,
+        parameters: Vec<semantic_vocabulary::ValueId>,
         machine: MachineId,
         operation: semantic_vocabulary::OperationId,
         place: PlaceId,
@@ -759,14 +771,34 @@ pub fn descriptor_machine(
     graph.iter().find(|current| current.id == id)
 }
 
+/// Backing of a scalar actual needed when a callee forms a reference from it.
+#[derive(Clone)]
+pub struct NativeAddressObservation {
+    pub(crate) at: DescriptorPosition,
+    pub(crate) location: DescriptorLocation,
+    pub(crate) projection: Option<Projection>,
+    pub(crate) pointee: Option<StructuralTypeId>,
+    pub(crate) storage_address: bool,
+}
+
+pub struct NativeAddressActual {
+    pub(crate) opaque: bool,
+    pub parameter: ValueId,
+    pub(crate) exact: bool,
+    pub(crate) sources: Vec<NativeAddressObservation>,
+    pub(crate) parameters: Vec<ValueId>,
+}
+
 #[derive(Clone, Copy)]
 pub struct DescriptorActualInputs<'a> {
+    pub native_address_arguments: &'a [NativeAddressActual],
     pub scalar_arguments: &'a [(ValueId, semantic_vocabulary::ScalarTerm)],
     pub arguments: &'a [Option<DescriptorLocation>],
     pub argument_contents: &'a [Option<DescriptorContentsQuery>],
 }
 
 pub struct DescriptorInvocation {
+    pub native_address_arguments: Vec<NativeAddressActual>,
     pub scalar_arguments: Vec<(ValueId, semantic_vocabulary::ScalarTerm)>,
     pub owner: DescriptorInvocationOwner,
     pub target: DescriptorInvocationTarget,
@@ -857,6 +889,7 @@ impl DescriptorInvocation {
 
     pub fn actual_inputs(&self) -> DescriptorActualInputs<'_> {
         DescriptorActualInputs {
+            native_address_arguments: &self.native_address_arguments,
             scalar_arguments: &self.scalar_arguments,
             arguments: &self.arguments,
             argument_contents: &self.argument_contents,
@@ -1482,66 +1515,4 @@ pub(crate) fn terminal_graph_for(
     crate::module_analyses::ModuleAnalyses::new(module)
         .ok()?
         .module_rows(kind, selected_calls)
-}
-
-pub(crate) fn terminal_definition(
-    _module: &TerminalModule,
-    machine: &TerminalMachine,
-    place: PlaceId,
-    kind: StructuralPlaceKind,
-) -> Option<DescriptorDefinition> {
-    match kind {
-        StructuralPlaceKind::Parameter { position } => {
-            let (position, parameter) = exactly_one(
-                machine.structural_parameters.iter().enumerate(),
-                |(_, parameter)| parameter.place == place && parameter.position == position,
-            )?;
-            Some(DescriptorDefinition::Parameter {
-                position,
-                access: parameter.access,
-                structural_type: parameter.structural_type,
-            })
-        }
-        StructuralPlaceKind::ByteSequenceLiteral { .. } => {
-            let mut establishments = machine.operations().filter(|operation| matches!(operation.kind, OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == place));
-            establishments.next()?;
-            establishments
-                .next()
-                .is_none()
-                .then_some(DescriptorDefinition::Literal)
-        }
-        StructuralPlaceKind::BlockParameter { block, position } => {
-            let mut matching = machine
-                .blocks
-                .iter()
-                .filter(|candidate| candidate.id == block);
-            let block = matching.next()?;
-            if matching.next().is_some()
-                || block.structural_parameters.get(position as usize)?.place != place
-            {
-                return None;
-            }
-            Some(DescriptorDefinition::Arrival {
-                access: block.structural_parameters.get(position as usize)?.access,
-            })
-        }
-        StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } => {
-            let mut matching = machine
-                .operations()
-                .filter(|operation| operation.id == producer);
-            let operation = matching.next()?;
-            let result = operation.result.structural()?;
-            if matching.next().is_some()
-                || result.place != place
-                || result.structural_type != structural_type
-            {
-                return None;
-            }
-            Some(DescriptorDefinition::Local)
-        }
-        _ => Some(DescriptorDefinition::Local),
-    }
 }

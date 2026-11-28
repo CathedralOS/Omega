@@ -37,6 +37,7 @@ package-compilation = { path = "../inputs" }
 target = { path = "../../psi-to-native/targets/target" }
 runtime-abi = { path = "../../psi-to-native/targets/runtime-abi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
+application-identity = { path = "../../psi/identities/applications" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = "../../psi" }
 symbols = { path = "../../foundation/declaration-identity" }

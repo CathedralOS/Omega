@@ -91,23 +91,36 @@ impl PreparedLocalProject {
         &self,
         profile: TargetProfile,
     ) -> Result<Option<AcceptedDeployment<'_>>, String> {
-        let row = self
-            .targets
-            .iter()
-            .find(|row| row.profile == profile)
-            .ok_or_else(|| format!("project was not prepared for {}", profile.target_name()))?;
-        let Some(section) = row.accepted.as_ref().map_err(ToString::to_string)? else {
-            return Ok(None);
-        };
-        super::accepted_compilation_identity::require_current_acceptance(
-            &self.source_closure.for_exact_target(profile),
-            section,
-            super::compiler_input_identity()?,
-        )?;
-        Ok(Some(AcceptedDeployment {
-            root: self.root_package(),
-            section,
-        }))
+        self.deployment_validator()(profile)
+    }
+
+    /// All accepted sections in one post-Build target loop share a fresh compiler
+    /// identity. Unlocked and missing sections need no library capture.
+    pub(crate) fn deployment_validator<'project>(
+        &'project self,
+    ) -> impl FnMut(TargetProfile) -> Result<Option<AcceptedDeployment<'project>>, String> {
+        let mut compiler = None;
+        move |profile| {
+            let row = self
+                .targets
+                .iter()
+                .find(|row| row.profile == profile)
+                .ok_or_else(|| format!("project was not prepared for {}", profile.target_name()))?;
+            let Some(section) = row.accepted.as_ref().map_err(ToString::to_string)? else {
+                return Ok(None);
+            };
+            super::accepted_compilation_identity::require_current_acceptance(
+                &self.source_closure.for_exact_target(profile),
+                section,
+                compiler
+                    .get_or_insert_with(super::compiler_input_identity)
+                    .clone()?,
+            )?;
+            Ok(Some(AcceptedDeployment {
+                root: self.root_package(),
+                section,
+            }))
+        }
     }
 }
 
@@ -367,6 +380,32 @@ fn begin_local_project_preparation_in_storage(
 }
 
 impl LocalProjectPreparation {
+    /// An explicitly staged entry takes its complete authority from the invocation.
+    pub(crate) fn for_staged_entry(
+        entry: &Path,
+        profiles: &[TargetProfile],
+        offline: bool,
+    ) -> Result<Self, PrepareLocalProjectError> {
+        let root = entry
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let canonical_root = root.canonicalize().map_err(|error| {
+            PrepareLocalProjectError::Storage(SourceResolveError::Io {
+                path: root.to_owned(),
+                message: error.to_string(),
+            })
+        })?;
+        let name =
+            entry
+                .file_name()
+                .ok_or_else(|| PrepareLocalProjectError::EntryOutsideProject {
+                    entry: entry.to_owned(),
+                    project_root: canonical_root.clone(),
+                })?;
+        Self::unlocked(canonical_root, PathBuf::from(name), profiles, offline)
+    }
+
     /// Each workspace member starts as its own subject with the source issued by the catalog.
     /// A version 4 lock accepts a single package. Member-local locks cannot authorize a sibling.
     pub(crate) fn for_unlocked_member(
@@ -375,6 +414,25 @@ impl LocalProjectPreparation {
         offline: bool,
     ) -> Result<Self, PrepareLocalProjectError> {
         let canonical_root = source.source_capture().canonical_live_root().to_path_buf();
+        Self::unlocked(
+            canonical_root,
+            PathBuf::from("build.omg"),
+            profiles,
+            offline,
+        )
+    }
+
+    fn unlocked(
+        canonical_root: PathBuf,
+        entry_relative: PathBuf,
+        profiles: &[TargetProfile],
+        offline: bool,
+    ) -> Result<Self, PrepareLocalProjectError> {
+        if profiles.is_empty() {
+            return Err(PrepareLocalProjectError::Locked(
+                "local project preparation needs at least one requested target".into(),
+            ));
+        }
         let storage =
             local_project_storage(&canonical_root).map_err(PrepareLocalProjectError::Storage)?;
         Ok(Self {
@@ -389,7 +447,7 @@ impl LocalProjectPreparation {
                 })
                 .collect(),
             canonical_root,
-            entry_relative: PathBuf::from("build.omg"),
+            entry_relative,
             storage,
             offline,
         })

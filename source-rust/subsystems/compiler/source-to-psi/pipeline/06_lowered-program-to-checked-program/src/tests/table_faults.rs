@@ -410,6 +410,38 @@ fn a_guarantee_row_that_names_another_return_is_refused() {
     assert_refused(verdict, "a normal return owes a guarantee with no row");
 }
 
+#[test]
+fn duplicate_return_guarantees_claim_the_first_row_at_its_own_point() {
+    for wrong_point in [false, true] {
+        let mut elaboration = two_returns();
+        let obligations = &mut entry_tables(&mut elaboration).obligations;
+        let (first, original) = obligations
+            .iter()
+            .find(|(_, row)| guarantee(&row.kind))
+            .map(|(id, row)| (id, *row))
+            .unwrap();
+        let duplicate = obligations.push(original);
+        let (expected, detail) = if wrong_point {
+            obligations.get_mut(first).unwrap().created_at = ProgramPoint::BlockEntry(id(1));
+            (
+                first,
+                "an obligation is not created at the point of what owes it",
+            )
+        } else {
+            (
+                duplicate,
+                "an obligation row that nothing in the lowered form owes",
+            )
+        };
+        let verdict = judge(Ok(elaboration));
+        assert_eq!(
+            verdict.as_ref().unwrap_err().site.in_machine(),
+            Some((id(1), Construct::Obligation(expected)))
+        );
+        assert_refused(verdict, detail);
+    }
+}
+
 // A premise attached at the wrong point.
 
 #[test]
@@ -1058,6 +1090,34 @@ fn a_constant_restated_as_what_a_formal_held_at_entry_is_refused() {
         verdict,
         "a value row is not the value the lowered form declares under its identity",
     );
+}
+
+#[test]
+fn a_duplicate_value_declaration_precedes_an_earlier_mismatched_row() {
+    let mut elaboration = lower(vec![machine(
+        vec![u32_type(); 3],
+        vec![returns(unsigned(0))],
+    )])
+    .unwrap();
+    elaboration.module.machines[0].parameters[2].id = id(2);
+    let tables = elaboration.tables.machines.get_mut(id(1)).unwrap();
+    value_mut(tables, id(1)).origin = ValueOrigin::MachineResult;
+
+    // Module formation can already reject duplicate declarations. Exercise
+    // preparation itself to pin the order of its two value-table checks.
+    let formed = crate::formation::FormedModule::new(
+        &elaboration.module,
+        &elaboration.nominal_calls,
+        &elaboration.static_schemas,
+        &elaboration.domain_sources,
+    );
+    let refusal = crate::prepare(formed, id(1), tables).err().unwrap();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refusal.site.in_machine(),
+        Some((id(1), Construct::Value(id(2))))
+    );
+    assert_eq!(refusal.detail, "the lowered form declares one value twice");
 }
 
 #[test]

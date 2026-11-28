@@ -1298,6 +1298,7 @@ fn validate_selected_const_type(
        TypeReferenceNode::Constrained { base_type, .. } => {
            validate_selected_const_type(syntax, *base_type, visiting, selection, substitution, purpose)
        }
+       TypeReferenceNode::SomeOpening(_) => Err("a per-value type opening is not a constant parameter type".to_owned()),
        TypeReferenceNode::Unit => Ok(()),
        TypeReferenceNode::Reference { .. }
        | TypeReferenceNode::Slice { .. }

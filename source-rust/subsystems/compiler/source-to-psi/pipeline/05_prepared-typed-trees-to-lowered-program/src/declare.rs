@@ -402,8 +402,8 @@ pub(crate) fn declare(
                         return Err("generic reach has multiple originating static binders");
                     }
                     if program
-                        .value_arguments
-                        .get(*requirement)
+                        .machine_context(*requirement)
+                        .map(|row| &row.value_arguments)
                         .is_none_or(|arguments| !arguments.is_empty())
                     {
                         return Err(

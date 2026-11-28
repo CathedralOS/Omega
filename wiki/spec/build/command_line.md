@@ -180,9 +180,13 @@ omega run \
 In this example the parser opens `/input/query.txt` by a path written in its
 source. The first mapping lets it read that file and list `/input`. The second also allows creation,
 modification, renaming and deletion within `/out`, subject to host permissions
-and the program's admitted operations. A run may mix mappings with different
-access modes. Live networking and program launch are off by default. Each
-requires an explicit Product grant from the caller. A program-launch grant
+and the program's admitted operations. The host filesystem governs available
+space and entry limits on writable mappings, including during contained runs.
+Omega imposes no additional per-run disk quota.
+
+A run may mix mappings with different access modes. Live networking and
+program launch are off by default. Each requires an explicit Product grant
+from the caller. A program-launch grant
 names the executable the Product may launch. A Build grant applies only to
 the Build that receives it.
 

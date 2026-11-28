@@ -262,9 +262,10 @@ impl ReplayScope<'_> {
         &mut self,
         machine: MachineId,
         routes: Vec<terminal_psi::CrashRouteBucket>,
+        incoming: &crate::crashes::IncomingCalls,
         activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::crashes::publish(self.elaboration, machine, routes, activity)
+        crate::crashes::publish(self.elaboration, machine, routes, incoming, activity)
     }
 
     pub(crate) fn require(
