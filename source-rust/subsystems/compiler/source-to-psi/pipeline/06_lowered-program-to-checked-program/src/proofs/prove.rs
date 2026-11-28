@@ -18,7 +18,8 @@ best upper and lower literal bound, each with a node concluding
 - its own result equation when it is an exact multiply: the bound on the
   mathematical product (`IntegerAffineBound`) carried through the equation
   (`ValueEqualityTransport`) and restated in the carrier
-  (`IntegerOrderSubstitution`);
+  (`IntegerOrderSubstitution`). For a wrapping product, the kernel gives a
+  carrier bound directly when every corner product fits;
 - its own result equation when it is a divide, remainder, shift, bitwise and
   or bitwise or with one literal operand: a one-step endpoint chain the
   kernel replays (`ranges`);
@@ -5172,7 +5173,8 @@ impl<'a> Prover<'a> {
         direction: Direction,
     ) -> Option<Bound> {
         let (left, right, right_direction, add) = match expression {
-            ScalarTerm::ExactIntegerMultiply { .. } => {
+            ScalarTerm::ExactIntegerMultiply { .. }
+            | ScalarTerm::WrappingIntegerMultiply { .. } => {
                 return self.product(axiom, subject, integer, expression, direction);
             }
             ScalarTerm::ExactIntegerAdd { left, right, .. } => (left, right, direction, true),
@@ -5238,12 +5240,8 @@ impl<'a> Prover<'a> {
         })
     }
 
-    /// A bound on the output of an exact multiply. The kernel has no
-    /// definition rule for a product and needs none: it bounds the
-    /// mathematical product term (`image`), carries that bound through the
-    /// result equation onto the output value, and restates it in the
-    /// carrier. A corner product outside the carrier gives no bound here,
-    /// which leaves the output its carrier bound.
+    /// The kernel checks all four corner products before it bounds a wrapping
+    /// result. It bounds an exact product in mathematical integers.
     fn product(
         &mut self,
         axiom: usize,
@@ -5255,7 +5253,9 @@ impl<'a> Prover<'a> {
         let ScalarTerm::Value { id, .. } = subject else {
             return None;
         };
-        let ScalarTerm::ExactIntegerMultiply { left, right, .. } = expression else {
+        let (ScalarTerm::ExactIntegerMultiply { left, right, .. }
+        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }) = expression
+        else {
             return None;
         };
         let image = self
@@ -5339,11 +5339,9 @@ impl<'a> Prover<'a> {
         })
     }
 
-    /// The output `output` of the result equation `axiom` bounded by
-    /// `image`, the kernel's bound on the equation's mathematical term:
-    /// the bound carried through the equation (`ValueEqualityTransport`)
-    /// and restated in the output's carrier (`IntegerOrderSubstitution`).
-    /// A limit outside the carrier gives no bound.
+    /// Carry the kernel's bound through the defining equation. A wrapping
+    /// product already has a carrier bound. An exact product or shift has
+    /// a mathematical bound whose endpoint must fit the output type.
     fn transported(
         &self,
         axiom: usize,
@@ -5353,6 +5351,27 @@ impl<'a> Prover<'a> {
         direction: Direction,
     ) -> Option<Bound> {
         let subject = &ScalarTerm::value(output, ScalarType::Integer(integer));
+        let equation = node(
+            self.axioms.get(axiom)?.clone(),
+            ProofRule::SemanticAxiom { index: axiom },
+        );
+        if let Proposition::LessOrEqual(left, right) = &image.conclusion {
+            let limit = match direction {
+                Direction::Upper => right,
+                Direction::Lower => left,
+            };
+            let (_, literal) = limit.integer_value()?;
+            return Some(Bound {
+                literal,
+                proof: node(
+                    Self::oriented(subject, limit.clone(), direction),
+                    ProofRule::ValueEqualityTransport {
+                        premise: Box::new(image),
+                        equalities: vec![equation],
+                    },
+                ),
+            });
+        }
         let limit = match (&image.conclusion, direction) {
             (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper)
             | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit.clone(),
@@ -5366,10 +5385,6 @@ impl<'a> Prover<'a> {
             Direction::Upper => Proposition::IntegerMathLessOrEqual(output.clone(), limit),
             Direction::Lower => Proposition::IntegerMathLessOrEqual(limit, output.clone()),
         };
-        let equation = node(
-            self.axioms.get(axiom)?.clone(),
-            ProofRule::SemanticAxiom { index: axiom },
-        );
         let transported = node(
             on_output,
             ProofRule::ValueEqualityTransport {

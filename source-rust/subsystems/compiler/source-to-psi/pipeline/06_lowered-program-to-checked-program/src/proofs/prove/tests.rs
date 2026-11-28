@@ -1112,6 +1112,53 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
 }
 
 #[test]
+fn wrapping_product_bounds_stop_at_the_first_overflowing_input() {
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Signed(n)).unwrap();
+    let product =
+        ScalarTerm::wrapping_integer_multiply(integer, literal(3), input.clone()).unwrap();
+    let axioms = [Proposition::Equal(result.clone(), product)];
+    for upper in [42, 43] {
+        let assumptions = [
+            Proposition::LessOrEqual(literal(0), input.clone()),
+            Proposition::LessOrEqual(input.clone(), literal(upper)),
+        ];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+        let lower = Proposition::LessOrEqual(literal(0), result.clone());
+        if upper == 43 {
+            assert!(prover.prove(&lower).is_err(), "3 * 43 wraps to -127");
+            continue;
+        }
+        for goal in [
+            lower,
+            Proposition::LessOrEqual(result.clone(), literal(126)),
+        ] {
+            let proof = prover.prove(&goal).unwrap();
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        }
+    }
+}
+
+#[test]
 fn wrapping_decimal_division_and_remainder_propagate_checked_bounds() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);

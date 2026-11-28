@@ -475,11 +475,8 @@ fn approving_a_send_alone_cannot_run_a_build_that_also_receives() {
     assert!(!fixture.root().join("omega.lock").exists());
 }
 
-#[test]
-fn receiving_requires_delegation_and_a_reply_requires_a_prior_send() {
-    let fixture = Fixture::new();
-    fixture.package("root", &consumer("parent", &[("reader", false)]));
-    let source = r#"use {omega}/build/network.omg as network;
+fn receiver_without_a_send() -> &'static str {
+    r#"use {omega}/build/network.omg as network;
 use {omega}/language/core/sandbox/datagram.omg as datagram;
 machine build(b: @mutable BuildPlan) blocks {
     let mutable byte: [u8; 1] = [99u8];
@@ -496,8 +493,14 @@ machine build(b: @mutable BuildPlan) blocks {
     }
     machine untouched(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "no_open_flow" }; }
     machine wrong(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "bad_reply" }; }
-}"#;
-    fixture.package("reader", source);
+}"#
+}
+
+#[test]
+fn receiving_requires_delegation_and_a_reply_requires_a_prior_send() {
+    let fixture = Fixture::new();
+    fixture.package("root", &consumer("parent", &[("reader", false)]));
+    fixture.package("reader", receiver_without_a_send());
     let offline = fixture.update(true);
     let message = report(&offline);
     assert_eq!(offline.status.code(), Some(1), "{message}");
@@ -517,10 +520,14 @@ machine build(b: @mutable BuildPlan) blocks {
 }
 
 #[test]
-fn an_inheriting_child_uses_only_its_admitted_peers_reply() {
+fn a_build_reply_belongs_to_the_sending_child_and_its_admitted_peer() {
     use std::{sync::mpsc, thread};
     let fixture = Fixture::new();
-    fixture.package("root", &consumer("parent", &[("child", true)]));
+    fixture.package(
+        "root",
+        &consumer("parent", &[("child", true), ("reader", true)]),
+    );
+    fixture.package("reader", receiver_without_a_send());
     fixture.package("child", reply_consumer());
     let socket = fixture.peer.try_clone().unwrap();
     let stranger = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -534,6 +541,7 @@ fn an_inheriting_child_uses_only_its_admitted_peers_reply() {
                     assert_eq!(&packet[..n], b"query");
                     stranger.send_to(b"NO", client).unwrap();
                     socket.send_to(b"OK", client).unwrap();
+                    socket.send_to(b"extra", client).unwrap();
                     count += 1;
                 }
                 Err(error) if error.kind() == ErrorKind::WouldBlock => {
@@ -551,7 +559,10 @@ fn an_inheriting_child_uses_only_its_admitted_peers_reply() {
     assert!(requests > 0);
     let lock = fs::read_to_string(fixture.root().join("omega.lock")).unwrap();
     assert!(
-        lock.contains("reply_ok") && !lock.contains("reply_failed"),
+        lock.contains("reply_ok")
+            && !lock.contains("reply_failed")
+            && lock.contains("no_open_flow")
+            && !lock.contains("bad_reply"),
         "{lock}"
     );
 }
