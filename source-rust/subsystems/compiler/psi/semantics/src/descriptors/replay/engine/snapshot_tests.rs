@@ -1570,7 +1570,10 @@ fn storage_access_frames_keep_helper_identity_and_unknown_calls() {
     // A sealed transfer owns no worker execution. Only the matching step
     // must resolve the worker's actual accesses, including nested calls.
     let call = graph[0].calls.get_mut(&entry).unwrap().as_mut().unwrap();
-    let DescriptorInvocationTarget::Public { effects_machine, .. } = &mut call[0].target else {
+    let DescriptorInvocationTarget::Public {
+        effects_machine, ..
+    } = &mut call[0].target
+    else {
         unreachable!()
     };
     *effects_machine = None;
@@ -1587,13 +1590,19 @@ fn storage_access_frames_keep_helper_identity_and_unknown_calls() {
         graph[0].flow.get_mut(&entry).unwrap().activation_access = Some((operation, access));
         assert_eq!(
             DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
-                .storage_access_frame(caller_id).unwrap().is_some(),
+                .storage_access_frame(caller_id)
+                .unwrap()
+                .is_some(),
             complete
         );
     }
     graph[1].calls.clear();
-    assert!(DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
-        .storage_access_frame(caller_id).unwrap().is_some());
+    assert!(
+        DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
+            .storage_access_frame(caller_id)
+            .unwrap()
+            .is_some()
+    );
 }
 
 // An incomplete call leaves its callee summary unprepared. The
