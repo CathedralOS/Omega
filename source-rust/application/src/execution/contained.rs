@@ -31,7 +31,6 @@ pub(crate) const CONTAINED_LIVE_PAYLOAD_BYTES: u64 = 256 << 20;
 /// Total time a contained guest may spend in live clock waits.
 pub(crate) const CONTAINED_LIVE_WAIT_NANOSECONDS: u64 = 60_000_000_000;
 
-<<<<<<< HEAD
 /// The standalone Product grant (`wiki/spec/build/command_line.md#runtime-directory-mappings`)
 /// for source and saved Psi alike: the caller's working directory read/write
 /// at `/`, unless explicit run directory mappings replace it. Mapped
@@ -43,19 +42,6 @@ pub(super) fn standalone_directories(
     if directories.is_empty() {
         if !cfg!(target_os = "linux") {
             return Ok(None);
-=======
-/// The standalone Product grant (`wiki/spec/build/command_line.md#runtime-directory-mappings`):
-/// the caller's working directory read/write at `/`, unless explicit run
-/// directory mappings replace it. Mapped directories confine every path
-/// beneath their retained handles; a host without that namespace gets
-/// standard streams alone.
-fn filesystem(
-    mut directories: platform_custody::directory_mappings::DirectoryMappings,
-) -> Result<TerminalFilesystemDelegation, TerminalRuntimeError> {
-    if directories.is_empty() {
-        if !cfg!(target_os = "linux") {
-            return Ok(TerminalFilesystemDelegation::StandardStreamsOnly);
->>>>>>> b84beb8852d955865ae5e2209793554e8aa7eedc
         }
         let unavailable = |error: std::io::Error| TerminalRuntimeError::MissingProvision {
             capability: "working directory mount",
@@ -70,7 +56,6 @@ fn filesystem(
             )
             .map_err(unavailable)?;
     }
-<<<<<<< HEAD
     Ok(Some(directories))
 }
 
@@ -83,9 +68,6 @@ fn filesystem(
         TerminalFilesystemDelegation::StandardStreamsOnly,
         TerminalFilesystemDelegation::Mapped,
     ))
-=======
-    Ok(TerminalFilesystemDelegation::Mapped(directories))
->>>>>>> b84beb8852d955865ae5e2209793554e8aa7eedc
 }
 
 pub(super) fn execute(

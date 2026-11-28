@@ -4,11 +4,7 @@
 //! It gets the host's reviewed bindings, standard streams and the standalone
 //! Product grant: the working directory read/write at `/`, replaced by any
 //! explicit run directory mappings. It gets no native code, no network and no
-<<<<<<< HEAD
 //! native compilation. A source run gets the same default directory grant.
-=======
-//! native compilation.
->>>>>>> b84beb8852d955865ae5e2209793554e8aa7eedc
 
 #![cfg(target_os = "linux")]
 
@@ -308,7 +304,6 @@ fn a_contained_run_gets_its_working_directory_or_the_explicit_mappings() {
     assert!(!saved.path("out").exists());
 }
 
-<<<<<<< HEAD
 // A source run gets the same default grant: the caller's working directory
 // at `/`, not the host namespace, when the interpreter performs its
 // filesystem calls itself.
@@ -334,8 +329,6 @@ fn a_source_run_gets_its_working_directory_at_the_root() {
     assert_eq!(std::fs::read(root.join("out")).unwrap(), b"R");
 }
 
-=======
->>>>>>> b84beb8852d955865ae5e2209793554e8aa7eedc
 #[test]
 fn a_contained_run_gets_no_network() {
     let saved = Saved::publish("contained-saved-socket", SOCKET, SOCKET_BUILD);
