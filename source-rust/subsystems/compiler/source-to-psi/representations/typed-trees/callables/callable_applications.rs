@@ -8667,7 +8667,8 @@ struct CallableLifetimeBinding {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum CallableLifetimeOrigin {    Specialized,
+enum CallableLifetimeOrigin {
+    Specialized,
     Lexical,
     Rigid,
     Captured,
