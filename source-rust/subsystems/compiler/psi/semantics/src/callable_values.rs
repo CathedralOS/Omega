@@ -924,10 +924,9 @@ impl<'p> CallableValueView<'p> {
         Ok(result)
     }
 
-    /// At a direct call with one exclusive structural argument, a field of
-    /// that argument takes its value from the same formal field at each
-    /// normal callee exit. Read the actual again at the call's entry only
-    /// for formal inputs that reach that output.
+    /// When a direct callee writes a callable field in its sole mutable
+    /// argument, read that record's selected field at each normal exit.
+    /// Formal inputs that reach those exits are read at the call's entry.
     fn written_argument(
         &self,
         analysis: &mut DescriptorAnalysis<'_>,
@@ -961,7 +960,22 @@ impl<'p> CallableValueView<'p> {
         })?;
         let output = stored.transported(&base, &DescriptorLocation::whole(formal.place))?;
         DescriptorLocation::captured(output.root, &output.path)?;
-        if flow.normal_exits.is_empty() {
+        let (DescriptorPathSegment::Field(_), owner) = output.path.split_last()? else {
+            return None;
+        };
+        let body = self.body(callee).ok()?;
+        let writes_callable = flow.flow.values().any(|step| {
+            step.scalar_value_stores.iter().any(|(target, value)| {
+                let Some((DescriptorPathSegment::Field(_), parent)) = target.path.split_last()
+                else {
+                    return false;
+                };
+                target.root == formal.place
+                    && parent == owner
+                    && matches!(body.scalar_type(*value), Some(ScalarType::Callable(_)))
+            })
+        });
+        if !writes_callable || flow.normal_exits.is_empty() {
             return None;
         }
         Some(Source::Invocation(
