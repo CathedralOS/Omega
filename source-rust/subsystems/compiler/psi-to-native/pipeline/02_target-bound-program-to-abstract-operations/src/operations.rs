@@ -39,6 +39,7 @@ mod error {
         InvalidPrimitiveLocalEstablishment(semantic_vocabulary::OperationId),
         InvalidPrimitiveScalarRead(semantic_vocabulary::OperationId),
         InvalidStructuralCaseMembership(semantic_vocabulary::OperationId),
+        DuplicatePackageField(semantic_vocabulary::OperationId),
         SemanticIdentity(CodecError),
         UnsupportedPayloadlessCase(semantic_vocabulary::OperationId),
         InvalidStructuralLeafCopy {

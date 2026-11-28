@@ -3467,7 +3467,7 @@ pub(crate) mod records {
                 destination.push(StructuralPathSegment::Field(declaration.identity));
                 Ok((
                     instantiated
-                        .and_then(|types| types.get(&field.field))
+                        .and_then(|types| types.get(field.field))
                         .unwrap_or(&declaration.field_type),
                     Some(declaration),
                     destination,

@@ -3728,7 +3728,7 @@ pub(crate) mod record_input {
                 return None;
             }
             let operand_type = instantiated
-                .get(&field.field)
+                .get(field.field)
                 .unwrap_or(&expected.field_type);
             let field_shape = field_shape(source, result, field, expected, operand_type)?;
             if operand_type != &expected.field_type

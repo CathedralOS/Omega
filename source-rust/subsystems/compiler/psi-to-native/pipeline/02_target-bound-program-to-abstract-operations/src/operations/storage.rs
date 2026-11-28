@@ -1243,7 +1243,7 @@ pub(crate) mod structural_establishment {
             }
             OperationKind::EstablishRecord { fields } => {
                 let result = structural_result(operation, machine, block)?;
-                let instantiated = fields
+                let field_types = fields
                     .iter()
                     .filter_map(|input| {
                         packages
@@ -1251,6 +1251,9 @@ pub(crate) mod structural_establishment {
                             .map(|ty| (input.field, ty.clone()))
                     })
                     .collect();
+                let instantiated =
+                    abstract_operations::InstantiatedFieldTypes::from_fields(field_types)
+                        .ok_or(LoweringError::DuplicatePackageField(operation.id))?;
                 AbstractOperation::EstablishRecord {
                     psi_operation: operation.id,
                     result,
