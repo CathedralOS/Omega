@@ -170,7 +170,7 @@ pub(crate) fn residence_rules(
                     let destination =
                         DescriptorLocation::whole(operation.result.structural()?.place);
                     for (at, source) in
-                        crate::storage::native_borrows::address_origin(machine, *address)
+                        crate::storage::native_borrows::address_origin(module, machine, *address)
                             .observed_sources()
                     {
                         if let Some(source) = capture(source, at)? {
@@ -970,7 +970,8 @@ fn adapt_flow(
                     ));
                 }
                 OperationKind::BorrowAt { address } => {
-                    let origin = crate::storage::native_borrows::address_origin(machine, *address);
+                    let origin =
+                        crate::storage::native_borrows::address_origin(module, machine, *address);
                     graph.native_address_borrow(
                         &module.types.structural_types,
                         position,

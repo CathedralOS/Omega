@@ -1,5 +1,7 @@
 //! Trace exposed storage and scalar formals through the value that supplies a native address.
-use semantic_vocabulary::ValueId;
+mod returned_addresses;
+pub use returned_addresses::AddressReturnBody;
+use semantic_vocabulary::{MachineId, ValueId};
 use terminal_psi::{OperationKind, StructuralArgument, TerminalMachine};
 
 pub(crate) fn tracks_native_addresses(module: &terminal_psi::TerminalModule) -> bool {
@@ -33,10 +35,12 @@ impl<S> NativeAddressOrigin<S> {
     }
 }
 
+#[derive(Clone)]
 pub enum AddressDefinition<S> {
     Storage(S, (semantic_vocabulary::BlockId, u32)),
     Parameter,
     Forward(ValueId),
+    Call(MachineId, Vec<ValueId>),
     Adjust(ValueId, ValueId),
     Incoming(Vec<Option<ValueId>>),
     Opaque,
@@ -44,7 +48,19 @@ pub enum AddressDefinition<S> {
 
 pub fn trace_address<S: PartialEq>(
     value: ValueId,
+    definition: impl FnMut(ValueId) -> AddressDefinition<S>,
+    mut returned: impl FnMut(MachineId) -> Option<AddressReturnBody>,
+) -> NativeAddressOrigin<S> {
+    let mut calls = returned_addresses::ReturnSources::default();
+    trace_local(value, definition, |callee, actuals| {
+        calls.actuals(callee, actuals, &mut returned)
+    })
+}
+
+fn trace_local<S: PartialEq>(
+    value: ValueId,
     mut definition: impl FnMut(ValueId) -> AddressDefinition<S>,
+    mut returned: impl FnMut(MachineId, &[ValueId]) -> returned_addresses::ReturnedActuals,
 ) -> NativeAddressOrigin<S> {
     let mut work = vec![value];
     let mut visited = std::collections::HashSet::new();
@@ -73,6 +89,17 @@ pub fn trace_address<S: PartialEq>(
                 observations.push((at, index));
             }
             AddressDefinition::Parameter => parameters.push(value),
+            AddressDefinition::Call(callee, arguments) => {
+                let inputs = returned(callee, &arguments);
+                exact &= inputs.exact;
+                if inputs.opaque {
+                    opaque.push(value);
+                }
+                for input in inputs.values {
+                    dependents.push((input, value, None));
+                    work.push(input);
+                }
+            }
             AddressDefinition::Forward(operand) => {
                 dependents.push((operand, value, None));
                 work.push(operand);
@@ -125,63 +152,91 @@ pub fn trace_address<S: PartialEq>(
     }
 }
 
-pub fn address_origin(
-    machine: &TerminalMachine,
+pub fn address_origin<'m>(
+    module: &terminal_psi::TerminalModule,
+    machine: &'m TerminalMachine,
     value: ValueId,
-) -> NativeAddressOrigin<&StructuralArgument> {
-    trace_address(value, |value| {
-        if let Some((operation, at)) = machine.blocks.iter().find_map(|block| {
-            block
-                .operations
-                .iter()
-                .enumerate()
-                .find_map(|(index, operation)| {
-                    operation
-                        .result
-                        .as_scalar()
-                        .filter(|result| result.id == value)?;
-                    Some((operation, (block.id, u32::try_from(index).ok()?)))
-                })
-        }) {
-            return match &operation.kind {
-                OperationKind::StorageAddress { source } => AddressDefinition::Storage(source, at),
-                OperationKind::ScalarRepresentationView { operand, .. }
-                | OperationKind::IntegerWiden { operand }
-                | OperationKind::IntegerExactCast { operand, .. } => {
-                    AddressDefinition::Forward(*operand)
-                }
-                OperationKind::ExactIntegerAdd { left, right, .. }
-                | OperationKind::WrappingIntegerAdd { left, right }
-                | OperationKind::SaturatingIntegerAdd { left, right }
-                | OperationKind::ExactIntegerSubtract { left, right, .. }
-                | OperationKind::WrappingIntegerSubtract { left, right }
-                | OperationKind::SaturatingIntegerSubtract { left, right } => {
-                    AddressDefinition::Adjust(*left, *right)
-                }
-                _ => AddressDefinition::Opaque,
-            };
-        }
-        if machine.parameters.iter().any(|formal| formal.id == value) {
-            return AddressDefinition::Parameter;
-        }
-        let Some((block, position)) = machine.blocks.iter().find_map(|block| {
-            block
-                .parameters
-                .iter()
-                .position(|parameter| parameter.id == value)
-                .map(|position| (block.id, position))
-        }) else {
-            return AddressDefinition::Opaque;
-        };
-        AddressDefinition::Incoming(
-            machine
+) -> NativeAddressOrigin<&'m StructuralArgument> {
+    trace_address(
+        value,
+        |v| terminal_definition(machine, v),
+        |callee| {
+            let body = module.machine(callee)?;
+            let results = body
                 .blocks
                 .iter()
-                .flat_map(|predecessor| predecessor.terminator.scalar_arguments_to(block))
-                .map(|arguments| arguments.get(position).copied())
-                .collect(),
-        )
-    })
+                .filter_map(|block| match &block.terminator {
+                    terminal_psi::Terminator::Return { value, .. } => Some(*value),
+                    _ => None,
+                })
+                .collect();
+            Some(AddressReturnBody::new(
+                body.parameters.iter().map(|p| p.id).collect(),
+                results,
+                |v| terminal_definition(body, v),
+            ))
+        },
+    )
+}
+
+fn terminal_definition(
+    machine: &TerminalMachine,
+    value: ValueId,
+) -> AddressDefinition<&StructuralArgument> {
+    if let Some((operation, at)) = machine.blocks.iter().find_map(|block| {
+        block
+            .operations
+            .iter()
+            .enumerate()
+            .find_map(|(index, operation)| {
+                operation
+                    .result
+                    .as_scalar()
+                    .filter(|result| result.id == value)?;
+                Some((operation, (block.id, u32::try_from(index).ok()?)))
+            })
+    }) {
+        if let Some(call) = operation.module_invocation() {
+            return AddressDefinition::Call(call.callee, call.arguments.to_vec());
+        }
+        return match &operation.kind {
+            OperationKind::StorageAddress { source } => AddressDefinition::Storage(source, at),
+            OperationKind::ScalarRepresentationView { operand, .. }
+            | OperationKind::IntegerWiden { operand }
+            | OperationKind::IntegerExactCast { operand, .. } => {
+                AddressDefinition::Forward(*operand)
+            }
+            OperationKind::ExactIntegerAdd { left, right, .. }
+            | OperationKind::WrappingIntegerAdd { left, right }
+            | OperationKind::SaturatingIntegerAdd { left, right }
+            | OperationKind::ExactIntegerSubtract { left, right, .. }
+            | OperationKind::WrappingIntegerSubtract { left, right }
+            | OperationKind::SaturatingIntegerSubtract { left, right } => {
+                AddressDefinition::Adjust(*left, *right)
+            }
+            _ => AddressDefinition::Opaque,
+        };
+    }
+    if machine.parameters.iter().any(|formal| formal.id == value) {
+        return AddressDefinition::Parameter;
+    }
+    let Some((block, position)) = machine.blocks.iter().find_map(|block| {
+        block
+            .parameters
+            .iter()
+            .position(|parameter| parameter.id == value)
+            .map(|position| (block.id, position))
+    }) else {
+        return AddressDefinition::Opaque;
+    };
+    AddressDefinition::Incoming(
+        machine
+            .blocks
+            .iter()
+            .flat_map(|predecessor| predecessor.terminator.scalar_arguments_to(block))
+            .map(|arguments| arguments.get(position).copied())
+            .collect(),
+    )
 }
 
 /// The typed operation determines its authority even when the source omitted a
@@ -259,15 +314,21 @@ mod tests {
         let joined = value(4);
         let cycle = value(5);
         let trace = |root| {
-            trace_address::<()>(root, |id| match id {
-                id if id == address => AddressDefinition::Parameter,
-                id if id == adjusted => AddressDefinition::Adjust(address, unknown),
-                id if id == joined => {
-                    AddressDefinition::Incoming(vec![Some(adjusted), Some(unknown)])
-                }
-                id if id == cycle => AddressDefinition::Incoming(vec![Some(cycle), Some(joined)]),
-                _ => AddressDefinition::Opaque,
-            })
+            trace_address::<()>(
+                root,
+                |id| match id {
+                    id if id == address => AddressDefinition::Parameter,
+                    id if id == adjusted => AddressDefinition::Adjust(address, unknown),
+                    id if id == joined => {
+                        AddressDefinition::Incoming(vec![Some(adjusted), Some(unknown)])
+                    }
+                    id if id == cycle => {
+                        AddressDefinition::Incoming(vec![Some(cycle), Some(joined)])
+                    }
+                    _ => AddressDefinition::Opaque,
+                },
+                |_| None,
+            )
         };
         assert!(!trace(address).opaque);
         assert!(!trace(adjusted).opaque);
