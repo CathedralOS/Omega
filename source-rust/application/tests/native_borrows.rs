@@ -580,6 +580,65 @@ _ = |dependency|::add(plan, request, @allowed[..]);
 }
 
 #[test]
+fn initialized_native_record_fields_and_array_elements_are_readable() {
+    let source = r#"
+data Table { tag: u8; pointer: address }
+machine field(location: address) -> address {
+    let table: @Table = |native|::borrow_at::<Table>(location);
+    table.pointer
+}
+machine element(location: address) -> u64 {
+    let array: @[u64; 2] = |native|::borrow_at::<[u64; 2]>(location);
+    array[1u64]
+}
+machine main() crashes Trap {
+    let values: [u64; 2] = [19u64, 31u64];
+    let raw: address = address_of(@values);
+    let table: Table = Table { tag: 3u8, pointer: raw };
+    transition element(field(address_of(@table))) == 31u64 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ]).assert_native_returns();
+}
+
+#[test]
+fn a_native_pointer_cell_can_be_read_and_retargeted() {
+    let source = r#"
+machine load(location: address) -> u8 {
+    let pointer: @address = |native|::borrow_at::<address>(location);
+    let value: @u8 = |native|::borrow_at::<u8>($pointer);
+    $value
+}
+machine retarget(location: address, destination: address) {
+    let pointer: @mutable address = |native|::borrow_mutable_at::<address>(location);
+    $pointer = destination;
+}
+machine main() crashes Trap {
+    let first: u8 = 19u8;
+    let second: u8 = 31u8;
+    let mutable pointer: address = address_of(@first);
+    let before: u8 = load(address_of(@pointer));
+    retarget(address_of(@pointer), address_of(@second));
+    let after: u8 = load(address_of(@pointer));
+    transition before == 19u8 && after == 31u8 && first == 19u8 && second == 31u8 {
+        true -> {}, false -> wrong()
+    }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ, WRITE]).assert_native_returns();
+    let shared = source.replace(
+        "let pointer: @mutable address = |native|::borrow_mutable_at",
+        "let pointer: @address = |native|::borrow_at",
+    );
+    let output = Program::new(&shared, &[READ]).check();
+    let message = report(&output);
+    assert!(
+        !output.status.success() && message.contains("grants shared access only"),
+        "{message}"
+    );
+}
+
+#[test]
 fn a_derived_address_writes_only_the_middle_byte_of_an_owned_array() {
     let source = r#"
 machine change(base: address) crashes Trap {

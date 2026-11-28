@@ -4177,6 +4177,43 @@ impl<'a> Storage<'a> {
         Ok(true)
     }
 
+    fn native_scalar_contents(
+        &self,
+        mut owner: StructuralTypeId,
+        tail: &[Segment],
+        concerns: Construct,
+    ) -> Checked<bool> {
+        for (position, step) in tail.iter().enumerate() {
+            let declaration = self.declaration(owner, concerns)?;
+            if declaration.quotient_carrier.is_some() {
+                return Ok(false);
+            }
+            owner = match (&declaration.shape, step) {
+                (StructuralTypeShape::Record { fields, .. }, Segment::Field(id)) => {
+                    let Some(field) = fields
+                        .iter()
+                        .find(|field| field.id == *id && !field.relevance.is_erased())
+                    else {
+                        return Ok(false);
+                    };
+                    match field.field_type {
+                        StructuralFieldType::Scalar(_) => return Ok(position + 1 == tail.len()),
+                        StructuralFieldType::Structural(nested) => nested,
+                        _ => return Ok(false),
+                    }
+                }
+                (
+                    StructuralTypeShape::FixedArray { element, .. },
+                    Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
+                ) => *element,
+                _ => return Ok(false),
+            };
+        }
+        let declaration = self.declaration(owner, concerns)?;
+        Ok(declaration.quotient_carrier.is_none()
+            && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)))
+    }
+
     fn reaching_supply(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -4188,54 +4225,48 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Supply> {
         let original = asked.place();
-        let record_crossing = if matches!(asked, Asked::Contents(_))
-            && matches!(original.segments.last(), Some(Segment::Field(_)))
-        {
-            original
+        // Formation asserts an initialized native T. Only scalar storage inside
+        // that T is established here. Bounds, stored values and the backing of
+        // an embedded reference have their own observations.
+        if matches!(asked, Asked::Contents(_))
+            && let Some(crossing) = original
                 .segments
                 .iter()
-                .position(|segment| *segment == Segment::Referent)
-                .filter(|crossing| {
-                    original.segments[..*crossing]
-                        .iter()
-                        .all(|segment| matches!(segment, Segment::Field(_)))
-                        && original.segments[*crossing + 1..]
-                            .iter()
-                            .all(|segment| matches!(segment, Segment::Field(_)))
-                })
-        } else {
-            None
-        };
-        // The admitted shared reference establishes valid scalar contents.
-        // It supplies no stored value identity or concrete backing address.
-        if matches!(asked, Asked::Contents(_))
-            && (original.segments.last() == Some(&Segment::Referent) || record_crossing.is_some())
+                .rposition(|step| *step == Segment::Referent)
             && matches!(
                 budget.used,
                 None | Some(ProgramPoint::BlockEntry(_) | ProgramPoint::AfterOperation(_))
             )
             && (up_to != usize::MAX || budget.used.is_some())
             && let Some(at) = self.descriptor_position((block, up_to))
-            && let Some((referent, _, _)) =
+            && let Some((referent, _, source)) =
                 self.external_referent(references, original, at, concerns)?
         {
-            let declaration = self.declaration(referent, concerns)?;
-            let depth = if original.segments.last() == Some(&Segment::Referent)
-                && declaration.quotient_carrier.is_none()
-                && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
-                    if terminal_semantics::reference_storage_byte_width(scalar).is_some())
-            {
-                Some(1)
-            } else if let Some(crossing) = record_crossing
-                && self.provider_scalar_contents(original, concerns, false)?
-            {
-                Some(original.segments.len() - crossing)
-            } else {
-                None
+            let tail = &original.segments[crossing + 1..];
+            let established = match source {
+                loans::ExternalReferent::Native => {
+                    self.native_scalar_contents(referent, tail, concerns)?
+                }
+                loans::ExternalReferent::Provider if tail.is_empty() => {
+                    let declaration = self.declaration(referent, concerns)?;
+                    declaration.quotient_carrier.is_none()
+                        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
+                            if terminal_semantics::reference_storage_byte_width(scalar).is_some())
+                }
+                loans::ExternalReferent::Provider => {
+                    original.segments[..crossing]
+                        .iter()
+                        .chain(tail)
+                        .all(|step| matches!(step, Segment::Field(_)))
+                        && self.provider_scalar_contents(original, concerns, false)?
+                }
             };
-            if let Some(depth) = depth {
+            if established {
                 let address = budget.add_equation();
-                budget.add_supply(address, Supply::Direct(Reached::Established(depth)));
+                budget.add_supply(
+                    address,
+                    Supply::Direct(Reached::Established(tail.len() + 1)),
+                );
                 return Ok(Supply::transfer(address));
             }
         }

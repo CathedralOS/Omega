@@ -620,7 +620,6 @@ pub mod structural_reference_input {
         if destination.multiplicity() == terminal_psi::StructuralMultiplicity::Linear
             || (path.is_empty()
                 && destination.multiplicity() != terminal_psi::StructuralMultiplicity::Unrestricted)
-            || matches!(scalar, ScalarType::Integer(integer) if integer.is_address())
         {
             return None;
         }
