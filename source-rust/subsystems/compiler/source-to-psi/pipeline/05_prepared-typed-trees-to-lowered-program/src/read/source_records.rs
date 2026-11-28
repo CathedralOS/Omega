@@ -71,11 +71,13 @@ fn selected_sampler(
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Result<SymbolHandle, SelectedMachine> {
     use SelectedMachine::{Rejected, Unserved};
-    let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_table.type_reference(argument)
+    let TypeReferenceNode::Named { symbol, .. } =
+        typed.type_reference_table.type_reference(argument)
     else {
         return Err(Unserved("record machine argument that names no machine"));
     };
-    let machine = (symbol.is_valid() && typed.symbols.get(*symbol).kind == symbols::SymbolKind::Machine)
+    let machine = (symbol.is_valid()
+        && typed.symbols.get(*symbol).kind == symbols::SymbolKind::Machine)
         .then(|| typed.machine_by_symbol(*symbol))
         .flatten()
         .ok_or(Unserved("record machine argument that names no machine"))?;
@@ -97,8 +99,14 @@ fn selected_sampler(
             && declared.is_valid()
             && typed.normalized_type_identity(selected) == expected
     };
-    let formals = typed.state_parameters.span(entry.parameters).unwrap_or_default();
-    let declared = typed.state_parameters.span(required.parameters).unwrap_or_default();
+    let formals = typed
+        .state_parameters
+        .span(entry.parameters)
+        .unwrap_or_default();
+    let declared = typed
+        .state_parameters
+        .span(required.parameters)
+        .unwrap_or_default();
     if formals.len() != declared.len()
         || formals
             .iter()
@@ -285,15 +293,16 @@ pub(super) fn source_application_in_scope(
                 // application's other arguments. Its symbol is the whole
                 // argument: it names no regions and no further binder.
                 TypeParameterKind::Machine {
-                    contract: crate::source_state::data::MachineParameterContract::Structural(required),
+                    contract:
+                        crate::source_state::data::MachineParameterContract::Structural(required),
                 } => {
                     let bindings = parameters
                         .iter()
                         .zip(arguments)
                         .map(|(parameter, argument)| (parameter.symbol, *argument))
                         .collect::<Vec<_>>();
-                    selected_sampler(typed, required, *argument, &bindings).map_err(
-                        |stop| match stop {
+                    selected_sampler(typed, required, *argument, &bindings).map_err(|stop| {
+                        match stop {
                             SelectedMachine::Unserved(what) => unavailable(what),
                             SelectedMachine::Rejected(rule) => crate::reject(
                                 machine,
@@ -305,8 +314,8 @@ pub(super) fn source_application_in_scope(
                                 ),
                                 rule,
                             ),
-                        },
-                    )?;
+                        }
+                    })?;
                     binders.push(parameter.symbol);
                     substitutions.push((parameter.symbol, *argument));
                     continue;
