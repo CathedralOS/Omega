@@ -482,7 +482,9 @@ impl<'m> ModuleAnalyses<'m> {
             .map(|(_, slot)| &module.machines[*slot])
             .collect();
         Ok(Self {
-            tracks_native_addresses: crate::storage::native_borrows::tracks_native_addresses(module),
+            tracks_native_addresses: crate::storage::native_borrows::tracks_native_addresses(
+                module,
+            ),
             module,
             machine_slots,
             roster,
