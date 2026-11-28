@@ -207,16 +207,17 @@ machine choose<'out>(location: address) -> @'out u8 {
     let address = [
         wrapper,
         r#"
-machine main() {
+machine main() crashes Trap {
     let local: u8 = 29u8;
     let byte: @u8 = choose(address_of(@local));
-    let read: u8 = $byte;
+    transition $byte == 29u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
 }
 "#,
     ]
     .concat();
-    let accepted = Program::new(&address, &[READ]).check();
-    assert!(accepted.status.success(), "{}", report(&accepted));
+    Program::new(&address, &[READ]).assert_native_returns();
     let source = r#"
 machine stale<'out>() -> @'out u8 {
     let local: u8 = 29u8;
