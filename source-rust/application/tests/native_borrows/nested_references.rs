@@ -229,6 +229,44 @@ machine main() crashes Trap {
 }
 
 #[test]
+fn forwarding_an_existing_reference_preserves_its_inner_reference() {
+    let body = r#"
+machine read<'a>(view: @@'a u8) -> u8 {
+    let inner: @'a u8 = $view;
+    $inner
+}
+machine relay<'a>(view: @@'a u8) -> u8 { read(view) }
+machine inspect<'a>(source: @'a u8) -> u8 {
+    let slot: @'a u8 = source;
+    let view: @@'a u8 = FORMATION;
+    relay(view)
+}
+machine main() crashes Trap {
+    let value: u8 = 53u8;
+    transition inspect(@value) == 53u8 { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    let ordinary = Program::new(&body.replace("FORMATION", "@slot"), &[]);
+    ordinary.assert_psi_returns();
+    ordinary.assert_native_returns();
+    let native = body.replace(
+        "FORMATION",
+        "|native|::borrow_at::<@'a u8>(address_of(@slot))",
+    );
+    Program::new(&native, &[READ]).assert_native_returns();
+
+    let overlapping_write = native
+        .replace("let slot:", "let mutable slot:")
+        .replace("    relay(view)", "    slot = source;\n    relay(view)");
+    let refused = Program::new(&overlapping_write, &[READ]).check();
+    let message = super::report(&refused);
+    assert!(
+        !refused.status.success() && message.contains("grants shared access only"),
+        "{message}"
+    );
+}
+
+#[test]
 fn a_nested_reference_argument_keeps_each_written_layer() {
     let body = r#"
 machine read(value: @@u8) -> u8 { $$value }

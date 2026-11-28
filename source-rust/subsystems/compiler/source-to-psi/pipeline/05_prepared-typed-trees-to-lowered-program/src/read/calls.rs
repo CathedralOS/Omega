@@ -4267,6 +4267,12 @@ impl<'t> Program<'t> {
         if explicit {
             self.require_borrow_layers(id, argument, expected, source)?;
         }
+        // A nested borrowed parameter lends a slot whose contents are themselves
+        // a reference. Forwarding an existing loan crosses its outer layer once.
+        let forwards_slot = !explicit
+            && formal.referent == crate::body::BorrowedReferent::Value
+            && self.reference_referent(id, expected)?.is_some()
+            && !matches!(self.node(id, operand)?, ExpressionNode::Cast(cast) if cast.form.is_recast());
         // A recast forms its written reference presentation over the same
         // captured storage. Its source still runs once and keeps its type.
         let (mut place, presentation) = match self.node(id, operand)? {
@@ -4313,6 +4319,11 @@ impl<'t> Program<'t> {
                     self.expression(id, slots, cast.value, None)?,
                     Some(presentation),
                 )
+            }
+            _ if forwards_slot => {
+                let place = self.referenced_place(id, slots, operand, source)?.ok_or_else(||
+                    crate::reject(id, source, "a borrowed parameter needs an existing reference or an explicit loan of a place"))?;
+                (place, None)
             }
             _ => {
                 let retain_descriptor = if explicit {
@@ -4409,6 +4420,7 @@ impl<'t> Program<'t> {
         // layer when the formal's referent is the stored reference type.
         if let Some(value_type) = place.result
             && let Some((referent, _)) = self.reference_referent(id, value_type)?
+            && !forwards_slot
             && (!explicit || !self.same_type(Some(value_type), expected))
         {
             place = Expression {
