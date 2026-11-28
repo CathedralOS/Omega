@@ -947,6 +947,32 @@ machine main() crashes Trap {{
 }
 
 #[test]
+fn a_runtime_selected_writer_can_upgrade_its_callers_window() {
+    for (element, first, second) in [("u8", 71, 83), ("u32", 65538, 131075)] {
+        let source = upgraded_window_source(element, first, second, "edit(@items[1..3]);").replace(
+            "machine main() crashes Trap {",
+            "machine main() crashes Trap { run(forward); }\nmachine run(edit: Edit) crashes Trap {",
+        );
+        let source = format!(
+            "data Edit = machine(window: @[{element}]) reaches |native|::BorrowMutabilityUpgrade crashes Trap;\n{source}"
+        );
+        let program = Program::new(&source, &[UPGRADE]);
+        program.assert_native_returns();
+        program.assert_psi_returns();
+        let alias = source.replace(
+            "edit(@items[1..3]);",
+            &format!("let held: @[{element}] = @items[1..3]; edit(@items[1..3]); observe(held);"),
+        ) + &format!("\nmachine observe(input: @[{element}]) {{}}\n");
+        let output = Program::new(&alias, &[UPGRADE]).check();
+        let diagnostic = report(&output);
+        assert!(
+            !output.status.success() && diagnostic.contains("conflicting reference remains live"),
+            "{diagnostic}"
+        );
+    }
+}
+
+#[test]
 fn a_helper_upgrading_a_window_excludes_other_loans_and_invalidates_written_values() {
     for (element, first, second) in [("u8", 71, 83), ("u32", 65538, 131075)] {
         let stale =

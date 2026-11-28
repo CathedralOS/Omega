@@ -5820,18 +5820,25 @@ impl<'a> Storage<'a> {
         operation: &Operation,
     ) -> Checked<Vec<(StructuralAccess, Lineage)>> {
         let concerns = Construct::Operation(operation.id);
-        let Some(call) = operation.declared_invocation() else {
+        let formals = if let Some(call) = operation.declared_invocation() {
+            self.module
+                .invocation_structural_parameters(call.callee, call.required_contract)
+        } else if let Some(call) = operation.kind.callable_invocation() {
+            self.module
+                .execution
+                .callables
+                .contract(call.contract)
+                .map(|contract| contract.structural_parameters.as_slice())
+        } else {
             return Ok(Vec::new());
-        };
-        let formals = self
-            .module
-            .invocation_structural_parameters(call.callee, call.required_contract)
-            .ok_or_else(|| self.foreign(concerns, "call effects have no exact retained formals"))?;
-        if formals.len() != call.structural_arguments.len() {
+        }
+        .ok_or_else(|| self.foreign(concerns, "call effects have no exact retained formals"))?;
+        let arguments = operation.kind.structural_arguments();
+        if formals.len() != arguments.len() {
             return Err(self.foreign(concerns, "call effects differ from their retained formals"));
         }
         let mut payloads = Vec::new();
-        for (argument, formal) in call.structural_arguments.iter().zip(formals) {
+        for (argument, formal) in arguments.iter().zip(formals) {
             if argument.access != formal.access {
                 return Err(self.foreign(
                     concerns,
