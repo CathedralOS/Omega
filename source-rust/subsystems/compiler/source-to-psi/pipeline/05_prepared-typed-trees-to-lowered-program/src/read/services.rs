@@ -1372,6 +1372,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>
         // binding; its initializer's calls were charged at that earlier Bind.
         Statement::CaptureReference { .. } => {}
         Statement::Witness { .. }
+        | Statement::AssemblyRegister { .. }
         | Statement::AssemblyAdjacent { .. }
         | Statement::Declare { .. } => {}
         Statement::Dispatch {

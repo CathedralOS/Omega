@@ -785,7 +785,8 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body,
                 expression(value, false, sites);
             }
             // Declarations, erased terms and reference captures call nothing.
-            Statement::AssemblyAdjacent { .. }
+            Statement::AssemblyRegister { .. }
+            | Statement::AssemblyAdjacent { .. }
             | Statement::Declare { .. }
             | Statement::Witness { .. }
             | Statement::CaptureReference { .. } => {}
