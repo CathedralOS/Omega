@@ -24,7 +24,7 @@ machine valid(counts: @Counts) -> bool {
     counts.fields == 3u64 && counts.erased == 1u64 && counts.order == 17426u64
         && counts.evaluations == 1u64 && counts.valid
 }
-machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(@mutable counts)); }
+machine apply(counts: @mutable Counts) { |reflect|::inspect_record_fields::<Subject, describe>(once(counts)); }
 machine main() crashes Trap {
     let mutable counts: Counts = Counts { fields: 0u64, erased: 0u64, order: 0u64, evaluations: 0u64, valid: true };
     apply(@mutable counts);

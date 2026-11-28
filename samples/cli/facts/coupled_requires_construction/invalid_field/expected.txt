@@ -1,0 +1,1 @@
+cannot prove requires clause 1 of a data type in machine `advance` state `entry` return value

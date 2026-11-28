@@ -16,11 +16,10 @@ machine apply<Kind>(value: @mutable Kind) requires Kind == u32 || Kind == u64 {
     zero::<mark<Kind>>();
     operate::<Kind, increment<Kind>>(value);
 }
-data Editor {}
-machine Editor::forwarded(value: @mutable u64) { apply(value); }
+machine forwarded(value: @mutable u64) { apply(value); }
 machine main() crashes Trap {
     let mutable value: u64 = 4294967295u64;
-    Editor::forwarded(@mutable value);
+    forwarded(@mutable value);
     transition value == 4294967296u64 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
