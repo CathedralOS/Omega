@@ -184,13 +184,15 @@ mod data {
                         data_definition.predicate_subject_symbol,
                     );
                 }
+                let public_parameters = local_type_parameters.iter()
+                    .filter(|parameter| !matches!(parameter.kind, TypeParameterKind::SomeType));
                 data_definition.predicate_subject_type =
                     if !data_definition.predicate_subject_symbol.is_valid()
                         || data_definition.generic_instance.is_some()
                     {
                         // An instance takes its subject type when its origin is resolved.
                         TypeReference::Unit
-                    } else if local_type_parameters.is_empty()
+                    } else if public_parameters.clone().next().is_none()
                         && data_definition.lifetime_parameters.is_empty()
                     {
                         TypeReference::Named {
@@ -199,8 +201,7 @@ mod data {
                             supplied_operand_owner: Default::default(),
                         }
                     } else {
-                        let arguments = local_type_parameters
-                            .iter()
+                        let arguments = public_parameters
                             .map(|parameter| TypeReference::Named {
                                 symbol: parameter.symbol,
                                 name: DiagnosticName::generated(parameter.name.as_str()),
@@ -395,6 +396,7 @@ mod machines {
                 let arguments = data_type_parameters
                     .span_or_empty(definition.type_parameters)
                     .iter()
+                    .filter(|parameter| !matches!(parameter.kind, crate::source_resolved::data::TypeParameterKind::SomeType))
                     .map(|owner_parameter| {
                         let parameter = local_type_parameters
                             .iter()

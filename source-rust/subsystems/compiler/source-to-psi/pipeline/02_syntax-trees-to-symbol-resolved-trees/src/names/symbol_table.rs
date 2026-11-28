@@ -1403,6 +1403,86 @@ pub(super) fn append_body_symbols(
     Ok(())
 }
 
+pub(super) fn bind_package_openings(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), diagnostics::Diagnostic> {
+    use crate::source_resolved::statement::Statement;
+    use diagnostics::Diagnostic;
+    let types = &mut program.tables.declarations.child_type_references;
+    if types.package_openings.is_empty() {
+        return Ok(());
+    }
+    let has_sources = program.symbols.source_files().next().is_some();
+    let bindings = program
+        .tables
+        .declarations
+        .state_parameters
+        .iter()
+        .map(|(_, parameter)| (parameter.symbol, &parameter.type_reference))
+        .chain(
+            program
+                .tables
+                .declarations
+                .state_statements
+                .iter()
+                .filter_map(|(_, statement)| {
+                    if let Statement::LocalData(local) = statement {
+                        Some((local.symbol, &local.type_reference))
+                    } else {
+                        None
+                    }
+                }),
+        );
+    for (owner, reference) in bindings {
+        if !owner.is_valid() {
+            continue;
+        }
+        let span = types.annotation_opening_span(reference);
+        let opened = types.package_openings.span_mut_or_empty(span);
+        for i in 0..opened.len() {
+            let (previous, remaining) = opened.split_at_mut(i);
+            let opening = &mut remaining[0];
+            if previous
+                .iter()
+                .any(|other| other.name.as_str() == opening.name.as_str())
+            {
+                return Err(Diagnostic::error("duplicate name for a package opening")
+                    .with_source_span(opening.name.source_span()));
+            }
+            if opening.symbol.is_valid() {
+                if program.symbols.get(opening.symbol).parent != owner {
+                    return Err(Diagnostic::error(
+                        "package witness belongs to a different binding",
+                    )
+                    .with_source_span(opening.name.source_span()));
+                }
+                continue;
+            }
+            opening.symbol = program
+                .symbols
+                .find_child_by_name_and_kind(
+                    owner,
+                    opening.name.as_str(),
+                    SymbolKind::TypeParameter,
+                )
+                .unwrap_or_else(|| {
+                    program
+                        .symbols
+                        .append_children(
+                            owner,
+                            [symbol_seed(
+                                SymbolKind::TypeParameter,
+                                &opening.name,
+                                has_sources,
+                            )],
+                        )
+                        .start()
+                });
+        }
+    }
+    Ok(())
+}
+
 /*
     The same append-only declaration allocation serves ordinary bodies and
     one-shot lexical input preparation. Already indexed locals keep identity.
