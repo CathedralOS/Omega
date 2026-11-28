@@ -13,6 +13,8 @@ use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, TerminalCallable
 use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment, DescriptorPosition};
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorDefinition, DescriptorMachine};
 
+mod packages;
+pub use packages::{PackageCallableSites, opened_stored_callable_definition};
 mod reachable;
 mod terminal;
 pub use reachable::{
@@ -81,6 +83,7 @@ pub enum CallableDefinition {
     Stored {
         position: DescriptorPosition,
         location: DescriptorLocation,
+        storage_contract: Option<CallableContractId>,
     },
     Invocation(DescriptorPosition),
     Opaque,
@@ -101,6 +104,7 @@ pub struct CallableInvocationRecord {
 
 #[derive(Default)]
 pub struct CallableValueBody {
+    pub package_sites: PackageCallableSites,
     pub scalar_parameters: Vec<(ValueId, ScalarType)>,
     pub structural_parameters: Vec<(StructuralTypeId, terminal_psi::StructuralAccess)>,
     pub scalar_result: Option<ScalarType>,
@@ -273,6 +277,7 @@ impl CallableValueBody {
 
 /// Immutable source projections; every resolution has its own temporary solver.
 pub struct CallableValueProgram<'a> {
+    pub module: Option<&'a terminal_psi::TerminalModule>,
     pub catalog: &'a TerminalCallableCatalog,
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub graph: Vec<DescriptorMachine>,
@@ -358,6 +363,7 @@ impl CallableValueRows {
         module: &'p terminal_psi::TerminalModule,
     ) -> CallableValueView<'p> {
         CallableValueView {
+            module: Some(module),
             catalog: &module.execution.callables,
             structural_types: &module.types.structural_types,
             graph: &self.graph,
@@ -428,6 +434,7 @@ impl<'p> BoundCallableValues<'p> {
 /// it freely.
 #[derive(Clone, Copy)]
 pub struct CallableValueView<'p> {
+    module: Option<&'p terminal_psi::TerminalModule>,
     pub catalog: &'p TerminalCallableCatalog,
     pub structural_types: &'p [StructuralTypeDeclaration],
     graph: &'p [DescriptorMachine],
@@ -439,6 +446,7 @@ pub struct CallableValueView<'p> {
 impl<'p, 'a: 'p> From<&'p CallableValueProgram<'a>> for CallableValueView<'p> {
     fn from(program: &'p CallableValueProgram<'a>) -> Self {
         Self {
+            module: program.module,
             catalog: program.catalog,
             structural_types: program.structural_types,
             graph: &program.graph,
@@ -572,11 +580,14 @@ impl<'p> CallableValueView<'p> {
                     .structural_parameters
                     .iter()
                     .zip(&invocation.structural_actual_types)
-                    .all(|(formal, actual)| {
-                        self.structural_actual_matches(
-                            *actual,
-                            (formal.structural_type, formal.access),
-                        )
+                    .enumerate()
+                    .all(|(index, (formal, actual))| {
+                        (body.package_sites.stored_argument(invocation, index) == Some(actual.0)
+                            && actual.1 == formal.access)
+                            || self.structural_actual_matches(
+                                *actual,
+                                (formal.structural_type, formal.access),
+                            )
                     })
             {
                 return Err("callable invocation actuals disagree with its authored contract");
@@ -696,6 +707,7 @@ impl<'p> CallableValueView<'p> {
         invocation: &CallableInvocation,
     ) -> CallableValueResult<()> {
         let body = self.body(callee)?;
+        let package = &self.body(caller)?.package_sites;
         if invocation.scalar_arguments.len() != body.scalar_parameters.len()
             || invocation.structural_arguments.len() != body.structural_parameters.len()
             || invocation.structural_actual_types.len() != body.structural_parameters.len()
@@ -703,7 +715,12 @@ impl<'p> CallableValueView<'p> {
                 .structural_actual_types
                 .iter()
                 .zip(&body.structural_parameters)
-                .all(|(actual, formal)| self.structural_actual_matches(*actual, *formal))
+                .enumerate()
+                .all(|(index, (actual, formal))| {
+                    self.structural_actual_matches(*actual, *formal)
+                        || (package.stored_argument(invocation, index) == Some(actual.0)
+                            && actual.1 == formal.1)
+                })
         {
             return Err("callable invocation actuals do not match the selected formal telescope");
         }
@@ -828,14 +845,16 @@ impl<'p> CallableValueView<'p> {
                     CallableDefinition::Incoming(block) => {
                         return self.incoming(*machine, *block, *value, *contract);
                     }
-                    CallableDefinition::Stored { position, location } => {
-                        Source::Value(CallableValueQuery::Storage {
-                            machine: *machine,
-                            position: *position,
-                            location: location.clone(),
-                            contract: *contract,
-                        })
-                    }
+                    CallableDefinition::Stored {
+                        position,
+                        location,
+                        storage_contract,
+                    } => Source::Value(CallableValueQuery::Storage {
+                        machine: *machine,
+                        position: *position,
+                        location: location.clone(),
+                        contract: storage_contract.unwrap_or(*contract),
+                    }),
                     CallableDefinition::Invocation(position) => Source::Invocation(
                         self.bound(body.primary_invocation(*position)?)?
                             .into_owned(),
@@ -954,6 +973,7 @@ impl<'p> CallableValueView<'p> {
         // The existing version proof is a fast path for a single definition
         // that reaches every incoming path. Branch-dependent definitions fall
         // through to the general reaching-definition equations below.
+        let package = &self.body(machine)?.package_sites;
         if !unresolved_address
             && let Some(sources) = crate::descriptor_results::unchanged_stored_projection_sources_in(
                 self.structural_types,
@@ -968,20 +988,23 @@ impl<'p> CallableValueView<'p> {
                         .into_iter()
                         .flatten()
                         .filter_map(|(written, term)| match term {
-                            ScalarTerm::Value { id, scalar_type }
-                                if *scalar_type == ScalarType::Callable(contract) =>
+                            ScalarTerm::Value {
+                                id,
+                                scalar_type: ScalarType::Callable(actual),
+                            } if *actual == contract
+                                || package.admits_write(producer, written, contract, *actual) =>
                             {
-                                Some((written.clone(), *id))
+                                Some((written.clone(), (*id, *actual)))
                             }
                             _ => None,
                         })
                         .collect()
                 },
             )
-            && let [value] = sources.as_slice()
+            && let [(value, actual)] = sources.as_slice()
         {
             return Ok(vec![Source::Value(
-                self.scalar_query(machine, *value, contract)?,
+                self.scalar_query(machine, *value, *actual)?,
             )]);
         }
         let reach = crate::descriptors::descriptor_results::payload_reachability::predecessors(
@@ -1040,10 +1063,15 @@ impl<'p> CallableValueView<'p> {
                     let ScalarTerm::Value { id, scalar_type } = &writes[0].1 else {
                         return Err("callable storage write is not a code value");
                     };
-                    if *scalar_type != ScalarType::Callable(contract) {
+                    let ScalarType::Callable(actual) = *scalar_type else {
+                        return Err("callable storage write changes its exact contract");
+                    };
+                    if actual != contract
+                        && !package.admits_write(*producer, &arrival, contract, actual)
+                    {
                         return Err("callable storage write changes its exact contract");
                     }
-                    result.push(Source::Value(self.scalar_query(machine, *id, contract)?));
+                    result.push(Source::Value(self.scalar_query(machine, *id, actual)?));
                     continue;
                 }
                 if unresolved_address
@@ -1260,7 +1288,13 @@ impl Solver<'_, '_> {
                         .catalog
                         .descriptor(descriptor)
                         .ok_or("callable selection descriptor is absent or stale")?;
-                    if descriptor.contract != contract {
+                    if descriptor.contract != contract
+                        && !self.program.body(caller)?.package_sites.admits_descriptor(
+                            self.program.module,
+                            invocation,
+                            descriptor.contract,
+                        )
+                    {
                         return Err("callable selection descriptor changes its contract");
                     }
                     insert_ordered(&mut machines, descriptor.machine);

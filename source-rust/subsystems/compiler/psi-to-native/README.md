@@ -43,7 +43,7 @@ Each numbered stage, the form it hands on, and what reads that form. Lines are
 production Rust outside `tests/` directories, measured on `d75a30117`. Stage 06
 changes nothing about the representation. The driver waits for every
 body at two points: after stage 04, for the callee closure in
-[`plan_callables.rs`](driver/plan_callables.rs), and between stage 09's two
+[`plan_callables.rs`](driver/image/plan_callables.rs), and between stage 09's two
 phases, for handler measurement and entry planning in
 [`object_emission.rs`](driver/image/object_emission.rs).
 
@@ -69,7 +69,7 @@ rows so it can independently check the placed bytes. [Placement](pipeline/13_res
 | 02 abstract operations | 6,418 | `VerifiedPsiOptimizationInput` | 04 and driver |
 | 04 target operations | 33,812 | `NativeBodyPlan` | 05, driver closure, `TargetOperationCorrespondence` |
 | 05 instruction selection | 47,046 | `StagedOptimizedSelectedInstructions` | 06 only |
-| 06 selected rewrites | 26,880 | `SelectedAllocationInput` (same form plus liveness) | 07, `SelectedInstructionRewriteReplay` |
+| 06 selected rewrites | 26,880 | `SelectedBody` (same form plus completed analyses) | 07, `SelectedInstructionRewriteReplay` |
 | 07 register allocation | 16,292 | `AllocatedBody`; optional `RetainedAllocation` for replay | 08 reads the body; `FixedFrameCorrespondence` reads replay evidence |
 | 08 post-allocation machine | 2,119 | `StagedOptimizedPostAllocationMachinePlan` | 09, `FixedFrameCorrespondence` |
 | 09 frame and installation binding | 10,630 | `FramedNativeBody`, `PreparedFunctionBody`, then `BoundFunctionBody` | driver entry planning and handler measurement, then 11 |

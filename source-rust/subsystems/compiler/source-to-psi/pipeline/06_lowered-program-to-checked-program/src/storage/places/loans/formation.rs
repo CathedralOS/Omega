@@ -277,8 +277,11 @@ impl<'a> Storage<'a> {
         referent: semantic_vocabulary::StructuralTypeId,
         concerns: Construct,
     ) -> Checked<LoanRegion> {
-        let origin =
-            terminal_semantics::storage::native_borrows::address_origin(self.lowered, address);
+        let origin = terminal_semantics::storage::native_borrows::address_origin(
+            self.module,
+            self.lowered,
+            address,
+        );
         let mut sources = Vec::new();
         let mut exact = origin.exact && origin.sources.len() == 1;
         for (at, source) in origin.observed_sources() {

@@ -110,6 +110,16 @@ impl CheckedPackageSites {
         self.field_type(machine, operation, field)?.as_structural()
     }
 
+    pub(crate) fn invocation_witnesses<'m>(
+        &self,
+        module: &'m TerminalModule,
+        machine: MachineId,
+        operation: OperationId,
+    ) -> Option<&'m [StructuralTypeId]> {
+        let &(index, _) = self.descriptors.get(&(machine, operation))?;
+        Some(&opening(module, machine, index).ok()?.witnesses)
+    }
+
     /// Check the concrete contract on the descriptor actually read. Repeated
     /// occurrences of one witness must denote one type. The call also checks
     /// the separately stored argument against the concrete machine parameter.

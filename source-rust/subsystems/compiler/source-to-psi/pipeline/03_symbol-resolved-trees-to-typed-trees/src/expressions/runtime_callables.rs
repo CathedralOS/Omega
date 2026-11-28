@@ -870,7 +870,7 @@ impl RuntimeCallableAdmission {
 struct CallInventory<'program> {
     program: &'program typed::TypedTrees,
     indexes: CallIndexes,
-    cohort_declarations: Option<Vec<(u32, u32)>>,
+    cohort_declarations: Option<typed::references::DeclarationSelection>,
     owner: CallOwner,
     scope: usize,
     outer: Vec<(CallOwner, usize)>,
@@ -921,9 +921,7 @@ impl Extend<symbols::SymbolHandle> for CallInventory<'_> {
 impl typed::references::TypedReferences for CallInventory<'_> {
     fn declaration(&mut self, owner: symbols::SymbolHandle) -> bool {
         if let Some(cohort) = &self.cohort_declarations
-            && cohort
-                .binary_search(&crate::lowerer::symbol_key(owner))
-                .is_err()
+            && !cohort.contains(owner)
         {
             return false;
         }
@@ -1319,7 +1317,7 @@ fn inventory_calls<'program>(
     let mut inventory = CallInventory {
         program,
         indexes: CallIndexes::collect(program, cohort)?,
-        cohort_declarations: cohort.map(|cohort| cohort.declaration_keys(program)),
+        cohort_declarations: cohort.map(|cohort| cohort.declarations(program)),
         owner: CallOwner::default(),
         scope: 0,
         outer: Vec::new(),

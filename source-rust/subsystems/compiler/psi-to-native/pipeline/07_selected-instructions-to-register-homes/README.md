@@ -1,7 +1,8 @@
 # Register allocation
 
-`stage_register_allocation` assigns physical homes and admits the completed
-allocation. It publishes an `AllocatedBody` in
+`stage_register_allocation` consumes the issued
+[`SelectedBody`](../../representations/selected-instructions/published), assigns
+physical homes and admits the completed allocation. It publishes an `AllocatedBody` in
 [`register-homes/published`](../../representations/register-homes/published),
 which contains the current selected program, homes, analyses, preservation and
 publication facts. Its constructor requires the allocation issuer; consumers

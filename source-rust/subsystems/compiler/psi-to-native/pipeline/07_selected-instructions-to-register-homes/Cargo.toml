@@ -5,11 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+selected-body = { path = "../../representations/selected-instructions/published" }
 allocated-body = { path = "../../representations/register-homes/published" }
 allocated-body-issuer = { path = "../../representations/register-homes/published/issuer" }
 operation-evidence = { path = "../../representations/operation-evidence" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
-selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "../06_selected-instructions-to-selected-instructions" }
 optimization-core = { path = "../../representations/optimization-records" }
 register-environment = { path = "../../targets/register-environment" }
 register-homes = { path = "../../representations/register-homes" }
