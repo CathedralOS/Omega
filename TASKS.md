@@ -293,7 +293,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **NATIVE-BORROW-ADMISSION.** Implement [the three core operations](wiki/spec/resources/native_borrows.md), native lowering, interpreter rejection of address-to-borrow calls, and independent product opt-ins and per-edge ceilings for reachable code including `ForeignCodeExecution` under `Unsafe`.
   - Exercise a native byte write, a directly returned reference with adequate backing, a visible conflicting alias or expired lifetime, and an upgrade that must invalidate facts about the referent. Check the same missing-admission diagnostic directly and across two dependency edges. Reject an interpreted address-to-borrow call through a helper.
-  - Retire the registration, provider-plan override and old approval path. Migrate the `assumed_binding_input_authority` and `assumed_binding_result_bound` fixtures to checked issuance/adapters or explicit rejection. Verify that neither an old receipt nor a borrow operation establishes a domain qualification or a contradictory postcondition.
+  - Exercise native address formation with an explicitly qualified pointee and the reborrow of a value its issuer has already qualified.
 
 ## P3 - Terminal Psi, proofs, and observation
 
