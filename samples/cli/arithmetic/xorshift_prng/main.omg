@@ -11,8 +11,8 @@ use {system}/console.omg;
 //
 // The shifts run on `u32 in Wrapping` because a left shift deliberately drops
 // the bits carried past bit 31 (that truncation IS the generator's mixing). The
-// XORs carry no domain -- bitwise ops never overflow. Seeded with the well-known
-// constant 2463534242 (0x9E3779B9), one step yields 0x...63; the low byte is 99.
+// XORs mix the shifted bits back into the state. Starting from 2463534242
+// (0x92D68CA2), one step yields 0x2B1F4D63. Its low byte is 99.
 // Expected exit: 99.
 
 
@@ -37,7 +37,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     main.state = main.state ^ main.scratch;
 
     // Reduce the 32-bit draw to a process exit code via its low byte.
-    main.output = (main.state & 255) as i32;
+    main.output = (main.state & 255) as -Wrapping as i32;
 
     transition { _ -> block emit(main) }
 
