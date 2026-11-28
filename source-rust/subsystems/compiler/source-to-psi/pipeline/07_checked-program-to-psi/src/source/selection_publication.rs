@@ -3414,16 +3414,17 @@ machine entry() reaches Input {}
         assert!(projections.next().is_none());
         assert_eq!(left_state, state);
         assert_ne!(left_witness, right_witness);
-        let mut received = typed
-            .expression_table
-            .expression_entries()
-            .filter_map(|(_, expression)| {
-                let ExpressionNode::StructLiteral(literal) = expression else {
-                    return None;
-                };
-                let package = literal.package.as_ref()?;
-                Some(signature(package.fields[0].ty))
-            });
+        let mut received =
+            typed
+                .expression_table
+                .expression_entries()
+                .filter_map(|(_, expression)| {
+                    let ExpressionNode::StructLiteral(literal) = expression else {
+                        return None;
+                    };
+                    let package = literal.package.as_ref()?;
+                    Some(signature(package.fields[0].ty))
+                });
         let right_copy = received.next().unwrap();
         let left_copy = received.next().unwrap();
         assert!(received.next().is_none());
