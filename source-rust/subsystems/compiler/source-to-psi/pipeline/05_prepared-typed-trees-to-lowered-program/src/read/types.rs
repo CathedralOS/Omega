@@ -185,12 +185,35 @@ impl<'t> Program<'t> {
         id: MachineId,
         domain: crate::body::DomainInstance,
     ) -> Checked<&'t crate::source_state::domain::DomainDefinition> {
-        self.domain_theory_in_scope(
-            id,
-            domain,
-            (self.reading_schema || self.is_generic_check_form())
-                .then_some(self.source_scope.as_ref()),
-        )
+        let scope = self.source_scope.as_ref();
+        if self.reading_schema || self.is_generic_check_form() {
+            return self.domain_theory_in_scope(id, domain, Some(scope));
+        }
+        // An erased package can retain Resident<P, S> on its stored carrier.
+        // Only hidden types bound in this exact declaration or opening can
+        // justify a symbolic application when reading an ordinary machine.
+        let scoped_package = self
+            .typed
+            .domain_application(domain.declaration, domain.identity)
+            .filter(|application| !application.is_closed)
+            .is_some_and(|application| {
+                let mut hidden = crate::source_state::SourceTypeScope::default();
+                for frame in std::iter::successors(Some(scope), |frame| frame.parent.as_deref()) {
+                    hidden.rigid_parameters.extend(
+                        frame
+                            .rigid_parameters
+                            .iter()
+                            .copied()
+                            .filter(|parameter| self.is_package_witness_symbol(*parameter)),
+                    );
+                }
+                !hidden.rigid_parameters.is_empty()
+                    && application
+                        .arguments
+                        .iter()
+                        .all(|argument| hidden.admits_argument(self.typed, *argument))
+            });
+        self.domain_theory_in_scope(id, domain, scoped_package.then_some(scope))
     }
 
     /// A generic schema quantifies its own indices. Their prepared application
