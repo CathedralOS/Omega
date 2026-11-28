@@ -7,8 +7,8 @@ use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 use {system}/console.omg;
 // ADD02: Complete offline hydrostatic loading of a vertical gate silhouette.
-// Expected exit: 0 for valid bounded stdin; 64 for invalid bounded stdin.
-// Expected output contains: HYDROSTATIC_GATE_V1 micro_units (valid input).
+// Expected exit: 0. The rectangle fixture is valid. Invalid input exits 64.
+// Expected output contains: HYDROSTATIC_GATE_V1 micro_units
 // Every domain operation and all bounded scratch data are application-private.
 
 data Application {
@@ -34,7 +34,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         false -> invalid()
     }
     machine header(application: @mutable Application) {
-        application.profile.count = application.reader.value as u64 +Wrapping;
+        application.profile.count = application.reader.value as -Wrapping as u64 +Wrapping;
         block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 8 {
             true -> block gamma(application),
@@ -42,7 +42,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         }
     }
     machine gamma(application: @mutable Application) {
-        application.level_count = application.reader.value as u64 +Wrapping;
+        application.level_count = application.reader.value as -Wrapping as u64 +Wrapping;
         block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 20000 {
             true -> block hinge(application),
@@ -50,7 +50,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         }
     }
     machine hinge(application: @mutable Application) {
-        application.gamma = |float_operations|::F64::from_i64(application.reader.value as i64);
+        application.gamma = |float_operations|::F64::from_i64(application.reader.value as -Wrapping);
         block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block begin_nodes(application),
@@ -58,18 +58,18 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         }
     }
     machine begin_nodes(application: @mutable Application) {
-        application.hinge = (|float_operations|::F64::from_i64(application.reader.value as i64)) / 1000.0;
-        transition { _ -> block node(application, 0) }
+        application.hinge = (|float_operations|::F64::from_i64(application.reader.value as -Wrapping)) / 1000.0;
+        transition { _ -> block node(application, 0u64 as +Wrapping) }
     }
     machine node(application: @mutable Application, index: u64 in Wrapping) {
         transition index < application.profile.count && index < 8 {
             true -> block elevation(application, index),
-            false -> block level(application, 0)
+            false -> block level(application, 0u64 as +Wrapping)
         }
     }
     machine elevation(application: @mutable Application, index: u64 in Wrapping) {
         block |tokens|::next(@mutable application.reader);
-        let node_elevation: f64 = |float_operations|::F64::from_i64(application.reader.value as i64) / 1000.0;
+        let node_elevation: f64 = |float_operations|::F64::from_i64(application.reader.value as -Wrapping) / 1000.0;
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block width(application, index, node_elevation),
             false -> invalid()
@@ -83,8 +83,8 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         }
     }
     machine store_node(application: @mutable Application, index: u64 in Wrapping, elevation: f64) {
-        application.profile.nodes[index].elevation = elevation;
-        application.profile.nodes[index].width = (|float_operations|::F64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.profile.nodes[index as -Wrapping].elevation = elevation;
+        application.profile.nodes[index as -Wrapping].width = (|float_operations|::F64::from_i64(application.reader.value as -Wrapping)) / 1000.0;
         transition index > 0 {
             true -> block validate_order(application, index, elevation),
             false -> block node(application, index + 1)
@@ -92,7 +92,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     }
     machine validate_order(application: @mutable Application, index: u64 in Wrapping, elevation: f64) {
         let previous: u64 in Wrapping = index - 1;
-        transition previous < 8 && elevation > application.profile.nodes[previous].elevation {
+        transition previous < 8 && elevation > application.profile.nodes[previous as -Wrapping].elevation {
             true -> block node(application, index + 1),
             false -> invalid()
         }
@@ -111,7 +111,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         }
     }
     machine store_level(application: @mutable Application, index: u64 in Wrapping) {
-        application.levels[index] = (|float_operations|::F64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.levels[index as -Wrapping] = (|float_operations|::F64::from_i64(application.reader.value as -Wrapping)) / 1000.0;
         transition { _ -> block level(application, index + 1) }
     }
     machine trailing(application: @mutable Application) {
@@ -123,7 +123,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
     }
     machine begin(application: @mutable Application) {
         |console|::Console::write_line("HYDROSTATIC_GATE_V1 micro_units");
-        transition { _ -> water(application, 0) }
+        transition { _ -> water(application, 0u64 as +Wrapping) }
     }
     machine water(application: @mutable Application, index: u64 in Wrapping) {
         transition index < application.level_count && index < 8 {
@@ -131,16 +131,18 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
             false -> done()
         }
     }
-    machine reset(application: @mutable Application, index: u64 in Wrapping) {
+    machine reset(application: @mutable Application, index: u64 in Wrapping)
+    requires index < 8
+    {
         application.area = 0.0;
         application.force = 0.0;
         application.first_moment = 0.0;
         application.hinge_moment = 0.0;
-        application.wetted_count = 0;
+        application.wetted_count = 0i64 as +Wrapping;
         |console|::Console::write("LEVEL "); |numbers|::write_integer(index as -Wrapping as i64 +Wrapping);
-        |console|::Console::write(" water_um="); |numbers|::write_scaled(application.levels[index]);
+        |console|::Console::write(" water_um="); |numbers|::write_scaled(application.levels[index as -Wrapping]);
         |console|::Console::write_line("");
-        transition { _ -> segment(application, index, 0) }
+        transition { _ -> segment(application, index, 0u64 as +Wrapping) }
     }
     machine segment(application: @mutable Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping) {
         let next: u64 in Wrapping = segment_index + 1;
@@ -150,8 +152,8 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         }
     }
     machine calculate(application: @mutable Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, next: u64 in Wrapping) {
-        let water: f64 = application.levels[water_index];
-        let wet: |profile|::WetSegment = |profile|::clip(application.profile.nodes[segment_index], application.profile.nodes[next], water);
+        let water: f64 = application.levels[water_index as -Wrapping];
+        let wet: |profile|::WetSegment = |profile|::clip(application.profile.nodes[segment_index as -Wrapping], application.profile.nodes[next as -Wrapping], water);
         transition wet.upper > wet.lower {
             true -> accumulate(application, water_index, segment_index, wet, water),
             false -> segment(application, water_index, next)

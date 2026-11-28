@@ -1,11 +1,5 @@
-# wrapping_array_literal
+# Wrapping array literals
 
-`[u32; 1] in Wrapping` array literals retain the element
-domain at the whole-array type: explicit `as u32 in
-Wrapping` element grants, nested `[[u32; 1]; 1] in
-Wrapping`, record member `values: [u32;1] in Wrapping`,
-and `values[0] + 1u32` wrapping arithmetic on projected
-elements (`4294967295 + 1` folds to `0`).
+The program adds one to the largest `u32` in a wrapping array and checks that the result is zero. It also reads 1 from a nested array and 2 from an array stored in a record field. An incorrect value traps.
 
-Compile-checked only: no standard-library dependency and
-no `Main::exit` — run a check target, not native.
+Run the native and Psi checks with `mbx xtask sample-gate --filter samples/cli/probes/wrapping_array_literal`.

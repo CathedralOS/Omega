@@ -44,33 +44,25 @@ intermediates finite and scaled output below signed i64 capacity.
 
 ## Run and review
 
-Use a compiler built from this candidate, and select its matching library.
-The pristine base `9a0463cc42` accepts the source but cannot produce its native
-artifact. The candidate includes bounded general repairs for computed indexed
-scalar stores and per-instruction copies for fixed integer operands whose source stays live.
-Current main supplies canonical requirement-use traversal through constructed
-record fields, replacing the earlier local repair. Complete corpus controls
-reproduce the failures and retain exit/input/output expectations. No application algorithm or expected numerical result depends on
-an active worker's implementation.
-From the repository root (replace `OMEGA` with that compiler's executable):
+On `omega-mac`, use the project Build to select its ARM64 macOS entry. Linux
+x86-64 uses the same entry machine. The bundled system library supplies standard
+input, standard output and process exit.
 
 ```sh
-export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-APP=samples/cli/scientific/hydrostatic_gate_loading
-OMEGA update --project "$APP" --target linux_x86_64
-# Read pending package-policy decisions and accept them in the review file,
-# then OMEGA update --resume --project "$APP" if review is requested.
-OMEGA --check --target linux_x86_64 "$APP/main.omg"
-OMEGA run --keep "$APP/main.omg" < "$APP/data/rectangle.in"
-OMEGA run --keep "$APP/main.omg" < "$APP/data/piecewise.in"
-OMEGA --check --target linux_x86_64 "$APP/intended_invalid/main.omg"
+cd samples/cli/scientific/hydrostatic_gate_loading
+omega packages update --project . --target macos_arm64
+# Review the pending decisions and resume the update after accepting them.
+omega packages update --project . --resume
+omega run --target macos_arm64 build.omg < data/rectangle.in
+omega --target macos_arm64 --build-dir build/native build.omg
+./build/native/omega-program < data/rectangle.in
 ```
 
-The intended-invalid command must reject the reversed interval's violated
-`upper > lower` precondition. It is a separate complete application with its
-own build file; a rejection for package policy, syntax, or provider absence
-would not count. Runtime-invalid inputs exercise the valid application's parser
-and validator, independently of this static negative control.
+The sample gate uses `input.txt`, a copy of the rectangle fixture. The
+[reversed interval](../invalid_hydrostatic_gate_loading_intended/main.omg)
+checks the compile-time requirement that the upper elevation exceeds the lower
+elevation. It calls the interval calculation with elevations 2000 and 1000.
+The malformed stdin fixtures exercise the parser in the running application.
 
 Analytic rectangle and triangular-width force/moment anchors also constrain the
 reference, as do subdivision and vertical-translation identities. Frozen

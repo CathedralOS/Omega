@@ -1,4 +1,4 @@
-// A call spelled through a dependency's package alias selects the data type's machine,
+// A call spelled through a dependency's package alias selects the exported machine,
 // proves its `left.value > 0` premise on the exact operand, and records its `ensures` sum
 // for the caller.
 // Place: parameter.
@@ -15,7 +15,7 @@ machine observe(left: @|ops|::Wrapped, right: @|ops|::Wrapped) -> u64
 requires left.value > 0
 ensures result == (left.value as u64) + (right.value as u64)
 {
-    |ops|::Wrapped::describe(left, right)
+    |ops|::describe(left, right)
 }
 
 machine main() crashes Trap {

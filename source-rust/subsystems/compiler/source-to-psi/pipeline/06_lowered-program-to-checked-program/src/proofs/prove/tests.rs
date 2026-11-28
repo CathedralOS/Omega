@@ -3264,6 +3264,78 @@ fn a_sixty_fifth_combination_is_reported_as_exhausted_search() {
 }
 
 #[test]
+fn an_endpoint_counterexample_must_satisfy_all_correlated_choices() {
+    let ty = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(ty);
+    let mut values = IdTable::default();
+    let id = values.push(ValueRow {
+        scalar_type: scalar,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let tag = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::MachineParameter { position: 1 },
+        rigid: None,
+    });
+    let ctx =
+        PropositionContext::from_value_types(values.iter().map(|(v, row)| (v, row.scalar_type)))
+            .unwrap();
+    let x = ScalarTerm::value(id, scalar);
+    let b = |v| {
+        Proposition::Equal(
+            ScalarTerm::value(tag, ScalarType::Boolean),
+            ScalarTerm::Boolean(v),
+        )
+    };
+    let lit = |n| ScalarTerm::integer(ty, IntegerValue::Unsigned(n)).unwrap();
+    let eq = |n| Proposition::Equal(x.clone(), lit(n));
+    let upper = |n| Proposition::LessOrEqual(x.clone(), lit(n));
+    let lower = |n| Proposition::LessOrEqual(lit(n), x.clone());
+    let tagged = |a, z| {
+        Proposition::Disjunction(vec![
+            Proposition::Conjunction(vec![b(true), a]),
+            Proposition::Conjunction(vec![b(false), z]),
+        ])
+    };
+    let u = |n| Some(IntegerValue::Unsigned(n));
+    for (assumptions, required, expected) in [
+        (
+            vec![b(true), tagged(upper(1), upper(9))],
+            upper(1),
+            (None, u(1)),
+        ),
+        (
+            vec![
+                Proposition::Disjunction(vec![eq(1), eq(9)]),
+                Proposition::Disjunction(vec![eq(2), eq(9)]),
+            ],
+            lower(9),
+            (u(9), u(9)),
+        ),
+        (
+            vec![tagged(upper(1), upper(9)), tagged(upper(9), upper(1))],
+            upper(1),
+            (None, u(1)),
+        ),
+        (
+            vec![tagged(lower(8), lower(0)), b(true)],
+            lower(8),
+            (u(8), None),
+        ),
+    ] {
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&ctx, &assumptions, &[], &values, &mut activity);
+        let found = prover.literal_bounds(id);
+        let proved = prover.prove(&required).ok().is_some_and(|proof| {
+            proof_admission::accept_certificate(&ctx, &required, &assumptions, &[], &proof).is_ok()
+        });
+        assert_eq!(found, expected, "{assumptions:?}");
+        assert!(proved, "{required:?}");
+    }
+}
+
+#[test]
 fn equal_strides_prove_the_cross_product_only_with_both_footprints() {
     let ty = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let values = IdTable::from_rows((0..6).map(|position| {

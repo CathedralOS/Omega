@@ -124,7 +124,7 @@ machine entry() -> u32 {
         refused[0]
     );
     assert!(
-        refused[1].contains("a call of a machine whose signature is refused above (`scaled`)")
+        refused[1].contains("while reading the signature of `scaled`")
             && refused[1].ends_with("while reading the body of `right`"),
         "{}",
         refused[1]

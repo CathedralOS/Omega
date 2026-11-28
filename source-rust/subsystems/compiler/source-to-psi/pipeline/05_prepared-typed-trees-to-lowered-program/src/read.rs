@@ -521,10 +521,9 @@ pub(crate) struct Program<'t> {
     /// every machine the checker cannot read yet. `None`, as for a direct
     /// reading, refuses at the first.
     pub collected: Option<Vec<terminal_check_tables::Refusal>>,
-    /// Machines whose signature was refused while `collected` is `Some`. A
-    /// later call of one is refused at once as depending on it, instead of
-    /// reading and refusing the same signature again for every caller.
-    refused_signatures: Vec<SymbolHandle>,
+    /// A later caller needs the same verdict and source location as the first.
+    /// Keep each failed signature read before adding any caller's context.
+    refused_signatures: Vec<(SymbolHandle, terminal_check_tables::Refusal)>,
     /// The locals of block values in the body statement being read, after
     /// the body's own slots, with their names. A block reads its statements
     /// while the enclosing statement is still being read, so its slots are

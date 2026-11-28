@@ -1691,6 +1691,32 @@ impl<'a> Prover<'a> {
         .ok()
     }
 
+    /// A comparison can publish the value of a Boolean through an implication
+    /// instead of a literal equation. If the kernel decides its premise, the
+    /// implication establishes the result even when the requested bit differs.
+    pub(crate) fn establishes_opposite_boolean(&mut self, goal: &Proposition) -> bool {
+        let Some((value, wanted)) = boolean_value_literal(goal) else {
+            return false;
+        };
+        let opposite = Proposition::Equal(
+            ScalarTerm::value(value, ScalarType::Boolean),
+            ScalarTerm::Boolean(!wanted),
+        );
+        self.exact_fact(&opposite).is_some()
+            || self.implications.candidates(&opposite).any(|position| {
+                let index = self.implications.positions[position].1;
+                let Proposition::Implication {
+                    premise,
+                    conclusion,
+                } = self.facts[index].proposition()
+                else {
+                    return false;
+                };
+                conclusion.same_commutative_predicate(&opposite)
+                    && self.closed(premise.as_ref().clone()).is_some()
+            })
+    }
+
     /// Whether the rules cover `goal`'s form (`covered`) at this prover's
     /// program point: a value one of its equations fixes to a literal is that
     /// literal.
@@ -1831,6 +1857,12 @@ impl<'a> Prover<'a> {
             }
         }
         candidates.truncate(INTERVAL_CANDIDATES);
+        let models = if candidates.is_empty() || !self.assumptions.local.is_empty() {
+            [None, None]
+        } else {
+            self.validated_endpoint_values(value, &subject, integer, minimum, maximum)
+        };
+
         let narrows = |candidate: IntegerValue, known: Option<IntegerValue>, wanted: Ordering| {
             known.is_none_or(|known| integer.compare(candidate, known) == Some(wanted))
         };
@@ -1839,6 +1871,10 @@ impl<'a> Prover<'a> {
                 continue;
             };
             if try_lower
+                && !models
+                    .iter()
+                    .flatten()
+                    .any(|v| integer.compare(*v, candidate) == Some(Ordering::Less))
                 && narrows(candidate, lower, Ordering::Greater)
                 && integer.compare(candidate, minimum) != Some(Ordering::Equal)
                 && self
@@ -1848,6 +1884,10 @@ impl<'a> Prover<'a> {
                 lower = Some(candidate);
             }
             if try_upper
+                && !models
+                    .iter()
+                    .flatten()
+                    .any(|v| integer.compare(*v, candidate) == Some(Ordering::Greater))
                 && narrows(candidate, upper, Ordering::Less)
                 && integer.compare(candidate, maximum) != Some(Ordering::Equal)
                 && self

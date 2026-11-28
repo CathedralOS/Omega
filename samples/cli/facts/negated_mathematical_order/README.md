@@ -1,10 +1,14 @@
 # Named negation establishes an executing integer bound
 
-Owner: **PROOF-CONTRACT-MIGRATION**. A named negated integer-order predicate
-establishes `value <= 5` for exact `5u64 - value`. Every place uses
-`within(limit, value) = !(value > limit)` and the route-free `Small` domain;
-the consumer returns `2`. Every reject twin changes only the establishing
-input from `3` to `6` (the named constant in `const_name`).
+Each program uses `within(limit, value) = !(value > limit)` to define the
+`Small` domain. Assigning 3 with `as +Small` checks that predicate. Removing
+the domain with `as -Small` keeps the known bound, so exact subtraction
+`5u64 - value` returns 2. The target-specific provider must prove subtraction
+safe for every `Small` argument.
+
+Each invalid program supplies 6 at the same assignment, directly or through
+the constant in `const_name`. Its cast fails the predicate `within(5, self)`.
+These examples exercise **PROOF-CONTRACT-MIGRATION**.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -32,7 +36,7 @@ Linux x86-64; no foreign native host is claimed.
   subtraction. Both match arms execute. Result equality guards check only the
   runtime oracle; they never establish the bound consumed by subtraction.
 - Soundness: the input-6 twins reject. The local twin fails Exact subtraction;
-  the others fail the establishing domain write. Focused controls retain false
+  all nine fail the domain cast at the assignment. Focused controls retain false
   mathematical calls, changed operands, IEEE NaN-sensitive order and selected
   custom comparisons. Existing kernel closure and malformed-equation controls
   remain separate coverage; the calculus rules are unchanged.

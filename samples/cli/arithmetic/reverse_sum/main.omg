@@ -19,7 +19,7 @@ requires self.i >= -1 && self.i <= 4
 {
     // Wrapping DECLARED: the elements feed the Wrapping accumulator, and Decision
     // 17 forbids mixing domains in one expression.
-    nums: [i32; 5] in Wrapping;
+    nums: [i32 in Wrapping; 5];
     // The index walks 4 down to -1 (the exit value), guard-proven Exact: the
     // `i >= 0` edge into add() proves `i - 1` cannot overflow.
     i: i32;
@@ -30,11 +30,11 @@ requires self.i >= -1 && self.i <= 4
 
 machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     |console|::Console::write_line("reverse_sum: sums an array by walking it backward from the top index");
-    main.nums[0] = 5;
-    main.nums[1] = 10;
-    main.nums[2] = 15;
-    main.nums[3] = 20;
-    main.nums[4] = 25;
+    main.nums[0] = 5i32 as +Wrapping;
+    main.nums[1] = 10i32 as +Wrapping;
+    main.nums[2] = 15i32 as +Wrapping;
+    main.nums[3] = 20i32 as +Wrapping;
+    main.nums[4] = 25i32 as +Wrapping;
     main.i = 4;
     main.acc = 0 as +Wrapping;
 
@@ -63,7 +63,7 @@ machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process
         |console|::Console::write_line("PASS: reverse sum computed, 75 for this data (the exit code)");
         |console|::Console::write_line("[press Enter to close]");
         _ = block |console|::Console::read_line(@mutable main.pause[..]);
-        |process_exit|::ProcessExit::exit_process(main.acc as i32);
+        |process_exit|::ProcessExit::exit_process(main.acc as -Wrapping);
     }
 }
 

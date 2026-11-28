@@ -2,6 +2,14 @@
 
 This customer of `CANONICALIZE-SCALAR-RANGE-CONTRACTS` preserves five field intervals from `7a9a7b8287e6`: `i` and `j` stay in `0..=7`; `jp`, `ry` and `cx` stay in `0..=8`. The common data predicate retains both endpoints, including terminal render counters of eight. Loop guards and the sorting/rendering operations remain unchanged. The 34 terminal calls acknowledge the existing blocking-input path.
 
-`input.txt` supplies one newline and then EOF. `expected_stdout.txt` pins all eight frames, their home escape sequences and padded rows, and the final prompt: 754 bytes. The last frame contains bars of lengths one through eight. Native and Terminal execution must both exit zero and produce those exact bytes.
+`input.txt` supplies one newline and then EOF. `expected_stdout.txt` pins all eight frames, their home escape sequences and padded rows, and the final prompt: 754 bytes. The last frame contains bars of lengths one through eight. Native and Psi execution must both exit zero and produce those exact bytes.
 
 The expected frames were independently derived from the initial array and seven bubble-sort passes before execution. The historical field contracts are formation restrictions as well as use-site bounds: out-of-range stores must reject, even if a later index guard would avoid reading them.
+
+From this folder on an ARM64 Mac, run the animation through Psi with the fixture input.
+
+```sh
+omega run --target macos_arm64 --build-input build.omg --build-input product.omg --build-input main.omg --input input.txt --outputs build/acceptance build.omg
+```
+
+The first Build makes the bundled system library available to the second Build. The second selects the application, grants its clock, console and exit services, and binds the entry for each supported target.

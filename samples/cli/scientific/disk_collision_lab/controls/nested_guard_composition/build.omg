@@ -1,8 +1,10 @@
 use main.omg as app;
 use {omega}/build/dependency.omg;
 
-machine build(builder:@mutable BuildPlan) {
- builder.product = BuildProduct::Application { name: "disk_nested_guard_composition" };
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
- Build::bind(builder,linux_x86_64::ProgramEntry,|app|::entry_start);
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "disk_nested_guard_composition" };
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    _ = Build::dependency(builder, system);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
 }

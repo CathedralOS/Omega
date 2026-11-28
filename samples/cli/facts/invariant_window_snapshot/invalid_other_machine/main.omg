@@ -10,9 +10,8 @@ requires self.start >= 0 && self.start <= self.end,
     marker: u32;
     origin: u32;
 }
-public data Other {}
 machine require_nonnegative(value: i32) requires value >= 0 {}
-machine Other::consume(value: i32) -> i32
+machine consume(value: i32) -> i32
 requires value >= 0
 ensures result == value
 { value }
@@ -28,7 +27,7 @@ requires incoming == -1
     require_nonnegative(initial);
     pair.marker = 11;
     transition initial == expected_initial {
-        true -> Other::consume(saved),
+        true -> consume(saved),
         false -> failed()
     }
     machine failed() -> i32 { crash Trap; }

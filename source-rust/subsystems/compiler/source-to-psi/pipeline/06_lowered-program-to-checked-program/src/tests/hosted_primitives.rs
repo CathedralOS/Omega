@@ -270,10 +270,16 @@ fn a_copied_primitive_name_does_not_receive_compiler_custody() {
             .contains("supply mode other than a checked body"),
         "{refusal:?}"
     );
+    assert_eq!(caller.reason, refusal.reason);
     assert!(
-        caller.detail.contains(
-            "a call of a machine whose signature is refused above (`ProcessExitPrimitive`)"
-        ),
+        caller
+            .detail
+            .contains("supply mode other than a checked body")
+    );
+    assert!(
+        caller
+            .detail
+            .contains("the signature of `ProcessExitPrimitive`"),
         "{caller:?}"
     );
 }

@@ -257,6 +257,22 @@ fn u32_value() -> ValueType {
     ValueType::plain(u32_type())
 }
 
+#[test]
+fn a_copy_bound_permits_replacing_a_field_with_a_borrowed_copy() {
+    let source = super::boundary_calls::typed(
+        "data Slot<T [copy]> { value: T; }
+         machine entry<T [copy]>(slot: @mutable Slot<T>, fresh: @T) {
+             slot.value = $fresh;
+         }",
+    );
+    let verdict = judge(crate::lowering::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    ))
+    .unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
 /// One machine with a `u32` result: its formals, contract and statements.
 struct Shape {
     parameters: Vec<ValueType>,
