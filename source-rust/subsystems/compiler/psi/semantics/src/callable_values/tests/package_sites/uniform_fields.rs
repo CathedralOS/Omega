@@ -122,3 +122,67 @@ fn two_constructions_store_arrays_of_their_own_references() {
         Some("package field differs from the shared witness substitution")
     );
 }
+
+#[test]
+fn a_callback_borrows_either_stored_reference_only_from_its_own_reader() {
+    let mut program = readers();
+    let mut slots = byte_view_descriptor(8, None);
+    slots.shape = StructuralTypeShape::FixedArray {
+        element: ty(6),
+        length: terminal_psi::ArrayExtent::Literal(2),
+    };
+    program.types.structural_types.push(slots);
+    let StructuralTypeShape::Record { fields, .. } = &mut program.types.structural_types[6].shape
+    else {
+        panic!("reader must be a record")
+    };
+    fields[0].field_type = StructuralFieldType::Structural(ty(8));
+    let selected = |reader, slot| {
+        let mut selected = program.clone();
+        let terminal_psi::OperationKind::CallMachine {
+            structural_arguments,
+            ..
+        } = &mut selected.machines[0].blocks[0].operations[1].kind
+        else {
+            panic!("the reader calls its stored callback")
+        };
+        structural_arguments[0].place = place(reader);
+        structural_arguments[0]
+            .path
+            .insert(1, StructuralPathSegment::FixedIndex(slot));
+        selected
+    };
+    for slot in [0, 1] {
+        check_package_sites(&selected(1, slot)).expect("either slot stores this reader's witness");
+        assert_eq!(
+            check_package_sites(&selected(2, slot)).err(),
+            Some("package argument comes from another opening")
+        );
+    }
+    assert!(check_package_sites(&selected(1, 2)).is_err());
+
+    let release = |slot, suffix: &[StructuralPathSegment]| {
+        let mut program = selected(1, 0);
+        let mut path = vec![
+            StructuralPathSegment::Field(TerminalIdentityIndex(1)),
+            StructuralPathSegment::FixedIndex(slot),
+        ];
+        path.extend_from_slice(suffix);
+        program.machines[0].blocks[0]
+            .operations
+            .push(Operation::unsuspended(
+                operation_id(3),
+                OperationResult::Unit,
+                O::ReleaseReference {
+                    source: place(1),
+                    path,
+                },
+            ));
+        program
+    };
+    for slot in [0, 1] {
+        check_package_sites(&release(slot, &[])).expect("last use ends either stored reference");
+        assert!(check_package_sites(&release(slot, &[StructuralPathSegment::Referent])).is_err());
+    }
+    assert!(check_package_sites(&release(2, &[])).is_err());
+}
