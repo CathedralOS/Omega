@@ -554,7 +554,7 @@ fn narrow_machine(
         id,
         &mut scratch,
         inhabitation,
-        None,
+        crate::minted::ClaimRows::Deferred,
         |mut machine, scratch| {
             let beyond = machine.replay_joins(scratch, unreached, activity)?;
             let mut sites = Vec::new();

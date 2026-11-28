@@ -1012,7 +1012,7 @@ fn machine(
         id,
         tables,
         inhabitation,
-        Some(summaries),
+        minted::ClaimRows::Module(summaries),
         |prepared, tables| {
             check_prepared_machine(
                 prepared,
@@ -2087,8 +2087,15 @@ pub(crate) fn prepare(
 ) -> Checked<Prepared<'static>> {
     let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
-    with_prepared_machine(formed, id, tables, &inhabitation, None, |_, _| Ok(()))
-        .map(|(prepared, ())| prepared)
+    with_prepared_machine(
+        formed,
+        id,
+        tables,
+        &inhabitation,
+        minted::ClaimRows::Alone,
+        |_, _| Ok(()),
+    )
+    .map(|(prepared, ())| prepared)
 }
 
 fn prepare_inhabitation(
@@ -2110,14 +2117,17 @@ fn prepare_inhabitation(
 
 /// Keep analysis within one invocation while a caller checks the prepared
 /// machine. The returned values own no borrow of this local working state.
+/// `rows` says where the row check takes the machine's claims from; only a
+/// machine check of the settled module shares the module's replays.
 fn with_prepared_machine<'r, Outcome>(
     formed: formation::FormedModule<'_>,
     id: MachineId,
     tables: &mut MachineTables,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-    summaries: Option<&ModuleReplays<'r, '_>>,
+    rows: minted::ClaimRows<'_, 'r, '_>,
     check: impl FnOnce(PreparedMachine<'_, '_>, &mut MachineTables) -> Checked<Outcome>,
 ) -> Checked<(Prepared<'r>, Outcome)> {
+    let summaries = rows.replays();
     let module = formed.source();
     let machines = &module.machines;
     let lowered = terminal_machine(machines, id, id)?;
@@ -2127,7 +2137,7 @@ fn with_prepared_machine<'r, Outcome>(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, summaries)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation, rows)?;
     let graph = Graph::new(id, lowered, tables)?;
     theorems::validate(module, lowered, tables, &graph)?;
     // A machine check of the module the replays were built from reads the
