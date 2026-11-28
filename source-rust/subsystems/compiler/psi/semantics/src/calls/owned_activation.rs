@@ -93,6 +93,28 @@ fn forwarded_qualifications(
     })
 }
 
+/// A forwarded field may store a structural reference to the declaration or
+/// name its physical carrier explicitly on the inline field.
+pub fn field_matches_carrier(
+    module: &TerminalModule,
+    field: &terminal_psi::StructuralFieldDeclaration,
+    expected: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    if field.relevance.is_erased() {
+        return false;
+    }
+    if field.inline_carrier.is_some() {
+        return crate::inline_carrier_declaration(module.types.structural_types.iter(), field)
+            .is_some_and(|carrier| carrier.id == expected);
+    }
+    if let terminal_psi::StructuralFieldType::Structural(actual) = field.field_type {
+        return actual == expected;
+    }
+    module.structural_type(expected).is_some_and(|carrier| {
+        field.field_type.canonical_leaf_shape().as_ref() == Some(&carrier.shape)
+    })
+}
+
 fn declared_operands<'a>(
     module: &'a TerminalModule,
     ty: terminal_psi::TerminalIdentityIndex,

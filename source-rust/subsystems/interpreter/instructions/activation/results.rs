@@ -18,7 +18,9 @@ use terminal_psi::{
     StructuralFieldType, StructuralOperationResult, StructuralPathQualification,
     StructuralPathSegment, StructuralTypeShape,
 };
-use terminal_semantics::calls::owned_activation::{PreparationShape, ResumeShape, StepShape};
+use terminal_semantics::calls::owned_activation::{
+    PreparationShape, ResumeShape, StepShape, field_matches_carrier,
+};
 
 type Result<T> = std::result::Result<T, TerminalInterpretError>;
 
@@ -271,10 +273,7 @@ impl ActivationCase {
         let field = self.field(exec, id)?;
         let member = self.member(&field);
         let child = ConstructorValue::resolve(exec, arg)?;
-        let declared = exec.structural_declaration(child.structural_type())?;
-        if field.field_type.as_structural() != Some(child.structural_type())
-            && field.field_type.canonical_leaf_shape().as_ref() != Some(&declared.shape)
-        {
+        if !field_matches_carrier(&exec.program.catalogs, &field, child.structural_type()) {
             return Err(malformed());
         }
         child.append_memberships(&member.path, &mut self.value.projected_qualifications);
@@ -323,14 +322,11 @@ impl ActivationCase {
     ) -> Result<()> {
         let field = self.field(exec, id)?;
         let home = self.member(&field);
-        let matches_type = field.field_type.as_structural() == Some(backing.value.structural_type)
-            || field.field_type.canonical_leaf_shape().as_ref()
-                == Some(
-                    &exec
-                        .structural_declaration(backing.value.structural_type)?
-                        .shape,
-                );
-        if !matches_type {
+        if !field_matches_carrier(
+            &exec.program.catalogs,
+            &field,
+            backing.value.structural_type,
+        ) {
             return Err(malformed());
         }
         for suffix in &backing.claims {
@@ -570,10 +566,7 @@ impl TerminalExecution<'_> {
                     return Err(TerminalInterpretError::ClaimTransferMismatch);
                 }
                 let child = returned.observation_value();
-                let declared = self.structural_declaration(child.structural_type)?;
-                if field.field_type.as_structural() != Some(child.structural_type)
-                    && field.field_type.canonical_leaf_shape().as_ref() != Some(&declared.shape)
-                {
+                if !field_matches_carrier(&self.program.catalogs, &field, child.structural_type) {
                     return Err(malformed());
                 }
                 let mut relocated = child.as_ref().clone();

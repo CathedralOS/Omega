@@ -204,11 +204,7 @@ pub fn step_shape(
                     == Some(StructuralTypeShape::PrimitiveScalar(s.scalar_type))
         }
         TerminalMachineResult::Structural(s) => {
-            !value.relevance.is_erased()
-                && (value.field_type == StructuralFieldType::Structural(s.structural_type)
-                    || module.structural_type(s.structural_type).is_some_and(|t| {
-                        value.field_type.canonical_leaf_shape().as_ref() == Some(&t.shape)
-                    }))
+            super::field_matches_carrier(module, value, s.structural_type)
         }
         TerminalMachineResult::Unit => {
             let unit = application_identity::type_identity::encoding::bare(
