@@ -164,3 +164,26 @@ OtherLayout satisfies Layout<Other> { machine measure(value: Other) -> u64 { 0u6
         );
     }
 }
+
+#[test]
+fn a_case_payload_can_use_its_enclosing_machine_lifetime() {
+    let text = r#"
+data Found<'input> { position: u64; bytes: @'input [u8]; }
+data Maybe<T> { case Missing; case Present(value: T); }
+machine position<'input>(found: Maybe<Found<'input>>) -> u64 {
+    transition found {
+        Maybe::Present { value } -> value.position,
+        Maybe::Missing -> 0u64
+    }
+}
+"#;
+    let resolved = crate::resolve_fixture(text);
+    crate::lower_symbol_resolved_trees(&resolved).unwrap();
+    let unbound = text.replace("Maybe<Found<'input>>", "Maybe<Found<'missing>>");
+    let diagnostic = crate::lower_symbol_resolved_trees(&crate::resolve_fixture(&unbound))
+        .expect_err("the payload's lifetime must belong to a declaration");
+    assert!(
+        diagnostic.message.contains("lifetime argument `'missing`"),
+        "{diagnostic:?}"
+    );
+}
