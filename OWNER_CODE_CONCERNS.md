@@ -75,6 +75,28 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Native stages obtain their input products from earlier implementation crates
+- Category: 2. Knowledge crossing a boundary
+- Where: [stage 07 allocation](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/register_allocation.rs#L39), [stage 08 machine lowering](source-rust/subsystems/compiler/psi-to-native/pipeline/08_register-homes-to-post-allocation-machine/src/machine/mod.rs#L129), and [RetainedAllocation](source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes/src/allocation/output.rs#L190)
+- Saw: stage 07 imports stage 06's `SelectedInstructionOptimizationOutput` and extracts allocation input and optional replay evidence; stage 08 imports stage 07's `RetainedAllocation`. Their Cargo dependencies point at preceding transformation crates even though `representations/selected-instructions` and `representations/register-homes` exist. `RetainedAllocation` combines the next stage's facts with a method that invokes the allocator's publication validator. These are production dependencies, not just test or validator dependencies.
+- Cost: representation directories do not define the full handoff, and consumers link producer machinery to receive its sealed result. Put issued products and read-only facts in the owning representation crates; keep construction authority with the producer and replay algorithms with verification. Have the driver separate optional replay evidence from the ordinary handoff. Preserve the inability to forge an admitted allocation; replacing the wrapper with bare facts would weaken the contract.
+- Reported: 2026-11-27, Codex, while auditing pipeline ownership on `0c2c612084c53`; source inspection, no performance measurement.
+
+### Typed-tree storage also orchestrates preparation of whole-program applications
+- Category: 2. Knowledge crossing a boundary
+- Where: [stage 04 entry](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/src/lib.rs#L49), [conformance header preparation](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/callables/callable_applications.rs#L7714), and [constant settlement](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/type_records/data_applications.rs#L171)
+- Saw: the representation crate contains passes, not just records and local substitution operations. `prepare_conformance_requirement_headers` walks conformances and machines, selects requirements, materializes arguments and creates applications. `settle_const_argument` scans the type table, discovers dependent domains, extents and applications, mutates nodes, discards old views and prepares replacements. Stages 03 and 04 and the compile-time invocation driver invoke preparation through this shared crate. The callable file hides namespace, domain, signature, selection and requirement subsystems as inline modules among its `TypedTrees` implementations; the folder and root entry do not expose that sequence.
+- Cost: callers must know which representation methods constitute a pass and which tables they invalidate. This ownership problem is separate from the existing operand-owner-table timing concern. Give preparation an explicit stage-owned request and result, keep reusable substitution primitives below it, and publish completed application records in the representation. Expose those responsibilities in the directory and entry point; merely splitting the large file leaves the hidden preparation path intact.
+- Reported: 2026-11-27, Codex, while tracing stage and driver callers on `0c2c612084c53`; shared substitution itself is not the defect.
+
+### Evaluated type arguments return to identifier text before becoming values again
+- Category: 4. Re-deriving
+- Where: [invocation result settlement](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/constants/arguments.rs#L421), [type-node replacement](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/type_records/data_applications.rs#L221), and [literal recovery](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/callables/callable_applications.rs#L5743)
+- Saw: the invocation driver decodes a canonical integer or Boolean, calls `to_string`, and passes that spelling to `settle_const_argument`. Settlement replaces the argument with `TypeReferenceNode::Named` containing an invalid symbol and generated identifier; an array extent parses the spelling as `usize`. `static_const_literal_from_type_reference` later recognizes an invalid-symbol name, parses its sign and radix, and constructs an integer literal. Stage 04 specialization also sends decimal text through this settlement API.
+- Cost: a known value becomes a name-shaped node, so consumers recover its meaning and obtain its carrier from surrounding context. Use an explicit settled constant operand carrying the canonical value and carrier, with names reserved for declarations; preserve exactness and range refusals. Coordinate with `EARLY-TERMINAL-JOBS` and `OPERATION-ARITHMETIC-POLICY` in `TASKS.md`: those own additional evaluation and policy behavior; this entry concerns the existing successful result's storage and handoff. No incorrect acceptance or measured speedup is asserted.
+- Reported: 2026-11-27, Codex, while following a decoded value into and back out of typed source on `0c2c612084c53`.
+
+
 <a id="resuming-a-typing-from-retained-source-costs-more-than-typing-afresh"></a>
 ### Resuming a typing from retained source costs more than typing afresh
 - Category: 4. Re-deriving
