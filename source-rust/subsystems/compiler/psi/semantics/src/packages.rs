@@ -18,6 +18,7 @@ mod construction;
 mod fields;
 mod opening;
 mod owned;
+mod requirements;
 mod restoration;
 mod store;
 mod substitution;
@@ -59,6 +60,58 @@ impl CheckedPackageSites {
         field: StructuralFieldId,
     ) -> Option<&StructuralFieldType> {
         self.fields.get(&(machine, operation, field))
+    }
+
+    /// A pack or a projection can rename the indices on its own field.
+    /// Both sides retain the same field path and every domain's exact theory.
+    pub(crate) fn field_memberships(
+        &self,
+        module: &TerminalModule,
+        machine: MachineId,
+        operation: &Operation,
+        field: StructuralFieldId,
+        public: &crate::structural_qualifications::Memberships,
+        actual: &crate::structural_qualifications::Memberships,
+    ) -> bool {
+        if self
+            .field_type(machine, operation.id, field)
+            .and_then(StructuralFieldType::as_structural)
+            .is_none()
+        {
+            return false;
+        }
+        let sites = &module.execution.packages.sites;
+        let Ok(index) = sites.binary_search_by_key(&(machine, operation.id), |site| {
+            (site.machine, site.operation)
+        }) else {
+            return false;
+        };
+        let (record, witnesses) = match &sites[index].event {
+            TerminalPackageEvent::Construct { witnesses } => {
+                let Some(result) = operation.result.structural() else {
+                    return false;
+                };
+                (result.structural_type, witnesses.as_slice())
+            }
+            TerminalPackageEvent::Project {
+                opening: index,
+                field: selected,
+            } if *selected == field => {
+                let Ok(row) = opening(module, machine, *index) else {
+                    return false;
+                };
+                (row.record, row.witnesses.as_slice())
+            }
+            _ => return false,
+        };
+        let Ok(schema) = schema(module, record) else {
+            return false;
+        };
+        Substitution {
+            public: &schema.witnesses,
+            actual: witnesses,
+        }
+        .memberships(module, public, actual)
     }
 
     /// The destination field after substituting this package's live witness.
@@ -222,25 +275,28 @@ pub fn opened_callable_admits(
         return false;
     };
     let mut bindings = BTreeMap::new();
-    for (from, to) in required
+    let arguments = required
         .structural_parameters
         .iter()
         .zip(&supplied.structural_parameters)
-    {
+        .map(|(from, to)| (from.structural_type, to.structural_type));
+    let result = required
+        .result
+        .structural()
+        .zip(supplied.result.structural());
+    for (from, to) in arguments.chain(result) {
         let mut bind = |formal, actual| {
             bindings
                 .insert(formal, actual)
                 .is_none_or(|previous| previous == actual)
         };
-        if opened_witnesses.contains(&from.structural_type) {
-            if module.structural_type(to.structural_type).is_none()
-                || !bind(from.structural_type, to.structural_type)
-            {
+        if opened_witnesses.contains(&from) {
+            if module.structural_type(to).is_none() || !bind(from, to) {
                 return false;
             }
         } else if opened_witnesses
             .iter()
-            .any(|&witness| fields::nominal_uses(module, from.structural_type, witness))
+            .any(|&witness| fields::nominal_uses(module, from, witness))
         {
             let name = |id| {
                 module
@@ -254,14 +310,11 @@ pub fn opened_callable_admits(
             else {
                 return false;
             };
-            let Some(arguments) = name(from.structural_type)
-                .zip(name(to.structural_type))
-                .and_then(|(public, actual)| {
-                    application_identity::type_identity::package_applications::supplied(
-                        public, actual, &formals,
-                    )
-                })
-            else {
+            let Some(arguments) = name(from).zip(name(to)).and_then(|(public, actual)| {
+                application_identity::type_identity::package_applications::supplied(
+                    public, actual, &formals,
+                )
+            }) else {
                 return false;
             };
             for (formal, actual) in arguments {
@@ -419,18 +472,23 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
             .operation(site.operation)
             .ok_or("package site names an absent operation")?;
         events.insert((machine.id, operation.id), &site.event);
-        match &site.event {
-            TerminalPackageEvent::Construct { .. } => (),
-            TerminalPackageEvent::Project { opening, field } => {
-                let value = projection(module, machine, operation, *opening, *field, &mut checked)?;
-                if projected
-                    .insert((machine.id, value), (*opening, operation.id))
-                    .is_some()
-                {
-                    return Err("two package fields claim one descriptor result");
-                }
+        let origin = match &site.event {
+            TerminalPackageEvent::Project { opening, field } => Some((
+                projection(module, machine, operation, *opening, *field, &mut checked)?,
+                *opening,
+            )),
+            TerminalPackageEvent::Invoke { opening } => {
+                opening::returned_owner(module, machine, operation, *opening)
+                    .map(|owner| (owner, *opening))
             }
-            TerminalPackageEvent::Invoke { .. } | TerminalPackageEvent::Store { .. } => (),
+            TerminalPackageEvent::Construct { .. } | TerminalPackageEvent::Store { .. } => None,
+        };
+        if let Some((value, opening)) = origin
+            && projected
+                .insert((machine.id, value), (opening, operation.id))
+                .is_some()
+        {
+            return Err("two package operations claim one opened result");
         }
     }
     for machine in &module.machines {

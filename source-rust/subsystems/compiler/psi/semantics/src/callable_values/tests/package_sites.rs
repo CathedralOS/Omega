@@ -1226,6 +1226,10 @@ fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
         let mut handle = declaration(id * 2 + 1, StructuralFieldType::Scalar(ScalarType::Boolean));
         handle.identity = names.intern("provider");
         handle.declaration_identity = provider;
+        row.requires.push(semantic_vocabulary::Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::boolean_field(place(1), handle.id),
+            semantic_vocabulary::ScalarTerm::Boolean(true),
+        ));
         row.shape = StructuralTypeShape::Record {
             fields: vec![resident, handle],
             storage: StructuralRecordStorage::Packed,
@@ -1290,7 +1294,68 @@ fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
         crate::packages::opened_callable_admits(module, &[ty(2)], callable(2), callable(4))
     };
     assert!(admitted(&program));
+    // The caller can give the returned owner to another operation of this
+    // package. A descriptor with only an output can bind the same witness.
+    let mut returning = program.clone();
+    for index in [1, 3] {
+        let contract = &mut returning.execution.callables.contracts[index];
+        let carrier = &contract.structural_parameters[0];
+        contract.result = BoundaryMachineResult::Structural(
+            terminal_psi::BoundaryStructuralResultDeclaration {
+                structural_type: carrier.structural_type,
+                multiplicity: carrier.multiplicity,
+                qualifications: carrier.qualifications.clone(),
+                projected_qualifications: carrier.projected_qualifications.clone(),
+            },
+        );
+        contract.proof_result = TerminalMachineResult::Structural(
+            terminal_psi::StructuralResultDeclaration {
+                place: place(2),
+                structural_type: carrier.structural_type,
+                multiplicity: carrier.multiplicity,
+                qualifications: carrier.qualifications.clone(),
+                projected_qualifications: carrier.projected_qualifications.clone(),
+                reference_sources: Vec::new(),
+            },
+        );
+        contract.proof.result = contract.proof_result.clone();
+    }
+    assert!(admitted(&returning));
+    for index in [1, 3] {
+        let contract = &mut returning.execution.callables.contracts[index];
+        contract.structural_parameters.clear();
+        contract.proof.structural_parameters.clear();
+    }
+    assert!(admitted(&returning));
+    let mut unqualified = returning.clone();
+    let contract = &mut unqualified.execution.callables.contracts[3];
+    let BoundaryMachineResult::Structural(result) = &mut contract.result else {
+        unreachable!()
+    };
+    result.projected_qualifications.clear();
+    let TerminalMachineResult::Structural(result) = &mut contract.proof_result else {
+        unreachable!()
+    };
+    result.projected_qualifications.clear();
+    contract.proof.result = contract.proof_result.clone();
+    assert!(!admitted(&unqualified));
+    returning.execution.callables.contracts[3].proof.result = TerminalMachineResult::Unit;
+    assert!(!admitted(&returning));
     let concrete = program.types.structural_types.len() - 1;
+    let mut weaker = program.clone();
+    weaker.types.structural_types[concrete].requires.clear();
+    assert!(!admitted(&weaker));
+    let mut wrong_field = program.clone();
+    wrong_field.types.structural_types[concrete].requires[0] =
+        semantic_vocabulary::Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::boolean_field(place(1), field(18)),
+            semantic_vocabulary::ScalarTerm::Boolean(true),
+        );
+    assert!(!admitted(&wrong_field));
+    let mut stale_field = program.clone();
+    stale_field.types.structural_types[concrete].requires =
+        program.types.structural_types[concrete - 1].requires.clone();
+    assert!(!admitted(&stale_field));
     let mut primitive = program.clone();
     primitive.types.structural_types[3].identity = byte;
     let u8_type = semantic_vocabulary::IntegerType::from_fixed(
