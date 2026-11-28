@@ -500,7 +500,13 @@ pub mod structural_reference_input {
                             *referent,
                             position + 1,
                             scalar_descriptor,
-                            if scalar_descriptor { 16 } else { 8 },
+                            if scalar_descriptor
+                                || declarations.storage_inputs().is_package_witness(*referent)
+                            {
+                                runtime_abi::ScalarReferenceLayout::NATIVE.byte_size
+                            } else {
+                                8
+                            },
                         )
                     }
                     (
@@ -1769,6 +1775,17 @@ pub mod structural_reference_input {
         let expected = expected.and_then(|identity| find_structural_type(declarations, identity));
         let geometry =
             reference_geometry(initial_root, initial_path, declarations, |root, path| {
+                // The address of a whole opaque referent crosses the ABI without
+                // assigning any size or field offsets to its hidden representation.
+                if path.is_empty()
+                    && expected.is_some_and(|expected| expected.id == root)
+                    && matches!(
+                        find_structural_type(declarations, root)?.shape,
+                        StructuralTypeShape::Opaque
+                    )
+                {
+                    return Some((root, 0, Vec::new()));
+                }
                 runtime_projection_with_leaf_type(
                     root,
                     path,

@@ -354,6 +354,7 @@ pub(crate) fn reference_call_argument(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
+        opened_referent: None,
         place: argument.place,
         access: argument.access,
         path: argument.path.clone(),
