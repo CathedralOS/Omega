@@ -44,13 +44,6 @@ fn record_call<'source>(
     }
 }
 
-enum Via {
-    Import(Option<Callable>),
-    Call(Callable),
-}
-
-type Paths = BTreeMap<Callable, Via>;
-
 /// A caller can report the same service as a callee that is reachable through a
 /// shorter path. Only an intrinsic or an actual boundary identifies the operation.
 struct UnmetService<'a> {
@@ -68,80 +61,20 @@ impl UnmetService<'_> {
     }
 }
 
-fn complete_paths(
-    calls: &CallGraph<'_>,
-    paths: &mut Paths,
-    mut pending: VecDeque<Callable>,
-) -> Vec<Callable> {
-    let mut reached = Vec::new();
-    while let Some(current) = pending.pop_front() {
-        reached.push(current);
-        if let Some(callees) = calls.get(&current) {
-            for &callee in callees.keys() {
-                if let std::collections::btree_map::Entry::Vacant(slot) = paths.entry(callee) {
-                    slot.insert(Via::Call(current));
-                    pending.push_back(callee);
-                }
-            }
-        }
-    }
-    reached
+mod call_paths;
+pub use call_paths::{AdmittedUnsafeCall, AdmittingDependency};
+use call_paths::{Paths, Via, call_path, complete_paths, path_notes};
+
+#[derive(Clone, Copy)]
+pub struct SourceReach<'a> {
+    pub policy: &'a ExecutionReachPolicy,
+    pub unsafe_services: &'a UnsafeServices,
+    pub imported_calls: &'a DependencyCallOrigins,
 }
 
-fn path_notes(
-    module: &TerminalModule,
-    policy: &ExecutionReachPolicy,
-    headers: &BTreeMap<Callable, &ProofCallableHeader>,
-    paths: &Paths,
-    roots: &Paths,
-    current: Callable,
-) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
-    let mut path = Vec::new();
-    let mut cursor = current;
-    let mut predecessors = paths;
-    loop {
-        path.push(headers[&cursor]);
-        match predecessors[&cursor] {
-            Via::Call(caller) => cursor = caller,
-            Via::Import(Some(requester)) => {
-                cursor = requester;
-                if roots.is_empty() {
-                    path.push(headers[&requester]);
-                    break;
-                }
-                predecessors = roots;
-            }
-            Via::Import(None) => break,
-        }
-    }
-    path.reverse();
-    let mut packages = path
-        .iter()
-        .filter_map(|header| header.package)
-        .collect::<Vec<_>>();
-    packages.dedup();
-    let packages = packages
-        .iter()
-        .filter_map(|package| policy.package_names.get(package).map(String::as_str))
-        .collect::<Vec<_>>();
-    let calls = path
-        .into_iter()
-        .map(|header| {
-            name(module, header).map(application_identity::type_identity::callable_display_path)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut notes = Vec::new();
-    if !packages.is_empty() {
-        notes.push(Diagnostic::note(format!(
-            "dependency path: {}",
-            packages.join(" -> ")
-        )));
-    }
-    notes.push(Diagnostic::note(format!(
-        "call path: {}",
-        calls.join(" -> ")
-    )));
-    Ok(notes)
+pub enum Findings {
+    Admission,
+    PackageAudit,
 }
 
 /// Edges are on the actually invoked functions and their selected providers. A callback
@@ -151,10 +84,15 @@ pub fn check(
     entry: Callable,
     implementations: &[CallableBoundaryImplementation],
     target: Option<&str>,
-    policy: &ExecutionReachPolicy,
-    unsafe_services: &UnsafeServices,
-    imported_calls: &DependencyCallOrigins,
-) -> Result<(), Vec<Diagnostic>> {
+    source: SourceReach<'_>,
+    findings: Findings,
+) -> Result<Vec<AdmittedUnsafeCall>, Vec<Diagnostic>> {
+    let SourceReach {
+        policy,
+        unsafe_services,
+        imported_calls,
+    } = source;
+    let mut admitted_paths = Vec::new();
     let check_unsafe = !unsafe_services.is_empty()
         || module.machines.iter().any(|machine| {
             machine.operations().any(|op| {
@@ -166,7 +104,7 @@ pub fn check(
             })
         });
     if policy.edges.is_empty() && !check_unsafe {
-        return Ok(());
+        return Ok(admitted_paths);
     }
     let root = match entry {
         Callable::Machine(id) => id,
@@ -406,6 +344,22 @@ pub fn check(
                     }
                 }
             }
+            if matches!(findings, Findings::PackageAudit)
+                && (!intrinsic.is_empty()
+                    || matches!(current, Callable::Boundary(_))
+                        && published.iter().any(|service| {
+                            unsafe_services.get(*service).copied().flatten().is_some()
+                        }))
+            {
+                admitted_paths.push(AdmittedUnsafeCall {
+                    dependency: gate.map(|edge| AdmittingDependency {
+                        requester: edge.requester,
+                        target: edge.package,
+                        alias: edge.alias.clone(),
+                    }),
+                    calls: call_path(&paths, &root_paths, current),
+                });
+            }
             let services = intrinsic
                 .iter()
                 .map(|(id, _)| id)
@@ -489,5 +443,5 @@ pub fn check(
             return Err(diagnostics);
         }
     }
-    Ok(())
+    Ok(admitted_paths)
 }

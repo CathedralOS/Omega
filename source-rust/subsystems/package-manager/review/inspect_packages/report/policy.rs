@@ -287,36 +287,64 @@ pub(super) fn unsafe_authority(
         writeln!(output)?;
     }
     for finding in &authority.uses {
-        let atoms = match &finding.source {
-            project_build::ReviewedUnsafeOrigin::NativeOperation { id, name, atoms } => {
-                writeln!(
-                    output,
-                    "    operation |unsafe|::{name} in {} (Psi operation {})",
-                    names.name(&finding.callable),
-                    id.get()
-                )?;
-                *atoms
-            }
-            project_build::ReviewedUnsafeOrigin::BoundaryContract { atoms } => {
-                writeln!(
-                    output,
-                    "    boundary operation {}",
-                    names.name(&finding.callable)
-                )?;
-                atoms.as_slice()
-            }
-        };
-        for atom in atoms {
-            let admission = if authority.enabled.contains(atom) {
-                "enabled"
-            } else {
-                "absent"
+        for origin in &finding.origins {
+            let atoms = match origin {
+                project_build::ReviewedUnsafeOrigin::NativeOperation { id, name, atoms } => {
+                    writeln!(
+                        output,
+                        "    operation |unsafe|::{name} in {} (Psi operation {})",
+                        names.name(&finding.callable),
+                        id.get()
+                    )?;
+                    *atoms
+                }
+                project_build::ReviewedUnsafeOrigin::BoundaryContract { atoms } => {
+                    writeln!(
+                        output,
+                        "    boundary operation {}",
+                        names.name(&finding.callable)
+                    )?;
+                    atoms.as_slice()
+                }
             };
-            writeln!(
-                output,
-                "      requires Unsafe + {} (Product opt-in {admission})",
-                atom.name()
-            )?;
+            for atom in atoms {
+                let admission = if authority.enabled.contains(atom) {
+                    "enabled"
+                } else {
+                    "absent"
+                };
+                writeln!(
+                    output,
+                    "      requires Unsafe + {} (Product opt-in {admission})",
+                    atom.name()
+                )?;
+            }
+        }
+        for path in &finding.paths {
+            match &path.admission {
+                project_build::ReviewedUnsafeAdmission::Product => {
+                    write!(output, "      admitted by the root Product")?
+                }
+                project_build::ReviewedUnsafeAdmission::Dependency {
+                    requester,
+                    target,
+                    alias,
+                } => {
+                    write!(output, "      admitted by dependency {alias:?}")?;
+                    if let Some(requester) = requester {
+                        write!(output, " from {}", crate::Hex(&requester.digest()))?;
+                    }
+                    write!(output, " to {}", crate::Hex(&target.digest()))?;
+                }
+            }
+            write!(output, " along ")?;
+            for (i, call) in path.calls.iter().enumerate() {
+                if i != 0 {
+                    write!(output, " -> ")?;
+                }
+                write!(output, "{}", names.name(call))?;
+            }
+            writeln!(output)?;
         }
     }
     Ok(())

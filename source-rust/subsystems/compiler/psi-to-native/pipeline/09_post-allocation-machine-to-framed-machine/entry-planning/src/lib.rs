@@ -28,4 +28,5 @@ pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
 pub mod physical_entry;
 pub mod physical_stack_switch;
+pub mod retained_call;
 pub mod windows_internet;

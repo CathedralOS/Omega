@@ -1,3 +1,4 @@
+/* Independently compiled host ABI consumer of the native encoder's output. */
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -10,6 +11,15 @@
 struct frame { const void *const *arguments; void *result; };
 struct two_words { uint64_t first, second; };
 struct three_words { uint64_t first, second, third; };
+#if TEST_RETAINED_JOB
+struct retained_job { uint64_t backing_length, argument, result; };
+extern void bridge_return_owned_job(struct retained_job *);
+static unsigned completed;
+uint64_t return_owned_job(uint64_t argument) {
+    ++completed;
+    return argument * 3 + 1;
+}
+#endif
 extern void bridge_retention_acquire(struct frame *);
 extern void bridge_retention_register(struct frame *);
 extern void bridge_retention_complete(struct frame *);
@@ -47,6 +57,15 @@ int main(void) {
 #else
     const struct rlimit core_limit = {0, 0};
     assert(setrlimit(RLIMIT_CORE, &core_limit) == 0);
+#endif
+#if TEST_RETAINED_JOB
+    struct retained_job first = {sizeof(first), 9, 0};
+    struct { struct retained_job job; uint64_t guard; } second = {{sizeof(second), 17, 0}, 91};
+    bridge_return_owned_job(&second.job);
+    assert(completed == 1 && first.result == 0 && second.job.result == 52);
+    bridge_return_owned_job(&first);
+    assert(completed == 2 && first.result == 28 && second.job.result == 52 && second.guard == 91);
+    assert(first.backing_length == sizeof(first) && second.job.backing_length == sizeof(second));
 #endif
     uint64_t capacity = 0, pending = 0, returned = 0, root = 37, observed = 0;
     struct frame frame = {NULL, &capacity};

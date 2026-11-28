@@ -61,7 +61,9 @@ pub fn canonical_const_argument_value(
                 boolean_literal_spelling(name.as_str()).map(CanonicalConstValue::boolean)
             })?
         }
-        types::TypeReferenceNode::ConstExpression(expression) => {
+        types::TypeReferenceNode::ConstExpression(expression)
+            if program.expression_table.expression_is_valid(*expression) =>
+        {
             match program.expression_table.expression(*expression) {
                 expression::ExpressionNode::Boolean(value) => CanonicalConstValue::boolean(*value),
                 expression::ExpressionNode::Name(path) => named(path.symbol)?,
@@ -222,10 +224,25 @@ pub(crate) fn static_const_argument_value<'argument>(
     use application_identity::const_value::CanonicalConstValue;
     use application_identity::const_value::boolean_literal_spelling;
 
-    if argument.type_reference.is_valid()
-        || argument.application.is_some()
-        || argument.evidence_projection.is_some()
-    {
+    if argument.application.is_some() || argument.evidence_projection.is_some() {
+        return None;
+    }
+    if argument.type_reference.is_valid() {
+        if !program.contains_type_reference(argument.type_reference)
+            || argument.symbol.is_valid()
+            || !argument.path.is_empty()
+            || argument.const_literal.is_some()
+            || argument.authored_machine_application.is_valid()
+        {
+            return None;
+        }
+        if matches!(
+            program.type_reference_node(argument.type_reference),
+            types::TypeReferenceNode::ConstExpression(_)
+        ) {
+            return canonical_const_argument_value(program, argument.type_reference)
+                .map(StaticConstArgumentValue::Canonical);
+        }
         return None;
     }
     if let Some(literal) = &argument.const_literal {

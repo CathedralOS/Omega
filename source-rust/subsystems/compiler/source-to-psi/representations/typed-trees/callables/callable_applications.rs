@@ -21,7 +21,7 @@ impl crate::source_state::TypedTrees {
         use crate::source_state::types::PrimitiveType;
         use application_identity::const_value::CanonicalConstValue;
         use application_identity::const_value::DecodedCanonicalConstValue;
-        use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
+        use numeric_literals::{IntegerLanding, IntegerLiteral};
 
         if argument.application.is_some() || argument.evidence_projection.is_some() {
             return Err("a static scalar requires a closed value operand");
@@ -112,13 +112,7 @@ impl crate::source_state::TypedTrees {
                 integer_type,
                 value,
             } if primitive.landed_landing_fixed() == Some(integer_type) => {
-                let text = value.to_string();
-                let literal = IntegerLiteral::from_parts(
-                    text.starts_with('-'),
-                    IntegerRadix::Decimal,
-                    text.trim_start_matches('-'),
-                )
-                .map_err(|_| "a canonical integer lost its literal representation")?;
+                let literal = IntegerLiteral::from_integer(value);
                 Ok(ExpressionNode::Integer(literal.with_landing(
                     IntegerLanding {
                         landed_type: integer_type,
@@ -5690,15 +5684,6 @@ pub(crate) mod selected_operands {
                                 .into_boxed_slice(),
                             ..StaticMachineArgument::default()
                         }),
-                        ExpressionNode::Boolean(value) => Ok(StaticMachineArgument {
-                            path: Box::from([crate::source_state::name::Identifier::generated(
-                                application_identity::const_value::CanonicalConstValue::boolean(
-                                    *value,
-                                )
-                                .atom(),
-                            )]),
-                            ..StaticMachineArgument::default()
-                        }),
                         _ => Ok(StaticMachineArgument {
                             type_reference: reference,
                             ..StaticMachineArgument::default()
@@ -5716,38 +5701,9 @@ pub(crate) mod selected_operands {
             &self,
             reference: types::TypeReferenceHandle,
         ) -> Option<numeric_literals::IntegerLiteral> {
-            use numeric_literals::{IntegerLiteral, IntegerRadix};
-            match self.type_reference_table.type_reference(reference) {
-                types::TypeReferenceNode::ConstExpression(value) => {
-                    match self.expression_table.expression(*value) {
-                        expression::ExpressionNode::Integer(literal) => Some(literal.clone()),
-                        // A calculation over literals is the literal of its
-                        // value (`const_integer::closed_literal`).
-                        _ => crate::source_state::const_integer::closed_literal(
-                            &self.expression_table,
-                            *value,
-                        ),
-                    }
-                }
-                types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
-                    let mut spelling = name.as_str();
-                    let negative = spelling.starts_with('-');
-                    if negative {
-                        spelling = &spelling[1..];
-                    }
-                    let (radix, digits) = if let Some(digits) = spelling.strip_prefix("0b") {
-                        (IntegerRadix::Binary, digits)
-                    } else if let Some(digits) = spelling.strip_prefix("0o") {
-                        (IntegerRadix::Octal, digits)
-                    } else if let Some(digits) = spelling.strip_prefix("0x") {
-                        (IntegerRadix::Hexadecimal, digits)
-                    } else {
-                        (IntegerRadix::Decimal, spelling)
-                    };
-                    IntegerLiteral::from_parts(negative, radix, digits).ok()
-                }
-                _ => None,
-            }
+            self.type_reference_table
+                .type_reference(reference)
+                .integer_literal(&self.expression_table)
         }
 
         pub fn static_operand_type_reference(

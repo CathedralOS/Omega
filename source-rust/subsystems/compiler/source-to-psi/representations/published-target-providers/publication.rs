@@ -11,6 +11,7 @@ pub type SourceNativeBinding = Result<NativeBindingMaterialization, String>;
 
 /// Includes declarations outside the executable entry's reachable requirements.
 pub struct SourcePackageReviewRequirements {
+    pub admitted_paths: Vec<psi_provider_selections::dependency_reach::AdmittedUnsafeCall>,
     pub numeric: Result<Vec<BoundaryMachineId>, Vec<Diagnostic>>,
     pub bindings: Result<SourceNativeBindingInventory, Vec<Diagnostic>>,
 }

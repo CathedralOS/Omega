@@ -13,6 +13,7 @@ impl AcceptedTerminalSource {
         supplies: &[crate::provider_choice_inputs::NativeBuildSupply],
         declared: &[DeclaredBoundaryRequirement],
         provider_bodies: impl IntoIterator<Item = MachineId>,
+        admitted_paths: Vec<psi_provider_selections::dependency_reach::AdmittedUnsafeCall>,
     ) -> SourcePackageReviewRequirements {
         let unavailable = |what: &str| {
             vec![Diagnostic::error(format!(
@@ -101,6 +102,10 @@ impl AcceptedTerminalSource {
             }
             Ok(bindings)
         })();
-        SourcePackageReviewRequirements { numeric, bindings }
+        SourcePackageReviewRequirements {
+            numeric,
+            bindings,
+            admitted_paths,
+        }
     }
 }

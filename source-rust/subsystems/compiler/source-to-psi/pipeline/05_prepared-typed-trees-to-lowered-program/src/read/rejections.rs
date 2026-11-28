@@ -382,7 +382,16 @@ impl Program<'_> {
     ) -> Option<(String, String)> {
         use crate::source_state::expression::ExpressionNode;
 
-        let carrier = self.typed.primitive_type_reference(carrier)?;
+        let Some(carrier) = self.typed.primitive_type_reference(carrier) else {
+            let carrier = self.typed.normalized_type_identity_text(carrier);
+            let expected =
+                crate::source_state::canonical_const_argument_value(self.typed, expected)?;
+            let found = crate::source_state::canonical_const_argument_value(self.typed, found)?;
+            return (expected.type_name == carrier
+                && found.type_name == carrier
+                && expected.encoding != found.encoding)
+                .then_some((expected.display, found.display));
+        };
         let value = |reference| {
             let operand = self
                 .typed

@@ -78,7 +78,7 @@ pub mod const_integer {
         BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
     };
     use bignum::BigInt;
-    use numeric_literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
     use numerics::arithmetic::ArithmeticDomain;
 
     /// What exact evaluation found for one integer calculation.
@@ -295,26 +295,17 @@ pub mod const_integer {
         expressions: &ExpressionTable,
         expression: ExpressionHandle,
     ) -> Option<IntegerLiteral> {
-        if !matches!(
-            expressions.expression(expression),
-            ExpressionNode::Binary(_)
-        ) {
-            return None;
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(literal) => return Some(literal.clone()),
+            ExpressionNode::Binary(_) => {}
+            _ => return None,
         }
         let ExactInteger::Value { value, landing } =
             exact_value(expressions, expression, Operators::Ring, &|_| None)
         else {
             return None;
         };
-        let literal = match value.to_i64() {
-            Some(narrow) => IntegerLiteral::from_value(narrow),
-            None => IntegerLiteral::from_parts(
-                value.is_negative(),
-                IntegerRadix::Decimal,
-                &value.abs().to_string(),
-            )
-            .ok()?,
-        };
+        let literal = IntegerLiteral::from_integer(value);
         Some(match landing {
             Some(landing) => literal.with_landing(landing),
             None => literal,
@@ -325,6 +316,7 @@ pub mod const_integer {
     mod tests {
         use super::super::expression::TableBinaryExpression;
         use super::*;
+        use numeric_literals::IntegerRadix;
 
         fn landed(value: i64, name: &str) -> IntegerLiteral {
             IntegerLiteral::from_value(value).with_landing(IntegerLanding {
@@ -391,10 +383,14 @@ pub mod const_integer {
             ] {
                 assert_eq!(calculation(left, operator, right), None);
             }
-            // One literal is not a calculation: its reader takes it as is.
+        }
+
+        #[test]
+        fn a_closed_literal_keeps_its_declared_integer_type() {
             let mut expressions = ExpressionTable::default();
-            let literal = expressions.insert(ExpressionNode::Integer(anonymous(3)));
-            assert!(closed_literal(&expressions, literal).is_none());
+            let value = landed(3, "u64");
+            let literal = expressions.insert(ExpressionNode::Integer(value.clone()));
+            assert_eq!(closed_literal(&expressions, literal), Some(value));
         }
 
         fn carrier(name: &str, domain: ArithmeticDomain) -> IntegerLanding {

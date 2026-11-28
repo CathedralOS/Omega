@@ -94,6 +94,11 @@ impl SourcePublication {
         } else {
             accepted.dependency_calls()
         };
+        let source_reach = psi_provider_selections::dependency_reach::SourceReach {
+            policy: reach_policy,
+            unsafe_services: &unsafe_services,
+            imported_calls: &imported_calls,
+        };
         let entry = match target {
             Some(target)
                 if !(self.roster()?.entries.is_empty()
@@ -141,14 +146,13 @@ impl SourcePublication {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             for &root in &roots {
-                psi_provider_selections::dependency_reach::check(
+                let _ = psi_provider_selections::dependency_reach::check(
                     module,
                     semantic_vocabulary::TargetMachineCallable::Machine(root),
                     &[],
                     None,
-                    reach_policy,
-                    &unsafe_services,
-                    &imported_calls,
+                    source_reach,
+                    psi_provider_selections::dependency_reach::Findings::Admission,
                 )?;
             }
             return Ok(SourceProviderFacts::new(
@@ -170,25 +174,31 @@ impl SourcePublication {
                     .map(|row| row.machine),
             )
             .collect::<std::collections::BTreeSet<_>>();
+        let audit = review_package && !accepted.is_invocation();
+        let mut admitted_paths = Vec::new();
         for root in roots {
-            psi_provider_selections::dependency_reach::check(
+            admitted_paths.extend(psi_provider_selections::dependency_reach::check(
                 module,
                 semantic_vocabulary::TargetMachineCallable::Machine(root),
                 closed.bindings(),
                 Some(deployment),
-                reach_policy,
-                    &unsafe_services,
-                &imported_calls,
-            )?;
+                source_reach,
+                if audit {
+                    psi_provider_selections::dependency_reach::Findings::PackageAudit
+                } else {
+                    psi_provider_selections::dependency_reach::Findings::Admission
+                },
+            )?);
         }
         let bindings =
             accepted.reached_native_bindings(deployment, native_supplies, closed.requirements());
-        let review = (review_package && !accepted.is_invocation()).then(|| {
+        let review = audit.then(|| {
             accepted.source_package_review_requirements(
                 deployment,
                 native_supplies,
                 &declared,
                 closed.bindings().iter().map(|row| row.machine),
+                admitted_paths,
             )
         });
         let mut labels: Vec<_> = declared

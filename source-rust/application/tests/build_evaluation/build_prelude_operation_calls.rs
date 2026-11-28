@@ -102,49 +102,91 @@ machine build(builder: @mutable BuildPlan) {
 /// Opening an unconnected internet datagram socket uses the host stack. The
 /// receipt must account for the family, type and protocol of every call.
 #[test]
-fn darwin_socket_exclusions_follow_the_checked_calls() {
+fn socket_exclusions_follow_the_checked_calls_on_each_posix_target() {
+    let darwin =
+        r#"MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_socket" }"#;
+    let linux = |version: &str| {
+        format!(r#"ElfVersioned {{ object: "libc.so.6", symbol: "socket", version: "{version}" }}"#)
+    };
+    for (target, import, ipv6, other_family, object) in [
+        (
+            "macos_arm64",
+            darwin.to_owned(),
+            "30i32",
+            "10i32",
+            "libSystem.B.dylib",
+        ),
+        (
+            "linux_x86_64",
+            linux("GLIBC_2.2.5"),
+            "10i32",
+            "30i32",
+            "libc.so.6",
+        ),
+        (
+            "linux_arm64",
+            linux("GLIBC_2.17"),
+            "10i32",
+            "30i32",
+            "libc.so.6",
+        ),
+    ] {
+        checked_datagram_calls(target, &import, ipv6, other_family, object);
+    }
+}
+
+fn checked_datagram_calls(
+    target: &str,
+    import: &str,
+    ipv6: &str,
+    other_family: &str,
+    object: &str,
+) {
     let build = r#"use {omega}/language/core/external_binding.omg as native;
+use {omega}/language/core/unsafe.omg as trust;
 use main.omg as app;
 machine build(b: @mutable BuildPlan) {
     b.product = BuildProduct::Application { name: "socket_review" };
-    Build::bind(b, macos_arm64::ProgramEntry, |app|::main);
-    Build::bind_native::<|app|::Transport::open>(b, macos_arm64, |native|::ForeignBinding::DllImport {
-        import: |native|::DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_socket"
-        }
+    Build::enable_unsafe::<|trust|::ForeignCodeExecution>(b);
+    Build::bind(b, TARGET::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::Transport::open>(b, TARGET, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::LOCATOR
     });
     Build::exclude_physical_authority(b, PhysicalAuthorityClass::EXCLUSION);
-}"#;
-    let program = r#"
+}"#
+    .replace("TARGET", target)
+    .replace("LOCATOR", import);
+    let program = r#"use {omega}/language/core/unsafe.omg as trust;
 boundary trait Transport {
-    machine open(family: i32, kind: i32, protocol: i32) -> i32 reaches none crashes none;
+    machine open(family: i32, kind: i32, protocol: i32) -> i32 reaches |trust|::ForeignCodeExecution crashes none;
 }
-machine main() reaches none invokes Transport {
+machine main() reaches |trust|::ForeignCodeExecution invokes Transport {
     _ = Transport::open(2i32, 2i32, 0i32);
     _ = Transport::open(FAMILY, KIND, PROTOCOL);
 }"#;
     let check = |class: &str, family: &str, kind: &str, protocol: &str| {
         execute(
-            "darwin-udp-socket",
+            "checked-udp-socket",
             &build.replace("EXCLUSION", class),
             &program
                 .replace("FAMILY", family)
                 .replace("KIND", kind)
                 .replace("PROTOCOL", protocol),
-            &["--target", "macos_arm64", "build.omg"],
+            &["--target", target, "build.omg"],
         )
     };
-    let (passed, report) = check("OffMachineNetworkTransmit", "30i32", "2i32", "17i32");
+    let (passed, report) = check("OffMachineNetworkTransmit", ipv6, "2i32", "17i32");
     assert!(passed, "{report}");
-    let (passed, report) = check("HostNetworkStack", "30i32", "2i32", "17i32");
+    let (passed, report) = check("HostNetworkStack", ipv6, "2i32", "17i32");
     assert!(
         !passed && report.contains("exercises excluded physical authority class HostNetworkStack"),
         "{report}"
     );
     for (family, kind, protocol) in [
         ("1i32", "2i32", "17i32"),
+        (other_family, "2i32", "17i32"),
         ("2i32", "1i32", "0i32"),
-        ("30i32", "2i32", "6i32"),
+        (ipv6, "2i32", "6i32"),
     ] {
         let (passed, report) = check("OffMachineNetworkTransmit", family, kind, protocol);
         assert!(
@@ -154,13 +196,13 @@ machine main() reaches none invokes Transport {
     }
     let exclude_remote = build.replace("EXCLUSION", "OffMachineNetworkTransmit");
     let two_sockets = program
-        .replace("FAMILY", "30i32")
+        .replace("FAMILY", ipv6)
         .replace("KIND", "2i32")
         .replace("PROTOCOL", "17i32");
     for (description, build, source) in [
         (
             "different-library",
-            exclude_remote.replace("libSystem.B.dylib", "other.dylib"),
+            exclude_remote.replace(object, "other.so"),
             two_sockets.clone(),
         ),
         (
@@ -173,7 +215,7 @@ machine main() reaches none invokes Transport {
             description,
             &build,
             &source,
-            &["--target", "macos_arm64", "build.omg"],
+            &["--target", target, "build.omg"],
         );
         assert!(
             !passed && report.contains("no physical authority classification"),

@@ -38,6 +38,22 @@ fn append_bridge(
         .expect("host C calling plan"),
     })
     .expect("physical C adapter");
+    append_encoded_call(
+        assembly,
+        target,
+        symbol,
+        bridge.bytes(),
+        bridge.call_field_offset(),
+    );
+}
+
+fn append_encoded_call(
+    assembly: &mut String,
+    target: NativeTarget,
+    symbol: &str,
+    bytes: &[u8],
+    call_field: usize,
+) {
     let prefix = if target.object_format == ObjectFormat::MachO {
         "_"
     } else {
@@ -51,15 +67,12 @@ fn append_bridge(
     // Keep the unresolved ordinary call with the assembler's real relocation.
     // All other instructions are the bytes emitted by the production encoder.
     let (call_start, call_size, mnemonic) = match target.architecture {
-        Architecture::X86_64 => (bridge.call_field_offset() - 1, 5, "call"),
-        Architecture::Aarch64 => (bridge.call_field_offset(), 4, "bl"),
+        Architecture::X86_64 => (call_field - 1, 5, "call"),
+        Architecture::Aarch64 => (call_field, 4, "bl"),
     };
-    for part in [
-        &bridge.bytes()[..call_start],
-        &bridge.bytes()[call_start + call_size..],
-    ]
-    .iter()
-    .enumerate()
+    for part in [&bytes[..call_start], &bytes[call_start + call_size..]]
+        .iter()
+        .enumerate()
     {
         if part.0 == 1 {
             writeln!(assembly, "{mnemonic} {prefix}{symbol}").unwrap();
@@ -149,6 +162,39 @@ fn actual_c_retention_stack_float_and_record_calls() {
     if target.object_format == ObjectFormat::Elf {
         assembly.push_str(".section .note.GNU-stack,\"\",@progbits\n");
     }
+    let has_retained = target == NativeTarget::linux_x64() || target == NativeTarget::windows_x64();
+    if has_retained {
+        let bridge =
+            entry_planning::retained_call::plan_returning_job_bridge(&NativeForeignBridgeRequest {
+                target,
+                foreign: evaluate_ordinary_boundary_entry_plan(
+                    CallingPolicy::native_for_target(target),
+                    &CallSignature {
+                        parameters: vec![word],
+                        result: Some(word),
+                    },
+                )
+                .unwrap(),
+                scalar_parameters: vec![unsigned(64)],
+            })
+            .expect("ordinary private worker call");
+        let homes = bridge.homes();
+        assert_eq!(
+            (
+                homes.argument_offset(),
+                homes.result_offset(),
+                homes.byte_size()
+            ),
+            (8, 16, 24)
+        );
+        assert!(homes.fits(4096, 24));
+        assert!(!homes.fits(4096, 23));
+        assert!(!homes.fits(4097, 24));
+        let (bytes, call) =
+            native_encoding::adapters::encode_instructions(bridge.instructions()).unwrap();
+        assembly.push_str(".text\n");
+        append_encoded_call(&mut assembly, target, "return_owned_job", &bytes, call);
+    }
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -165,7 +211,7 @@ fn actual_c_retention_stack_float_and_record_calls() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let provider = repository
         .ancestors()
-        .nth(4)
+        .nth(6)
         .unwrap()
         .join("samples/cli/facts/foreign_retained_shared_borrow/fixture/provider.c");
     let executable = directory.join(if cfg!(windows) { "probe.exe" } else { "probe" });
@@ -177,6 +223,11 @@ fn actual_c_retention_stack_float_and_record_calls() {
         }
     }))
     .args(["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"])
+    .arg(if has_retained {
+        "-DTEST_RETAINED_JOB=1"
+    } else {
+        "-DTEST_RETAINED_JOB=0"
+    })
     .arg(directory.join("driver.c"))
     .arg(directory.join("bridge.S"))
     .arg(provider)
@@ -202,6 +253,85 @@ fn actual_c_retention_stack_float_and_record_calls() {
         String::from_utf8_lossy(&output.stderr)
     );
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn an_inline_job_requires_a_supported_target_and_one_closed_scalar() {
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for (target, kinds, error) in [
+        (
+            NativeTarget::linux_arm64(),
+            vec![Some(scalar)],
+            NativeForeignBridgeError::IncompatiblePlan,
+        ),
+        (
+            NativeTarget::windows_x64(),
+            vec![None],
+            NativeForeignBridgeError::UnsupportedValueTransport,
+        ),
+        (
+            NativeTarget::linux_x64(),
+            vec![Some(scalar); 2],
+            NativeForeignBridgeError::UnsupportedValueTransport,
+        ),
+    ] {
+        let foreign = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); kinds.len()],
+                result: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            entry_planning::retained_call::plan_returning_job_bridge(&NativeForeignBridgeRequest {
+                target,
+                foreign,
+                scalar_parameters: kinds,
+            })
+            .unwrap_err(),
+            error
+        );
+    }
+}
+
+#[test]
+fn a_call_without_arguments_does_not_read_an_argument_table() {
+    use post_allocation_machine::adapters::AdapterOperation;
+    for target in [
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let plan = plan_native_foreign_bridge(NativeForeignBridgeRequest {
+            target,
+            foreign: evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![],
+                    result: Some(ValueShape::integer(8, 8)),
+                },
+            )
+            .unwrap(),
+            scalar_parameters: vec![],
+        })
+        .unwrap();
+        let reads = plan
+            .instructions()
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                AdapterOperation::PointerMemory {
+                    load: true, offset, ..
+                } => Some(*offset),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            reads,
+            [runtime_abi::NATIVE_FOREIGN_FRAME_RESULT_BYTE_OFFSET]
+        );
+    }
 }
 
 #[test]

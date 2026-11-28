@@ -291,7 +291,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **ADDRESS-EXPOSURE.** (covers **DEFERRED-RECAST-ESTABLISHMENT**, **DEVICE-EXTENT-ACCESS**, **SYMBOLIC-MATERIALIZATION**, **NATIVE-CODE-LAYOUT-QUERIES**) Complete [storage-cast windows](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts), [device access](wiki/spec/resources/device_access.md) (`device_extent_access`), [symbolic storage written after handoff](wiki/spec/layouts/plans.md), and [`address_of`/`code_layout`](wiki/spec/language/counts_and_addresses.md#address-exposure).
 
-- **NATIVE-BORROW-ADMISSION.** In [fresh package audit](wiki/spec/packages/review.md), identify the [originating native operation](wiki/spec/resources/native_borrows.md#build-admission-and-diagnostics), its dependency path, each Product opt-in and the ceiling of each dependency use. Keep unused operations visible in their defining package.
 
 ## P3 - Terminal Psi, proofs, and observation
 

@@ -58,6 +58,7 @@ fn emit_body<'execution>(
         admitted,
         target::TargetProfile::WindowsX64,
         retain_native_stage_inputs,
+        &optimization_core::PostTerminalOptimizationSelections::default(),
         inspect_target,
         |_| {},
     )
@@ -67,6 +68,7 @@ fn emit_body_inspecting_physical<'execution>(
     mut admitted: artifact_lowering::AdmittedNativeRealization<'execution>,
     profile: target::TargetProfile,
     retain_native_stage_inputs: bool,
+    selections: &optimization_core::PostTerminalOptimizationSelections,
     inspect_target: impl FnOnce(&target_lowering::NativeBodyPlan),
     inspect_physical: impl FnOnce(&crate::driver::compile_body::PreparedPhysicalBody),
 ) -> (
@@ -84,7 +86,7 @@ fn emit_body_inspecting_physical<'execution>(
             settlements: &admitted.providers.settlements,
             installation: admitted.providers.installation.take(),
         },
-        &optimization_core::PostTerminalOptimizationSelections::default(),
+        selections,
         optimization_core::OptimizationWorkBudget::new(10000, 10000, 10000, 10000, 10000).unwrap(),
         &observation,
         true, // This fixture independently inspects the optimized input.
@@ -286,7 +288,7 @@ fn reject_changed_entry_literal(
 /// The decisive checks on the plan stage 02 published for a compiled program.
 ///
 /// First the plan is selected with nothing but itself, its bound installations
-/// and the register model selected by the plan’s target. The entry takes no source module,
+/// and the register model selected by the planâ€™s target. The entry takes no source module,
 /// abstract program or optimization-unit table, so none can be consulted.
 /// Then separate corruptions are each refused by the check that owns them: a
 /// changed value type, a width the module does not retain and a dropped
@@ -1178,8 +1180,14 @@ fn placed_scalar_return_has_the_expected_bytes_on_every_hosted_target() {
     for profile in [LinuxX64, LinuxArm64, MacosArm64, WindowsX64, WindowsArm64] {
         let emit = |retain| {
             let (_, _, _, admitted) = admit_fixture(&artifact, false, profile);
-            let (body, _) =
-                emit_body_inspecting_physical(admitted, profile, retain, |_| {}, |_| {});
+            let (body, _) = emit_body_inspecting_physical(
+                admitted,
+                profile,
+                retain,
+                &optimization_core::PostTerminalOptimizationSelections::default(),
+                |_| {},
+                |_| {},
+            );
             let object = body.projection.object();
             if retain {
                 published_object_verification::verify_body_fixed_frame(
@@ -1198,5 +1206,48 @@ fn placed_scalar_return_has_the_expected_bytes_on_every_hosted_target() {
         };
         assert_eq!(ordinary, expected, "{profile:?}");
         assert_eq!(ordinary, emit(true), "{profile:?}");
+    }
+}
+
+#[test]
+fn selected_rewrite_handoff_preserves_published_bytes_and_replay() {
+    let artifact = constant_artifact(false);
+    let profile = target::TargetProfile::LinuxArm64;
+    let selections = optimization_core::PostTerminalOptimizationSelections::new(
+        optimization_core::OptimizationSelections::new([
+            optimization_core::Optimization::SelectedIncomingLiteralCopyMaterialization,
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    for retain in [false, true] {
+        let (_, _, _, admitted) = admit_fixture(&artifact, false, profile);
+        let (body, _) =
+            emit_body_inspecting_physical(admitted, profile, retain, &selections, |_| {}, |_| {});
+        let object = body.projection.object();
+        assert_eq!(
+            object.text_bytes(),
+            &[0xe0, 0, 0x80, 0xd2, 0xc0, 3, 0x5f, 0xd6]
+        );
+        if retain {
+            let mut originals = body.originals.unwrap();
+            assert!(
+                published_object_verification::verify_body_selected_optimization(
+                    object, &originals
+                )
+                .unwrap()
+            );
+            published_object_verification::verify_body_fixed_frame(object, &originals).unwrap();
+            originals.selected_optimization = None;
+            assert!(
+                published_object_verification::verify_body_selected_optimization(
+                    object, &originals
+                )
+                .is_err(),
+                "a rewritten program cannot be replayed after its producer evidence is removed"
+            );
+        } else {
+            assert!(body.originals.is_none());
+        }
     }
 }
