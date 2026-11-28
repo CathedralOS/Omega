@@ -87,6 +87,9 @@ pub(super) fn checked_store(
     let materialized = match source {
         Projected::Reference(place) => Some(place),
         Projected::Descriptor(_) => None,
+        Projected::Owner(_) => {
+            return Err("a moved owner is not a projected reference for this store");
+        }
     };
     let source = opening(module, machine.id, origin)?;
     if source.record != opened.record

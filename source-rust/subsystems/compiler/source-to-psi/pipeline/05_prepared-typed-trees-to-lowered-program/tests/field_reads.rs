@@ -101,6 +101,99 @@ fn a_closed_package_keeps_its_hidden_argument_in_a_nested_uniform_field() {
     );
 }
 
+#[test]
+fn a_package_stores_two_references_to_each_chosen_witness() {
+    let source = r"
+data File { byte: u8; }
+data Socket { port: u64; byte: u8; }
+data Pair<'a, some S> { slots: [@'a S; 2]; }
+machine main() {
+    let file: File = File { byte: 17u8 };
+    let socket: Socket = Socket { port: 80u64, byte: 42u8 };
+    let file_slots: [@File; 2] = [@file, @file];
+    let socket_slots: [@Socket; 2] = [@socket, @socket];
+    let first: Pair = Pair { slots: file_slots };
+    let second: Pair = Pair { slots: socket_slots };
+}";
+    let program = Program::of(source);
+    let module = &program.elaboration().module;
+    let mut choices = Vec::new();
+    for site in &module.execution.packages.sites {
+        if let terminal_psi::TerminalPackageEvent::Construct { witnesses } = &site.event {
+            let [witness] = witnesses.as_slice() else {
+                panic!("each constructor chooses one type")
+            };
+            choices.push(*witness);
+        }
+    }
+    assert_eq!(choices.len(), 2);
+    assert_ne!(choices[0], choices[1]);
+}
+
+#[test]
+fn a_branch_reads_plain_array_metadata_without_opening_the_witness() {
+    let program = Program::of(
+        r"
+data File { byte: u8; }
+data Pair<'a, some S> { state: @'a S; tag: [u8; 2]; }
+machine main() crashes Trap {
+    let file: File = File { byte: 17u8 };
+    let p: Pair = Pair { state: @file, tag: [11u8, 42u8] };
+    transition p.tag[1] == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}",
+    );
+    assert!(
+        program
+            .elaboration()
+            .module
+            .execution
+            .packages
+            .openings
+            .is_empty()
+    );
+    program.judged(|_| {}).accepted();
+}
+
+#[test]
+fn two_hidden_types_can_be_repacked_only_with_their_own_corresponding_fields() {
+    let source = r"
+data File { marker: u8; }
+data Socket { port: u64; marker: u8; }
+data Pair<'a, some A, some B> {
+    left: @'a A; spare_left: @'a A;
+    right: @'a B; spare_right: @'a B; tag: u8;
+}
+machine keep<'a>(p: @Pair<'a>, other: @Pair<'a>) -> Pair<'a> {
+    Pair { left: p.left, spare_left: p.spare_left,
+           right: p.right, spare_right: p.spare_right, tag: p.tag }
+}
+machine main() crashes Trap {
+    let file: File = File { marker: 17u8 };
+    let socket: Socket = Socket { port: 80u64, marker: 42u8 };
+    let left: Pair = Pair { left: @file, spare_left: @file, right: @socket, spare_right: @socket, tag: 17u8 };
+    let right: Pair = Pair { left: @socket, spare_left: @socket, right: @file, spare_right: @file, tag: 42u8 };
+    let a: Pair = keep(@left, @right);
+    let b: Pair = keep(@right, @left);
+    transition a.tag == 17u8 && b.tag == 42u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}";
+    Program::of(source).judged(|_| {}).accepted();
+
+    let crossed = source.replace(
+        "spare_right: p.spare_right",
+        "spare_right: other.spare_right",
+    );
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .expect("the second witness comes from another subject");
+    assert_eq!(refusal.stage, "typing");
+    assert!(refusal.message.contains("conflicting generic arguments"));
+    assert_eq!(refusal.at, "spare_right");
+}
+
 /// `p.right.w` reads through `right` and then `w` from the formal `p`; the
 /// twin `p.left.w` changes only the first step.
 #[test]

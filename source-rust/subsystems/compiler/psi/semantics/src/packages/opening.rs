@@ -18,6 +18,16 @@ pub(super) fn projection(
     let (source, path) = match &operation.kind {
         OperationKind::PrimitiveScalarRead { source, path }
         | OperationKind::StructuralLeafCopy { source, path } => (source, path),
+        OperationKind::MoveStructuralValue { source }
+            if source.access == StructuralAccess::Owned =>
+        {
+            (&source.place, &source.path)
+        }
+        OperationKind::MoveStructuralField {
+            source,
+            path,
+            field: None,
+        } => (source, path),
         _ => return Err("package projection requires a typed field read"),
     };
     let Some((StructuralPathSegment::Field(identity), parent)) = path.split_last() else {
@@ -67,6 +77,27 @@ pub(super) fn projection(
                 StructuralFieldType::Structural(value.structural_type),
             )
         }
+        OperationKind::MoveStructuralValue { .. } | OperationKind::MoveStructuralField { .. } => {
+            let public = declaration
+                .field_type
+                .as_structural()
+                .ok_or("moved package field is not structural")?;
+            if !schema
+                .witnesses
+                .iter()
+                .any(|&witness| fields::nominal_uses(module, public, witness))
+            {
+                return Err("a consuming package projection requires a witness-indexed carrier");
+            }
+            let value = operation
+                .result
+                .structural()
+                .ok_or("moved package field has no owner result")?;
+            (
+                Projected::Owner(value.place),
+                StructuralFieldType::Structural(value.structural_type),
+            )
+        }
         _ => unreachable!("checked package projection operation"),
     };
     let substitution = Substitution {
@@ -93,34 +124,69 @@ pub(super) enum FieldMatch {
     Witness,
 }
 
-pub(super) fn subject_field<'a>(
-    module: &'a TerminalModule,
+/// Read the stored reference of this package or an alias of that same home.
+pub(super) fn subject_reference(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
     opening: &TerminalPackageOpening,
     arg: &StructuralArgument,
     required: FieldMatch,
-) -> Option<&'a StructuralFieldDeclaration> {
-    let [
-        parent @ ..,
-        StructuralPathSegment::Field(field),
-        StructuralPathSegment::Referent,
-    ] = arg.path.as_slice()
-    else {
+) -> Option<(StructuralTypeId, StructuralAccess)> {
+    let (StructuralPathSegment::Referent, stored) = arg.path.split_last()? else {
         return None;
     };
-    let same = subjects::same_storage_at(module, machine, operation, opening, arg.place, parent);
-    if !(same
-        || matches!(required, FieldMatch::Witness)
-            && arg.access == StructuralAccess::SharedBorrow
-            && subjects::copies_value_at(module, machine, operation, opening, arg.place, parent))
-    {
+    for (i, segment) in stored.iter().enumerate() {
+        let StructuralPathSegment::Field(id) = segment else {
+            continue;
+        };
+        let prefix = &stored[..i];
+        let same =
+            subjects::same_storage_at(module, machine, operation, opening, arg.place, prefix);
+        if !(same
+            || matches!(required, FieldMatch::Witness)
+                && arg.access == StructuralAccess::SharedBorrow
+                && subjects::copies_value_at(
+                    module, machine, operation, opening, arg.place, prefix,
+                ))
+        {
+            continue;
+        }
+        let field = fields(module, opening.record)
+            .ok()?
+            .iter()
+            .find(|field| field.identity == *id && !field.relevance.is_erased())?;
+        let reference = crate::inline_descriptor_type(
+            module.types.structural_types.iter(),
+            field.field_type.as_structural()?,
+            &stored[i + 1..],
+        )?;
+        if let StructuralTypeShape::Reference { referent, access } = reference.shape {
+            return Some((referent, access));
+        }
         return None;
     }
-    fields(module, opening.record)
-        .ok()?
-        .iter()
-        .find(|decl| decl.identity == *field && !decl.relevance.is_erased())
+    None
+}
+
+/// A returned owner gets the descriptor's opening when the call's complete
+/// public result, including the custody at every field path, matches it.
+pub(super) fn returned_owner(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    index: u32,
+) -> Option<Projected> {
+    let call = operation.kind.callable_invocation()?;
+    let result = operation.result.structural()?;
+    let opened = opening(module, machine.id, index).ok()?;
+    let contract = module.execution.callables.contract(call.contract)?;
+    (contract.result.matches_operation_result(&operation.result)
+        && opened
+            .witnesses
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, result.structural_type, witness)))
+    .then_some(Projected::Owner(result.place))
 }
 
 pub(super) fn invocation(
@@ -167,6 +233,27 @@ pub(super) fn invocation(
         .zip(structural_arguments)
         .enumerate()
     {
+        if opened
+            .witnesses
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, formal.structural_type, witness))
+        {
+            if arg.access != StructuralAccess::Owned
+                || formal.access != StructuralAccess::Owned
+                || !arg.path.is_empty()
+                || machine.structural_place_type(arg.place) != Some(formal.structural_type)
+            {
+                return Err("package consuming call requires its complete opened owner");
+            }
+            let (origin, _) = owned::origin(module, machine, projected, arg.place, operation.id)
+                .ok_or("package consuming call lacks its owner projection")?;
+            if origin != index {
+                return Err(
+                    "package consuming call uses an owner from a different or stale opening",
+                );
+            }
+            continue;
+        }
         let Some(position) = opened
             .witnesses
             .iter()
@@ -174,25 +261,18 @@ pub(super) fn invocation(
         else {
             continue;
         };
-        let field = subject_field(module, machine, operation, opened, arg, FieldMatch::Witness)
-            .ok_or("package argument comes from another opening")?;
-        let Some(StructuralTypeShape::Reference { referent, access }) = field
-            .field_type
-            .as_structural()
-            .and_then(|ty| module.structural_type(ty))
-            .map(|ty| &ty.shape)
-        else {
-            return Err("package argument is not a borrowed field");
-        };
-        if *referent != schema.witnesses[position]
-            || !terminal_psi::structural_access_covers(*access, arg.access)
+        let (referent, access) =
+            subject_reference(module, machine, operation, opened, arg, FieldMatch::Witness)
+                .ok_or("package argument comes from another opening")?;
+        if referent != schema.witnesses[position]
+            || !terminal_psi::structural_access_covers(access, arg.access)
             || arg.access != formal.access
         {
             return Err("package argument differs from its opened parameter");
         }
         checked
             .borrowed_arguments
-            .insert((machine.id, operation.id, i), *referent);
+            .insert((machine.id, operation.id, i), referent);
     }
     Ok(*contract)
 }

@@ -277,6 +277,7 @@ impl CallableValueBody {
 
 /// Immutable source projections; every resolution has its own temporary solver.
 pub struct CallableValueProgram<'a> {
+    pub module: Option<&'a terminal_psi::TerminalModule>,
     pub catalog: &'a TerminalCallableCatalog,
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub graph: Vec<DescriptorMachine>,
@@ -362,6 +363,7 @@ impl CallableValueRows {
         module: &'p terminal_psi::TerminalModule,
     ) -> CallableValueView<'p> {
         CallableValueView {
+            module: Some(module),
             catalog: &module.execution.callables,
             structural_types: &module.types.structural_types,
             graph: &self.graph,
@@ -432,6 +434,7 @@ impl<'p> BoundCallableValues<'p> {
 /// it freely.
 #[derive(Clone, Copy)]
 pub struct CallableValueView<'p> {
+    module: Option<&'p terminal_psi::TerminalModule>,
     pub catalog: &'p TerminalCallableCatalog,
     pub structural_types: &'p [StructuralTypeDeclaration],
     graph: &'p [DescriptorMachine],
@@ -443,6 +446,7 @@ pub struct CallableValueView<'p> {
 impl<'p, 'a: 'p> From<&'p CallableValueProgram<'a>> for CallableValueView<'p> {
     fn from(program: &'p CallableValueProgram<'a>) -> Self {
         Self {
+            module: program.module,
             catalog: program.catalog,
             structural_types: program.structural_types,
             graph: &program.graph,
@@ -1286,8 +1290,7 @@ impl Solver<'_, '_> {
                         .ok_or("callable selection descriptor is absent or stale")?;
                     if descriptor.contract != contract
                         && !self.program.body(caller)?.package_sites.admits_descriptor(
-                            self.program.catalog,
-                            self.program.structural_types,
+                            self.program.module,
                             invocation,
                             descriptor.contract,
                         )

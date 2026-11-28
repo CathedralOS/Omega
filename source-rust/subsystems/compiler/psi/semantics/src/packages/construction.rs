@@ -84,35 +84,48 @@ pub(super) fn construction(
             let input = match &field.value {
                 RecordFieldValue::Scalar { value, .. } => Projected::Descriptor(*value),
                 RecordFieldValue::Structural(arg) if arg.path.is_empty() => {
-                    Projected::Reference(arg.place)
+                    if declaration
+                        .field_type
+                        .as_structural()
+                        .is_some_and(|carrier| fields::nominal_uses(module, carrier, public))
+                    {
+                        Projected::Owner(arg.place)
+                    } else {
+                        Projected::Reference(arg.place)
+                    }
                 }
                 _ => return Err("repacked field has no materialized opened operand"),
             };
-            let (origin, producer) = origins
-                .get(&(machine.id, input))
-                .ok_or("repacked field has no opening origin")?;
+            let (origin, producer) = match input {
+                Projected::Owner(place) => {
+                    owned::origin(module, machine, origins, place, operation.id)
+                }
+                _ => origins.get(&(machine.id, input)).copied(),
+            }
+            .ok_or("repacked field has no opening origin")?;
             let materialized = match input {
                 Projected::Reference(place) => Some(place),
-                Projected::Descriptor(_) => None,
+                Projected::Descriptor(_) | Projected::Owner(_) => None,
             };
-            let contributor = opening(module, machine.id, *origin)?;
-            // Every projection has already justified its witness at its own
-            // instruction. Only this field's materialized value must still be live.
+            let contributor = opening(module, machine.id, origin)?;
+            // The owner carries its opening through the checked move. A projected
+            // reference or callback must still denote its original storage version.
             if !contributor.witnesses.contains(&witness)
-                || !versions::same_storage_version(
-                    module,
-                    machine,
-                    contributor,
-                    *producer,
-                    operation.id,
-                    materialized,
-                )
+                || !matches!(input, Projected::Owner(_))
+                    && !versions::same_storage_version(
+                        module,
+                        machine,
+                        contributor,
+                        producer,
+                        operation.id,
+                        materialized,
+                    )
             {
                 return Err("repacked field comes from a different or stale opening");
             }
             result
                 .repacked_fields
-                .insert((machine.id, operation.id, field.field), *producer);
+                .insert((machine.id, operation.id, field.field), producer);
         }
         result
             .fields

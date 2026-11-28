@@ -1258,3 +1258,197 @@ fn stored_callback_keeps_the_destination_packages_current_witness() {
     program.execution.packages.sites.pop();
     assert!(check_package_sites(&program).is_err());
 }
+
+#[test]
+fn a_consuming_descriptor_replays_its_nominal_owner_and_custody() {
+    let mut program = readers();
+    let mut names = std::mem::take(&mut program.identities).into_builder();
+    let hidden = "named(name(hidden))";
+    let file = "named(name(File))";
+    program.types.structural_types[1].identity = names.intern(hidden);
+    program.types.structural_types[3].identity = names.intern(file);
+    let extent = names.intern("named(name(Extent))");
+    program.types.structural_types[4].identity = extent;
+    let owner = names.intern("declaration of Owner");
+    let provider = names.intern("declaration of Owner.provider");
+    let storage = names.intern("storage");
+    let storage_declaration = names.intern("declaration of Owner.storage");
+    for (id, argument) in [(8, hidden), (9, file)] {
+        let mut row = byte_view_descriptor(id, None);
+        row.identity = names.intern(&format!("generic(name(Owner),{argument})"));
+        row.declaration_identity = owner;
+        row.multiplicity = StructuralMultiplicity::Linear;
+        row.owns_linear_claim = true;
+        row.no_code_affine_cleanup = false;
+        row.descriptor_cleanup = false;
+        let mut resident = declaration(id * 2, StructuralFieldType::Structural(ty(5)));
+        resident.identity = storage;
+        resident.declaration_identity = storage_declaration;
+        let mut handle = declaration(id * 2 + 1, StructuralFieldType::Scalar(ScalarType::Boolean));
+        handle.identity = names.intern("provider");
+        handle.declaration_identity = provider;
+        row.requires.push(semantic_vocabulary::Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::boolean_field(place(1), handle.id),
+            semantic_vocabulary::ScalarTerm::Boolean(true),
+        ));
+        row.shape = StructuralTypeShape::Record {
+            fields: vec![resident, handle],
+            storage: StructuralRecordStorage::Packed,
+        };
+        program.types.structural_types.push(row);
+    }
+    let wrong_application = names.intern(&format!("generic(name(Other),{file})"));
+    let wrong_placement = names.intern(&format!(
+        "generic(name(Resident),named(name(OtherPlacement)),{file})"
+    ));
+    let byte = names.intern("named(name(u8))");
+    let byte_owner = names.intern("generic(name(Owner),named(name(u8)))");
+    let byte_resident = names.intern(
+        r"generic(name(Resident),named(name(Placement)),named(name(compiler-type\(atom\(u8\)\))))",
+    );
+    let domain = |id| semantic_vocabulary::StructuralDomainId::new(id).unwrap();
+    for (id, identity) in [
+        (
+            1,
+            format!("generic(name(Resident),named(name(Placement)),{hidden})"),
+        ),
+        (2, "named(name(Granted))".to_string()),
+        (
+            3,
+            format!("generic(name(Resident),named(name(Placement)),{file})"),
+        ),
+    ] {
+        program
+            .types
+            .structural_domains
+            .push(terminal_psi::StructuralDomainDeclaration {
+                id: domain(id),
+                identity: names.intern(&identity),
+                semantic_domain: semantic_vocabulary::DomainSemanticId::new(id).unwrap(),
+                carrier: ty(5),
+                subject_identity: extent,
+                complete_predicate_theory: false,
+                required_memberships: Some(vec![]),
+                predicate: None,
+                establishment_routes: Some(vec![]),
+                access_policy: None,
+                content_projection: None,
+                byte_predicate: None,
+            });
+    }
+    program.identities = names.build();
+    for (contract, carrier, domains) in [(1, 8, [1, 2]), (3, 9, [2, 3])] {
+        let info = &mut program.execution.callables.contracts[contract];
+        let mut owned = param(1, ty(carrier));
+        owned.access = StructuralAccess::Owned;
+        owned.multiplicity = StructuralMultiplicity::Linear;
+        owned.projected_qualifications = domains
+            .map(|id| terminal_psi::StructuralPathQualification {
+                path: vec![StructuralPathSegment::Field(storage)],
+                domain: domain(id),
+            })
+            .to_vec();
+        info.structural_parameters = vec![owned];
+        info.proof.structural_parameters = info.structural_parameters.clone();
+    }
+    let admitted = |module: &TerminalModule| {
+        crate::packages::opened_callable_admits(module, &[ty(2)], callable(2), callable(4))
+    };
+    assert!(admitted(&program));
+    // The caller can give the returned owner to another operation of this
+    // package. A descriptor with only an output can bind the same witness.
+    let mut returning = program.clone();
+    for index in [1, 3] {
+        let contract = &mut returning.execution.callables.contracts[index];
+        let carrier = &contract.structural_parameters[0];
+        contract.result = BoundaryMachineResult::Structural(
+            terminal_psi::BoundaryStructuralResultDeclaration {
+                structural_type: carrier.structural_type,
+                multiplicity: carrier.multiplicity,
+                qualifications: carrier.qualifications.clone(),
+                projected_qualifications: carrier.projected_qualifications.clone(),
+            },
+        );
+        contract.proof_result = TerminalMachineResult::Structural(
+            terminal_psi::StructuralResultDeclaration {
+                place: place(2),
+                structural_type: carrier.structural_type,
+                multiplicity: carrier.multiplicity,
+                qualifications: carrier.qualifications.clone(),
+                projected_qualifications: carrier.projected_qualifications.clone(),
+                reference_sources: Vec::new(),
+            },
+        );
+        contract.proof.result = contract.proof_result.clone();
+    }
+    assert!(admitted(&returning));
+    for index in [1, 3] {
+        let contract = &mut returning.execution.callables.contracts[index];
+        contract.structural_parameters.clear();
+        contract.proof.structural_parameters.clear();
+    }
+    assert!(admitted(&returning));
+    let mut unqualified = returning.clone();
+    let contract = &mut unqualified.execution.callables.contracts[3];
+    let BoundaryMachineResult::Structural(result) = &mut contract.result else {
+        unreachable!()
+    };
+    result.projected_qualifications.clear();
+    let TerminalMachineResult::Structural(result) = &mut contract.proof_result else {
+        unreachable!()
+    };
+    result.projected_qualifications.clear();
+    contract.proof.result = contract.proof_result.clone();
+    assert!(!admitted(&unqualified));
+    returning.execution.callables.contracts[3].proof.result = TerminalMachineResult::Unit;
+    assert!(!admitted(&returning));
+    let concrete = program.types.structural_types.len() - 1;
+    let mut weaker = program.clone();
+    weaker.types.structural_types[concrete].requires.clear();
+    assert!(!admitted(&weaker));
+    let mut wrong_field = program.clone();
+    wrong_field.types.structural_types[concrete].requires[0] =
+        semantic_vocabulary::Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::boolean_field(place(1), field(18)),
+            semantic_vocabulary::ScalarTerm::Boolean(true),
+        );
+    assert!(!admitted(&wrong_field));
+    let mut stale_field = program.clone();
+    stale_field.types.structural_types[concrete].requires =
+        program.types.structural_types[concrete - 1].requires.clone();
+    assert!(!admitted(&stale_field));
+    let mut primitive = program.clone();
+    primitive.types.structural_types[3].identity = byte;
+    let u8_type = semantic_vocabulary::IntegerType::from_fixed(
+        numerics::integer_carrier::FixedInteger::unsigned(8),
+    )
+    .unwrap();
+    primitive.types.structural_types[3].shape =
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(u8_type));
+    primitive.types.structural_types[concrete].identity = byte_owner;
+    primitive.types.structural_domains[2].identity = byte_resident;
+    assert!(admitted(&primitive));
+    primitive.types.structural_types[3].shape =
+        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+    assert!(!admitted(&primitive));
+    let mut changed = program.clone();
+    changed.types.structural_domains[2].identity = wrong_placement;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_domains[2].establishment_routes = None;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_types[concrete].identity = wrong_application;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_types[concrete].declaration_identity = provider;
+    assert!(!admitted(&changed));
+    let mut changed = program.clone();
+    changed.types.structural_types[concrete].owns_linear_claim = false;
+    assert!(!admitted(&changed));
+    let mut changed = program;
+    changed.types.structural_types[concrete].multiplicity = StructuralMultiplicity::Unrestricted;
+    assert!(!admitted(&changed));
+}
+
+mod uniform_fields;
