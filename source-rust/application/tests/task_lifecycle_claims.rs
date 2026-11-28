@@ -2,7 +2,6 @@
 
 #[path = "support/project.rs"]
 mod project;
-mod support;
 
 fn check(source: &str) -> (bool, String) {
     let project = project::stage("task-lifecycle-claim", &[("main.omg", source)]);
