@@ -103,6 +103,36 @@ fn replacing_a_reference_through_its_native_address_changes_only_the_slot() {
 }
 
 #[test]
+fn a_helper_updates_the_callers_reference_slot_through_its_address() {
+    let source = r#"
+machine load<'a>(location: address, replacement: @'a u8) -> u8 {
+    let view: @mutable @'a u8 = |native|::borrow_mutable_at::<@'a u8>(location);
+    $view = replacement;
+    let restored: @'a u8 = $view;
+    $restored
+}
+machine inspect<'a>(source: @'a u8, replacement: @'a u8) -> bool {
+    let mutable slot: @'a u8 = source;
+    let loaded: u8 = load(address_of(@slot), replacement);
+    loaded == 31u8 && $slot == 31u8 && $source == 19u8 && $replacement == 31u8
+}
+machine main() crashes Trap {
+    let a: u8 = 19u8;
+    let b: u8 = 31u8;
+    transition inspect(@a, @b) { true -> {}, false -> wrong() }
+    machine wrong() { crash Trap; }
+}"#;
+    Program::new(source, &[READ, super::WRITE]).assert_native_returns();
+    let denied = source.replace("    $restored\n", "    $restored = 7u8;\n    $restored\n");
+    let output = Program::new(&denied, &[READ, super::WRITE]).check();
+    let message = super::report(&output);
+    assert!(
+        !output.status.success() && message.contains("grants shared access only"),
+        "{message}"
+    );
+}
+
+#[test]
 fn the_inner_lifetime_cannot_extend_a_native_borrow_of_the_local_slot() {
     let code = r#"
 machine leave<'a>(arg: @'a u8) -> @'a @'a u8 {
