@@ -355,6 +355,15 @@ impl Projection {
         }
     }
 
+    /// The selected address within an admitted invocation's region is unknown,
+    /// while the typed path named by the public header is retained in full.
+    pub(crate) fn declared_reference_region(path: &[StructuralPathSegment]) -> Self {
+        let mut projection = Self::new(path);
+        projection.forget_address();
+        projection.descriptor = DescriptorPrefix::Closed(path.to_vec());
+        projection
+    }
+
     pub(crate) fn as_native_enclosing_storage(mut self) -> Self {
         self.native_enclosing_storage = true;
         self

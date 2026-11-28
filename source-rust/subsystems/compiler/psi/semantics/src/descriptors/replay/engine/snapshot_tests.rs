@@ -910,8 +910,7 @@ fn native_subobjects_and_header_only_calls_publish_their_checked_reference_type(
     assert!(publish(native(&[StructuralPathSegment::FixedIndex(1)])).is_ok());
     assert!(publish(native(&[])).is_err());
     let public = |carrier_type| {
-        let mut projection = Projection::new(&[StructuralPathSegment::Referent]);
-        projection.forget_address();
+        let projection = Projection::declared_reference_region(&[StructuralPathSegment::Referent]);
         DescriptorStoredOrigin::Invocation { carrier_type, projection }
     };
     assert!(publish(public(element)).is_ok());

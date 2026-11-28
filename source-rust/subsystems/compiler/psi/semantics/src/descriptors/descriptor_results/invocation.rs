@@ -403,8 +403,7 @@ pub(crate) fn public_result_slots(
             let index = match region.origin {
                 TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
                 TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
-                    let mut projection = Projection::new(&region.source_path);
-                    projection.forget_address();
+                    let projection = Projection::declared_reference_region(&region.source_path);
                     origins.push(DescriptorStoredOrigin::Invocation {
                         carrier_type,
                         projection,

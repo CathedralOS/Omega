@@ -338,10 +338,11 @@ fn reference_sources_for_leaves(
             if let DescriptorStoredOrigin::Invocation { carrier_type, projection } = origin {
                 // An admitted public contract supplies the promised reference.
                 // Forwarding it must retain both the typed region and its access.
+                let declared = projection.original_descriptor_path().ok_or("returned invocation reference lost its declared region")?;
                 super::result_regions::validate_input_region(
-                    types.iter(), *carrier_type, StructuralAccess::Owned, &projection.path, access,
+                    types.iter(), *carrier_type, StructuralAccess::Owned, declared, access,
                 )?;
-                let path = projection.path.iter().cloned()
+                let path = declared.iter().cloned()
                     .map(ReferenceOriginProjection::Exact).collect::<Vec<_>>();
                 if super::reference_origin_type(types.iter(), *carrier_type, &path) != Some(referent)
                     || projection.window.is_some()
