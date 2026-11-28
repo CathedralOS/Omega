@@ -1228,11 +1228,10 @@ impl Program<'_> {
         // A requirement written over a binder has a prepared copy that names
         // the supplied type. The binder is the one the same retained call
         // occurrence writes in the requirement's own signature.
-        let written_binder =
-            |declaration: &crate::source_state::trait_definition::TraitDefinition| {
-                let template = typed
-                    .closed_requirement_application(owner)
-                    .map_or(owner, |closed| closed.template);
+        let template_binder =
+            |declaration: &crate::source_state::trait_definition::TraitDefinition,
+             template: SymbolHandle,
+             copied: bool| {
                 let original = typed.trait_machine_signature_by_symbol(declaration, template)?;
                 let contracts = typed.signature_contracts.span(original.contracts)?;
                 let mut pending = Vec::new();
@@ -1251,8 +1250,17 @@ impl Program<'_> {
                         continue;
                     }
                     let node = expressions.expression(handle);
+                    // A copy's call keeps the requirement's source
+                    // occurrence but records its own selection row.
+                    let same_occurrence = |written: Option<_>| {
+                        written == Some(selection)
+                            || copied
+                                && written.and_then(|written| ledger.get(written)).is_some_and(
+                                    |row| row.kind() == Call && row.source_span() == call_source,
+                                )
+                    };
                     if let ExpressionNode::Call(written) = node
-                        && written.authored_call_selection == Some(selection)
+                        && same_occurrence(written.authored_call_selection)
                         && written.target_symbol == call.target_symbol
                         && let [binder] = written.machine_arguments.as_ref()
                         && typed.symbols.symbols().nodes().is_valid(binder.symbol)
@@ -1264,6 +1272,16 @@ impl Program<'_> {
                     typed.expression_children(node, |child| pending.push(child));
                 }
                 None
+            };
+        let written_binder =
+            |declaration: &crate::source_state::trait_definition::TraitDefinition| {
+                template_binder(
+                    declaration,
+                    typed
+                        .closed_requirement_application(owner)
+                        .map_or(owner, |closed| closed.template),
+                    false,
+                )
             };
         let names_subject = |supplied: crate::source_state::types::TypeReferenceHandle| {
             typed.contains_type_reference(supplied)
@@ -1375,13 +1393,45 @@ impl Program<'_> {
                             })
                     })
                 });
+        // A member the compiler copied from its trait's requirement, such as
+        // a synthesized equality evidence law, writes the implementation's
+        // type where the requirement wrote `Identity::<T>` with the same call
+        // occurrence.
+        let copied_requirement = !parameter_in_scope
+            && !supplied_type
+            && !specialized_type
+            && [owner, typed.symbols.get(owner).parent]
+                .into_iter()
+                .filter_map(|member| typed.owned_conformance_realization(member))
+                .any(|(conformance, row)| {
+                    matches!(
+                        row.source,
+                        crate::source_state::trait_definition::ConformanceRowSource::TraitDefault
+                            | crate::source_state::trait_definition::ConformanceRowSource::Synthesized
+                    ) && typed
+                        .trait_definition_by_symbol(row.declaring_trait)
+                        .and_then(|declaration| template_binder(declaration, row.requirement, true))
+                        .is_some_and(|binder| {
+                            crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                                typed,
+                                conformance,
+                            )
+                            .and_then(|root| root.declaring_scope(typed, row.declaring_trait))
+                            .is_some_and(|scope| {
+                                names_subject(scope.parameter_argument(typed, binder))
+                            })
+                        })
+                });
         if !attached_call
             || written_type.map_or(
-                !(parameter_in_scope || supplied_type || specialized_type),
+                !(parameter_in_scope || supplied_type || specialized_type || copied_requirement),
                 |row| {
                     let typed_source = row.source_span();
-                    !within_call(typed_source)
-                        || typed_source.span.start < call_source.span.end
+                    // A copied requirement's type is the implementation's
+                    // argument, written at the implementation's header.
+                    !copied_requirement
+                        && (!within_call(typed_source)
+                            || typed_source.span.start < call_source.span.end)
                         || row
                             .target()
                             .as_resolved()

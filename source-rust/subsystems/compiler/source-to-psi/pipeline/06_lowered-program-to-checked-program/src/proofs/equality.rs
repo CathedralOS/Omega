@@ -1662,6 +1662,69 @@ fn exchange(
 
 /// Citations are instantiated terms from the checked signature. Inferring
 /// their types keeps both endpoints tied to the actual evidence supplied.
+/// What an equality of two pairs gives: the equality of their first
+/// components and of their second ones, as a record's identity gives the
+/// identity of each field. Each proof applies a projection to both sides;
+/// the kernel computes it to the component where the result is used.
+fn paired(
+    arena: &mut TermArena,
+    context: &Context,
+    equality: Equality,
+    conversion: &mut Budget,
+) -> Vec<Equality> {
+    let (
+        Term::Pair {
+            first: left_first,
+            second: left_second,
+        },
+        Term::Pair {
+            first: right_first,
+            second: right_second,
+        },
+    ) = (arena.get(equality.from), arena.get(equality.to))
+    else {
+        return Vec::new();
+    };
+    let mut derived = Vec::with_capacity(2);
+    for (first, from, to) in [
+        (true, left_first, right_first),
+        (false, left_second, right_second),
+    ] {
+        let project = |arena: &mut TermArena, pair| {
+            arena.insert(if first {
+                Term::Fst { pair }
+            } else {
+                Term::Snd { pair }
+            })
+        };
+        let projected = project(arena, equality.from);
+        let Ok(ty) = infer_type(arena, context, projected, conversion) else {
+            continue;
+        };
+        let lifted = shift(arena, ty, 0, 2);
+        let source = shift(arena, equality.from, 0, 2);
+        let left = project(arena, source);
+        let destination = arena.insert(Term::Variable(1));
+        let right = project(arena, destination);
+        let conclusion = arena.insert(Term::Id {
+            ty: lifted,
+            left,
+            right,
+        });
+        let base = arena.insert(Term::Refl {
+            ty,
+            value: projected,
+        });
+        derived.push(Equality {
+            carrier: ty,
+            from,
+            to,
+            proof: equality.eliminate(arena, conclusion, base),
+        });
+    }
+    derived
+}
+
 pub(crate) fn prove(
     arena: &mut TermArena,
     context: &Context,
@@ -2465,6 +2528,7 @@ fn search(
                     next += 1;
                     charge(search_steps)?;
                     stated.extend(definitions.injective(arena, equality));
+                    stated.extend(paired(arena, context, equality, conversion));
                 }
                 for equality in stated {
                     if let Some(proof) = definitions.absurd(arena, equality, stated_goal) {

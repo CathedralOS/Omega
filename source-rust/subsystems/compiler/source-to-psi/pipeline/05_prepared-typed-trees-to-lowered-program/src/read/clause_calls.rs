@@ -311,6 +311,108 @@ impl Program<'_> {
         })
     }
 
+    /// Read a call of a synthesized structural comparison as its body. Each
+    /// operand lends a record the clause names, either a borrowed formal or
+    /// `@x` of a by-value formal, so the body's field reads are the
+    /// caller's reads of the same places at the same point.
+    pub(super) fn unfold_synthesized_comparison(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &TableCallExpression,
+        machine: SymbolHandle,
+    ) -> Checked<semantic_vocabulary::Proposition> {
+        use crate::source_state::expression::ExpressionNode;
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
+        let typed = self.typed;
+        if self
+            .unfolding_calls
+            .iter()
+            .any(|frame| frame.machine == machine)
+        {
+            return Err(unserved("recursive call in a clause"));
+        }
+        let (_, state) = self.declaration(id, machine)?;
+        let body = state
+            .returned_expression(typed)
+            .ok_or_else(|| unserved("synthesized comparison is not one value expression"))?;
+        let parameters = typed.state_parameters(state);
+        let arguments = typed.expression_table.expression_handles(call.arguments);
+        if parameters.len() != 2 || arguments.len() != 2 {
+            return Err(unserved("synthesized comparison takes two operands"));
+        }
+        let mut callee_slots: Vec<super::Slot> = scope
+            .slots
+            .iter()
+            .map(|slot| super::Slot {
+                symbol: SymbolHandle::invalid(),
+                ..slot.clone()
+            })
+            .collect();
+        for (parameter, &argument) in parameters.iter().zip(arguments) {
+            let (value_type, erased, borrowed) = self.formal(id, parameter)?;
+            if erased
+                || parameter.is_mutable
+                || borrowed.as_ref().is_none_or(|borrowed| {
+                    borrowed.access != language_core::ReferenceAccess::Shared
+                })
+            {
+                return Err(unserved("synthesized comparison lost its shared operands"));
+            }
+            let (named, lent) = match typed.expression_table.expression(argument) {
+                ExpressionNode::Borrow(borrow)
+                    if borrow.access == language_core::ReferenceAccess::Shared =>
+                {
+                    (borrow.target, false)
+                }
+                _ => (argument, true),
+            };
+            let ExpressionNode::Name(path) = typed.expression_table.expression(named) else {
+                return Err(unserved(
+                    "operand of a synthesized comparison in a clause must name a formal",
+                ));
+            };
+            let Some(slot_index) = scope
+                .slots
+                .iter()
+                .position(|slot| slot.symbol == path.symbol)
+            else {
+                return Err(unserved(
+                    "operand of a synthesized comparison in a clause is not a formal in scope",
+                ));
+            };
+            let slot = &scope.slots[slot_index];
+            let same_type = match (slot.value_type, value_type) {
+                (
+                    ValueType::Record(lent, lent_qualification, _),
+                    ValueType::Record(formal, formal_qualification, _),
+                ) => lent == formal && lent_qualification == formal_qualification,
+                _ => false,
+            };
+            if slot.erased || slot.borrowed.is_some() != lent || !same_type {
+                return Err(unserved(
+                    "operand of a synthesized comparison differs from its parameter type",
+                ));
+            }
+            callee_slots[slot_index].symbol = parameter.symbol;
+        }
+        let formal_fields = scope.formal_fields;
+        let (proposition, _) = self.within_unfolding(id, machine, 0, |program| {
+            let callee = ClauseScope {
+                slots: &callee_slots,
+                values: &[],
+                bound: &[],
+                owner: machine,
+                result: ResultTerm::Absent("result in a called machine's body"),
+                subject: None,
+                formal_fields,
+                logical: None,
+            };
+            program.clause(id, &callee, body)
+        })?;
+        Ok(proposition)
+    }
+
     pub(super) fn clause_call_machine(
         &mut self,
         id: MachineId,

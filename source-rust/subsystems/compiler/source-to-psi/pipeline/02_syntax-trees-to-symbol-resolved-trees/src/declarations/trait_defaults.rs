@@ -12,7 +12,14 @@
     body compares its two operands with `==`; typed lowering expands that
     comparison structurally for `T` (core equality acquisition in
     `wiki/spec/language/conformances.md`). The row belongs to the named
-    implementation, never to `T`.
+    implementation, never to `T`. A closed block of a core equality evidence
+    trait that authors no `equals` receives the same row, written
+    `reaches none crashes none terminates` because evidence admits it to
+    proof clauses, and each law it does not author with an empty body: the
+    checker proves that body from the field comparisons the structural
+    `equals` states and each field's own evidence ("Synthesis separately
+    derives each identity bridge only from the corresponding component
+    evidence").
 
     Trait identity joins by exact source selection through the
     shared constant-header table, never by leaf spelling: same-leaf module
@@ -251,6 +258,20 @@ pub(crate) fn synthesize_trait_defaults_with_selection(
             }
         }
 
+        let inherited_equality = requirements
+            .iter()
+            .find(|requirement| {
+                selection
+                    .header_symbols()
+                    .sealed_intrinsic(requirement.declaring_trait)
+                    == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol)
+            })
+            .cloned();
+        let evidence_laws = requirements
+            .iter()
+            .filter(|requirement| requirement.declaring_trait == trait_symbol)
+            .cloned()
+            .collect::<Vec<_>>();
         let mut added = false;
         for requirement in requirements {
             let declaring_path = traits
@@ -290,19 +311,45 @@ pub(crate) fn synthesize_trait_defaults_with_selection(
             existing_defaults.insert(key);
             added = true;
         }
-        if selection.header_symbols().sealed_intrinsic(trait_symbol)
-            == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol)
+        let sealed = selection.header_symbols().sealed_intrinsic(trait_symbol);
+        if matches!(
+            sealed,
+            Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol
+                    | language_core::sealed_intrinsics::SealedIntrinsic::EqualityEvidence
+            )
+        ) && let Some(equality) = inherited_equality
             && let Some(member) = synthesized_equality_member(
                 syntax,
                 &conformance.declaration,
-                conformed_trait,
+                &equality,
                 &closed_members,
-                &substitution,
                 conformance.handle,
+                sealed == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityEvidence),
             )
         {
             closed_members.push(member);
             added = true;
+            if sealed == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityEvidence) {
+                let declaring_path = conformed_trait.path.clone();
+                for law in evidence_laws {
+                    let law_name = law.signature.name.as_str(syntax).to_string();
+                    if closed_members
+                        .iter()
+                        .any(|member| authors(syntax, member, &law_name))
+                    {
+                        continue;
+                    }
+                    closed_members.push(synthesized_evidence_law(
+                        syntax,
+                        &conformance.declaration,
+                        &law,
+                        &declaring_path,
+                        conformed_trait,
+                        conformance.handle,
+                    ));
+                }
+            }
         }
         if added {
             replace_closed_members(
@@ -544,42 +591,49 @@ fn replace_closed_members(
 fn synthesized_equality_member(
     syntax: &mut SyntaxTrees,
     declaration: &ConformanceItem,
-    equatable: &TraitDefaultsInput,
+    equality: &RequirementInstance,
     members: &[ConformanceMember],
-    substitution: &HashMap<String, TypeReferenceHandle>,
     supplying_declaration: ItemHandle,
+    evidence: bool,
 ) -> Option<ConformanceMember> {
     const EQUALS: &str = "equals";
-    if equatable.parameter_names.len() != 1
-        || members.iter().any(|member| match member {
-            ConformanceMember::Machine(machine) => machine.name.as_str(syntax) == EQUALS,
-            ConformanceMember::Selection { requirement, .. } => {
-                requirement.as_str(syntax) == EQUALS
-            }
-            ConformanceMember::Synthesized(_) => true,
-            ConformanceMember::TraitDefault { .. } => false,
+    let requirement = &equality.signature;
+    if equality.substitution.len() != 1
+        || requirement.name.as_str(syntax) != EQUALS
+        || requirement.default_body.is_some()
+        || members.iter().any(|member| {
+            matches!(member, ConformanceMember::Synthesized(_)) || authors(syntax, member, EQUALS)
         })
     {
         return None;
     }
-    let requirement = equatable
-        .signatures
-        .iter()
-        .map(|declaration| &declaration.signature)
-        .find(|signature| signature.name.as_str(syntax) == EQUALS && signature.default_body.is_none())?;
     if syntax.items.state_parameters(requirement.parameters).len() != 2 {
         return None;
     }
     let mut signature = instantiate_default_signature(
         syntax,
         requirement,
-        substitution,
+        &equality.substitution,
         supplying_declaration,
         &[],
     );
     let [left, right] = syntax.items.state_parameters(signature.parameters) else {
         return None;
     };
+    if evidence {
+        // Evidence admits its comparison to proof clauses, so it promises
+        // `reaches none crashes none terminates`; effect checking still
+        // proves the structural body keeps that promise.
+        let site = declaration
+            .alias
+            .as_ref()
+            .map(|alias| alias.source_span())
+            .unwrap_or_default();
+        signature.service_reach_keyword_source_spans = vec![site];
+        signature.service_reaches = HandleSpan::empty();
+        signature.declares_no_crash_route = true;
+        signature.terminates_guarantee = true;
+    }
     let [left, right] = [*left, *right].map(|parameter| {
         let name =
             Identifier::generated(syntax.items.state_parameter(parameter).name.as_str(syntax));
@@ -614,6 +668,57 @@ fn synthesized_equality_member(
         None,
         Identifier::default(),
     )))
+}
+
+fn authors(syntax: &SyntaxTrees, member: &ConformanceMember, name: &str) -> bool {
+    match member {
+        ConformanceMember::Machine(machine) => machine.name.as_str(syntax) == name,
+        ConformanceMember::Selection { requirement, .. } => requirement.as_str(syntax) == name,
+        ConformanceMember::Synthesized(_) | ConformanceMember::TraitDefault { .. } => false,
+    }
+}
+
+/*
+    The law a closed equality evidence implementation receives beside its
+    synthesized structural `equals`: the trait's law instantiated at `T` with
+    an empty body. The checker proves that body from the field comparisons
+    the structural `equals` exposes and the component evidence for each
+    field, exactly as it would an authored empty body; a field without that
+    evidence, such as an IEEE float, leaves the law unproved
+    (contracts.md, "Equality bridges and comparison facts").
+*/
+fn synthesized_evidence_law(
+    syntax: &mut SyntaxTrees,
+    declaration: &ConformanceItem,
+    law: &RequirementInstance,
+    declaring_path: &str,
+    evidence: &TraitDefaultsInput,
+    supplying_declaration: ItemHandle,
+) -> ConformanceMember {
+    let mut signature = instantiate_default_signature(
+        syntax,
+        &law.signature,
+        &law.substitution,
+        supplying_declaration,
+        &[],
+    );
+    signature.default_body = Some(syntax_trees::item::MachineBody {
+        assembly_target_requirement: Default::default(),
+        statements: HandleSpan::empty(),
+        nested_machines: HandleSpan::empty(),
+    });
+    let exact_requirement_owner = (evidence.lifetime_parameters.is_empty()
+        && evidence.parameter_names.is_empty())
+    .then_some(declaring_path);
+    let name = signature.name.as_str(syntax).to_string();
+    let machine = machine_from_signature(
+        syntax,
+        implementation_member_name(declaration, &name),
+        &signature,
+        exact_requirement_owner,
+        Identifier::generated(declaring_path),
+    );
+    ConformanceMember::Synthesized(machine)
 }
 
 /*

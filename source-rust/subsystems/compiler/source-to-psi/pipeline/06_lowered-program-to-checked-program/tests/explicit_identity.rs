@@ -720,3 +720,138 @@ fn an_ieee_field_comparison_proves_no_identity() {
     ));
     assert!(!matches!(verdict, Ok(Verdict::Accepted)), "{verdict:?}");
 }
+
+/// An empty evidence block for `data` with the law of `kind`: its `equals`
+/// is the synthesized structural comparison and its law is synthesized
+/// beside it, then proved from the evidence of each field.
+fn synthesized(data: &str, kind: &str, program: &str) -> String {
+    format!(
+        "use {{omega}}/language/core/foundation.omg as proof;
+data Coin {{ {data} }}
+CoinEq satisfies {kind}<Coin> {{ }}
+{program}"
+    )
+}
+
+/// contracts.md, "Equality bridges and comparison facts": "Authorized core
+/// synthesis proves each direction only when the corresponding component
+/// laws justify it." Integer and Boolean fields, and a field whose own
+/// synthesized evidence covers it, justify both.
+#[test]
+fn a_synthesized_comparison_proves_both_laws_from_its_fields() {
+    for kind in ["EqualImpliesIdentity", "IdentityImpliesEqual"] {
+        for data in [
+            "value: i32;",
+            "value: i32; year: u8;",
+            "set: bool; count: u64;",
+        ] {
+            accepted(&synthesized(data, kind, ""));
+        }
+        accepted(&format!(
+            "data Inner {{ value: i32; }}
+InnerEq satisfies {kind}<Inner> {{ }}
+{}",
+            synthesized("inner: Inner; year: i32;", kind, "")
+        ));
+    }
+}
+
+/// A clause that names the synthesized comparison states its field
+/// comparisons, however it names it.
+#[test]
+fn a_synthesized_law_is_cited_for_the_comparison_it_is_about() {
+    for premise in ["a == b", "CoinEq::equals(@a, @b)"] {
+        accepted(&synthesized(
+            "value: i32; year: u8;",
+            "EqualImpliesIdentity",
+            &format!(
+                "machine use_it(a: Coin, b: Coin)
+requires {premise}
+ensures |proof|::Identity::<Coin>(a, b) {{
+    CoinEq::identity_of_equal(a, b);
+}}
+"
+            ),
+        ));
+    }
+    call_requirement_unproved(&synthesized(
+        "value: i32; year: u8;",
+        "EqualImpliesIdentity",
+        "machine use_it(a: Coin, b: Coin) requires a.value == b.value {
+    CoinEq::identity_of_equal(a, b);
+}
+",
+    ));
+}
+
+/// The copy of a machine generic over the evidence reads `E::equals` as the
+/// synthesized comparison, so a comparison of one field does not discharge
+/// its premise.
+#[test]
+fn a_synthesized_law_through_an_implementation_parameter_owes_its_comparison() {
+    call_requirement_unproved(&synthesized(
+        "value: i32; year: u8;",
+        "EqualImpliesIdentity",
+        &format!(
+            "{THROUGH_E}machine use_it(a: Coin, b: Coin) requires a.value == b.value {{
+    same::<Coin, CoinEq>(a, b);
+}}
+"
+        ),
+    ));
+}
+
+/// A field compared by a user comparison without evidence of its own
+/// justifies no law: its comparison of one field says nothing of the other.
+#[test]
+fn a_field_without_evidence_justifies_no_synthesized_law() {
+    let owed = unproved(&format!(
+        "data Inner {{ value: i32; year: i32; }}
+InnerByValue satisfies Equatable<Inner> {{
+    machine equals(left: @Inner, right: @Inner) -> bool reaches none crashes none terminates {{
+        left.value == right.value
+    }}
+}}
+{}",
+        synthesized("inner: Inner;", "EqualImpliesIdentity", "")
+    ));
+    assert!(!owed.is_empty(), "{owed:?}");
+}
+
+/// IEEE `==` relates signed zeros and no NaN to itself, so a float field,
+/// directly or inside a component the comparison inlines, refuses the
+/// synthesized law.
+#[test]
+fn a_float_field_refuses_a_synthesized_law() {
+    for kind in ["EqualImpliesIdentity", "IdentityImpliesEqual"] {
+        refused_before_checking(
+            &synthesized("value: i32; weight: f64;", kind, ""),
+            "field `weight` compares IEEE floats",
+        );
+    }
+    refused_before_checking(
+        &format!(
+            "data Inner {{ weight: f32; }}
+InnerEq satisfies Equatable<Inner> {{ }}
+{}",
+            synthesized("inner: Inner;", "EqualImpliesIdentity", "")
+        ),
+        "field `inner.weight` compares IEEE floats",
+    );
+}
+
+/// Only a block that leaves `equals` to synthesis receives the law: an
+/// authored comparison still owes the law it is evidence for.
+#[test]
+fn an_authored_comparison_receives_no_synthesized_law() {
+    refused_before_checking(
+        "data Coin { value: i32; }
+CoinByValue satisfies EqualImpliesIdentity<Coin> {
+    machine equals(left: @Coin, right: @Coin) -> bool reaches none crashes none terminates {
+        left.value == right.value
+    }
+}
+",
+        "missing `EqualImpliesIdentity::identity_of_equal`",
+    );
+}

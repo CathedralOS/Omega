@@ -159,12 +159,14 @@ pub(crate) fn prepare_in_cohort(
         .iter()
         .skip(conformance_frontier)
         .any(|conformance| {
-            program.symbols.sealed_intrinsic(conformance.trait_symbol)
-                == Some(SealedIntrinsic::EqualityProtocol)
-                && matches!(
-                    conformance.rows.as_slice(),
-                    [row] if row.source == ConformanceRowSource::Synthesized
-                )
+            matches!(
+                program.symbols.sealed_intrinsic(conformance.trait_symbol),
+                Some(SealedIntrinsic::EqualityProtocol | SealedIntrinsic::EqualityEvidence)
+            ) && conformance.rows.iter().any(|row| {
+                row.source == ConformanceRowSource::Synthesized
+                    && program.symbols.sealed_intrinsic(row.declaring_trait)
+                        == Some(SealedIntrinsic::EqualityProtocol)
+            })
         });
     if sites.is_empty() && !has_new_synthesized {
         return Ok(());
@@ -186,6 +188,7 @@ pub(crate) fn prepare_in_cohort(
     for (application, conformance) in synthesized {
         let site = preparation.declaration_site(conformance);
         preparation.validate(application, site, &mut Vec::new())?;
+        preparation.refuse_ieee_evidence(application, conformance, site)?;
     }
     for (handle, binary) in sites {
         let mut site = preparation.program.expression_table.source_span(handle);
@@ -523,6 +526,92 @@ impl Preparation<'_> {
             }
             _ => false,
         }
+    }
+
+    /// A synthesized evidence implementation derives its law from the
+    /// evidence of each component its comparison inlines. IEEE `==` relates
+    /// signed zeros and never a NaN to itself, so it is no such evidence
+    /// (contracts.md, "Equality bridges and comparison facts": synthesis
+    /// "must not grant substitution to IEEE float equality or to a
+    /// structural comparison containing such a component").
+    fn refuse_ieee_evidence(
+        &self,
+        application: TypeReferenceHandle,
+        conformance: SymbolHandle,
+        site: source_text::SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        let Some(implementation) = self.program.conformance_by_symbol(conformance) else {
+            return Ok(());
+        };
+        if self
+            .program
+            .symbols
+            .sealed_intrinsic(implementation.trait_symbol)
+            != Some(SealedIntrinsic::EqualityEvidence)
+        {
+            return Ok(());
+        }
+        let Some(path) = self.ieee_component(application, site, &mut Vec::new()) else {
+            return Ok(());
+        };
+        Err(Diagnostic::error(format!(
+            "`{}` cannot synthesize its law for `{}`: field `{path}` compares IEEE floats, whose `==` is not identity, so write `equals` and the law yourself",
+            self.program.symbols.display_path(conformance, "::"),
+            self.program.display_type_reference(application),
+        ))
+        .with_source_span(site))
+    }
+
+    /// The first field the structural comparison of `application` compares
+    /// as IEEE floats, through the fields of each component it inlines.
+    fn ieee_component(
+        &self,
+        application: TypeReferenceHandle,
+        site: source_text::SourceSpan,
+        visiting: &mut Vec<NormalizedTypeIdentity>,
+    ) -> Option<String> {
+        let identity = self.program.package_qualified_type_identity(application);
+        if visiting.contains(&identity) {
+            return None;
+        }
+        let data = self.data(application)?;
+        let mut fields = Vec::new();
+        for member in self.program.data_members(data) {
+            match member {
+                DataMember::Field(field) => fields.push(field.clone()),
+                DataMember::Variant(variant) => {
+                    fields.extend(self.program.data_payload_fields(variant).iter().cloned())
+                }
+            }
+        }
+        visiting.push(identity);
+        let found = fields.into_iter().find_map(|field| {
+            let reference = self
+                .program
+                .type_reference_table
+                .unconstrained_type_reference(field.type_reference);
+            if matches!(
+                self.program.primitive_type_reference(reference),
+                Some(symbols::PrimitiveType::F32 | symbols::PrimitiveType::F64)
+            ) {
+                return Some(field.name.to_string());
+            }
+            if self.is_primitive(field.type_reference)
+                || self.is_text(field.type_reference)
+                || self.is_implicit(field.type_reference)
+            {
+                return None;
+            }
+            let selected = self.selection(field.type_reference, site).ok()?;
+            if !selected.synthesized {
+                return None;
+            }
+            let site = self.declaration_site(selected.conformance);
+            self.ieee_component(field.type_reference, site, visiting)
+                .map(|inner| format!("{}.{inner}", field.name))
+        });
+        visiting.pop();
+        found
     }
 
     fn validate(
