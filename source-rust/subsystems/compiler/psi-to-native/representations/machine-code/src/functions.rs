@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use crate::{
     ResolvedMachineLayout, SelectedFormEncodingHandle, TargetFrameLayoutPlan,
-    TargetFrameProtocolEncodingPlan, X86BranchRelaxationIdentity,
+    TargetFrameProtocolEncodingPlan,
 };
 
 pub mod exit_contract {
@@ -65,9 +65,7 @@ pub enum WholeFunctionHardeningPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WholeFunctionExitLayoutCustody {
     BaselineNearLayoutV1,
-    X86RelaxConditionalBranchesToRel8V1 {
-        relaxation: X86BranchRelaxationIdentity,
-    },
+    X86RelaxConditionalBranchesToRel8V1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

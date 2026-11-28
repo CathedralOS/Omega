@@ -3307,6 +3307,13 @@ pub(crate) mod payloads {
                     expression::ExpressionNode::StructLiteral(mut literal) => {
                         literal.application_type =
                             self.type_reference(program, literal.application_type)?;
+                        for reference in literal
+                            .package
+                            .iter_mut()
+                            .flat_map(|package| package.type_references_mut())
+                        {
+                            *reference = self.type_reference(program, *reference)?;
+                        }
                         Some(expression::ExpressionNode::StructLiteral(literal))
                     }
                     // The block's statements are applied with the body's.

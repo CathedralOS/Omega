@@ -145,6 +145,14 @@ impl PackagePolicyBaseline {
             }
         }
         for request in &self.restricted_build_requests {
+            if self.schema_version < crate::encoding::BASELINE_WITH_NETWORK_REQUESTS
+                && matches!(
+                    request.operation,
+                    build_consent::RestrictedBuildOperation::SendDatagram { .. }
+                )
+            {
+                return Err("this package policy version cannot record network requests");
+            }
             if request.selected_target_profile != Some(self.target) {
                 return Err("restricted build request belongs to another target activation");
             }

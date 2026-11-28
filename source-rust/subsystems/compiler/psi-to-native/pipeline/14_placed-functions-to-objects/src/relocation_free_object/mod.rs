@@ -63,12 +63,30 @@ pub enum RelocationFreeObjectRelocationRequirements {
     UnresolvedObjectSymbolFieldsV1,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct RelocationFreeObjectTextSection {
     pub name: String,
     pub alignment: u64,
     pub byte_count: u64,
-    pub bytes: Vec<u8>,
+    pub(crate) placement: std::sync::Arc<machine_code::RelocationFreeTextSectionPlacement>,
+}
+
+impl RelocationFreeObjectTextSection {
+    pub fn bytes(&self) -> &[u8] {
+        &self.placement.bytes
+    }
+}
+
+// Object equality compares the section's contents. Placement evidence is
+// checked independently against its source when replay is requested.
+impl PartialEq for RelocationFreeObjectTextSection {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.alignment == other.alignment
+            && self.byte_count == other.byte_count
+            && (std::sync::Arc::ptr_eq(&self.placement, &other.placement)
+                || self.bytes() == other.bytes())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,7 +205,7 @@ pub(crate) fn validate_relocation_free_object(
     if object.text_section.alignment != policy.text_section_alignment {
         return Err(RelocationFreeObjectError::WrongTextSectionAlignment);
     }
-    if u64::try_from(object.text_section.bytes.len())
+    if u64::try_from(object.text_section.bytes().len())
         .map_err(|_| RelocationFreeObjectError::LengthOverflow)?
         != object.text_section.byte_count
     {
@@ -397,6 +415,42 @@ mod tests {
         canonical_private_machine_symbol_name, validate_relocation_free_object,
     };
 
+    use crate::{
+        PlacedFunctionFragment, RelocationFreeTextSectionPlacement, TextSectionPlacementPolicy,
+        TextSectionRelocationRequirements,
+    };
+
+    pub(super) fn text_with_target(target: NativeTarget) -> RelocationFreeTextSectionPlacement {
+        let machine = MachineId::new(7).unwrap();
+        RelocationFreeTextSectionPlacement {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([4; 32]),
+            },
+            work_schedule: WorkScheduleIdentity::new(1).unwrap(),
+            selected: selected_instructions::test_support::placeholder_plan(5),
+            target,
+            semantic_entry: machine,
+            semantic_entry_offset: 0,
+            policy: TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
+            section_alignment: crate::object_target_policy(target).text_section_alignment,
+            byte_count: 4,
+            bytes: vec![0x20, 0, 0, 0xb5],
+            functions: vec![PlacedFunctionFragment {
+                source_function_index: 0,
+                machine,
+                section_offset: 0,
+                byte_count: 4,
+                blocks: vec![],
+            }],
+            resolved_internal_machine_calls: vec![],
+            relocation_requirements:
+                TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+            unresolved_normalized_foreign_calls: vec![],
+            unresolved_image_addresses: Vec::new(),
+        }
+    }
+
     fn plan() -> RelocationFreeObjectPlan {
         let machine = MachineId::new(7).unwrap();
         RelocationFreeObjectPlan {
@@ -412,7 +466,7 @@ mod tests {
                 name: ".text".to_owned(),
                 alignment: 4,
                 byte_count: 4,
-                bytes: vec![0x20, 0, 0, 0xb5],
+                placement: std::sync::Arc::new(text_with_target(NativeTarget::linux_arm64())),
             },
             symbol_policy:
                 RelocationFreeObjectSymbolPolicy::PrivateSemanticMachineSymbolsV1,
@@ -439,10 +493,11 @@ mod tests {
 
     fn literal_plan() -> RelocationFreeObjectPlan {
         let mut object = plan();
-        object.text_section.bytes = [0x9000_0000_u32, 0x9100_0000_u32]
-            .iter()
-            .flat_map(|word| word.to_le_bytes())
-            .collect();
+        std::sync::Arc::make_mut(&mut object.text_section.placement).bytes =
+            [0x9000_0000_u32, 0x9100_0000_u32]
+                .iter()
+                .flat_map(|word| word.to_le_bytes())
+                .collect();
         object.text_section.byte_count = 8;
         object.symbols[0].byte_count = 8;
         object.unresolved_image_addresses = vec![machine_code::PlacedImageAddress {
@@ -534,8 +589,7 @@ mod tests {
         let first_machine = MachineId::new(7).unwrap();
         let entry_machine = MachineId::new(8).unwrap();
         object.text_section.byte_count = 8;
-        object
-            .text_section
+        std::sync::Arc::make_mut(&mut object.text_section.placement)
             .bytes
             .extend_from_slice(&[0xc0, 0x03, 0x5f, 0xd6]);
         object.semantic_entry = entry_machine;

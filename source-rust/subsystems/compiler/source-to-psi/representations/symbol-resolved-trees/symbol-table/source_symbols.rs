@@ -47,7 +47,9 @@ pub fn recognize_build_companion_file(
     let companion =
         BuildCompanionFile::from_package_path(file.package_root.file_name()?, relative)?;
     let supplied = match companion {
-        BuildCompanionFile::SandboxStreams | BuildCompanionFile::BuildProgram => {
+        BuildCompanionFile::SandboxStreams
+        | BuildCompanionFile::BuildProgram
+        | BuildCompanionFile::SandboxDatagram => {
             file.origin == source_admission::SourceOrigin::ToolchainLibrary
                 && file.package_identity.is_none()
         }

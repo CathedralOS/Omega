@@ -97,12 +97,10 @@ pub(super) fn function_exits(
     layout: &machine_code::OptimizedMachineLayout,
 ) -> FunctionExitLayout<'_> {
     let program = &layout.program;
-    let custody = match layout.relaxation {
-        Some(relaxation) => {
-            machine_code::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-                relaxation,
-            }
-        }
+    let custody = match layout.relaxation.as_deref().map(|issued| issued.policy()) {
+        Some(
+            machine_code::layout::X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1,
+        ) => WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1,
         None => machine_code::WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
     };
     FunctionExitLayout {
@@ -354,7 +352,7 @@ pub(crate) fn check_exits(
                     .ok_or(MissingInstruction(instruction.id))?;
                 let relaxed_less_than_alternative = matches!(
                     layout_custody,
-                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
+                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1
                 ) && (instruction.comparison_branch
                     == Some(machine_instruction.alternative.key.family))
                     && machine_instruction.alternative.key.variant == 0
@@ -775,7 +773,7 @@ fn check_ordinary_exit_roster(
                     .ok_or(MissingInstruction(instruction.id))?;
                 let relaxed_comparison = matches!(
                     contract.layout_custody,
-                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
+                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1
                 ) && (instruction.comparison_branch
                     == Some(actual.alternative.key.family))
                     && actual.alternative.key.variant == 0
@@ -1858,7 +1856,6 @@ fn assert_non_return_refused(message: &str, case: NonReturnCase<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use machine_code::X86BranchRelaxationIdentity;
     use post_allocation_machine::PhysicalAddressOperation;
     use selected_instructions::{
         AtomicForm, AtomicWidth, FloatResultPolicyForm, IeeeFloatArithmeticForm,
@@ -1926,16 +1923,11 @@ mod tests {
     #[test]
     fn layout_custody_and_frame_disposition_distinguish_contracts() {
         let baseline = contract_with_custody(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
-        let relaxed = contract_with_custody(
-            WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-                relaxation: X86BranchRelaxationIdentity::from_bytes([8; 32]),
-            },
-        );
-        let another_relaxation = contract_with_custody(
-            WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
-                relaxation: X86BranchRelaxationIdentity::from_bytes([9; 32]),
-            },
-        );
+        let mut relaxed = baseline.clone();
+        relaxed.layout_custody =
+            WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1;
+        let mut other_layout = relaxed.clone();
+        Arc::make_mut(&mut other_layout.resolved_layout).target = NativeTarget::windows_x64();
         let layout = crate::test_plans::frame_plan();
         let protocol = |bytes: Vec<u8>| {
             Arc::new(TargetFrameProtocolEncodingPlan {
@@ -1962,7 +1954,7 @@ mod tests {
         };
 
         assert_ne!(baseline, relaxed);
-        assert_ne!(relaxed, another_relaxation);
+        assert_ne!(relaxed, other_layout);
         assert_ne!(baseline, framed);
         assert_ne!(framed, reprotocoled);
         let mut windows = framed.clone();

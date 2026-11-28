@@ -502,6 +502,17 @@ pub(crate) mod instance {
                     .is_some_and(|pending| pending.operation == operation)
             }
 
+            pub(super) fn active_instance(
+                &self,
+                operation: OperationId,
+            ) -> Option<&TerminalInstance<'host, 'artifact>> {
+                self.pending
+                    .as_ref()
+                    .filter(|pending| pending.operation == operation)?
+                    .instance
+                    .as_deref()
+            }
+
             pub(crate) fn prepare(
                 &mut self,
                 caller: ComponentCallScope,
@@ -1112,7 +1123,7 @@ pub(crate) mod instance {
                     || !execution
                         .awaiting_effect
                         .as_ref()
-                        .is_some_and(|pending| pending.awaiting_provider_readiness)
+                        .is_some_and(|pending| pending.park.is_some())
                     || execution.failure.is_some())
             {
                 return Err(
@@ -1244,6 +1255,57 @@ pub(crate) mod instance {
             meter: &mut dyn ExecutionMeter,
         ) -> Result<TerminalExecutionStatus, TerminalInstanceError> {
             self.invoke_in_scope(meter, psi_provider_selections::ProgressScope::Executable)
+        }
+
+        /// Poll the admitted provider only if this exact visit is still parked.
+        /// A stale notification leaves both the instance and the meter alone.
+        /// A matching notification does not itself mean the provider is ready.
+        pub fn recheck_suspension(
+            &mut self,
+            suspension: &crate::TerminalSuspension,
+            meter: &mut dyn ExecutionMeter,
+        ) -> Result<Option<TerminalExecutionStatus>, TerminalInstanceError> {
+            if self.is_parked_at(suspension) {
+                self.invoke(meter).map(Some)
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn is_parked_at(&self, suspension: &crate::TerminalSuspension) -> bool {
+            // A component call forwards the child's wait. Follow only the
+            // instruction actually stopped on; unrelated bindings cannot answer it.
+            let mut current = self;
+            loop {
+                let Some(execution) = current.execution.as_ref() else {
+                    return false;
+                };
+                if current.closed || current.discard.is_some() || execution.failure.is_some() {
+                    return false;
+                }
+                if let Some(call) = execution.awaiting_effect.as_ref() {
+                    return call.park == Some(suspension.occurrence)
+                        && call.site == suspension.site;
+                }
+                let op = execution
+                    .program
+                    .machines()
+                    .get(&execution.current_machine)
+                    .and_then(|machine| machine.block(&execution.current))
+                    .and_then(|block| block.operations.get(execution.next_operation));
+                let Some(op) = op else { return false };
+                let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &op.kind else {
+                    return false;
+                };
+                let Some(child) = current
+                    .components
+                    .get(boundary)
+                    .and_then(|binding| binding.active_instance(op.id))
+                else {
+                    return false;
+                };
+                current = child;
+            }
         }
 
         fn invoke_in_scope(
@@ -2345,6 +2407,31 @@ pub(crate) mod program {
             crate::engine::capabilities::check(&self.program, installation)
         }
 
+        /// Report the checked call path to each import during the same
+        /// capability walk that computes the entry's requirements.
+        pub fn execution_requirements_with_import_paths(
+            &self,
+            installation: Option<&crate::boundary::effects::TerminalRuntimeSupplies>,
+        ) -> Result<
+            (
+                crate::engine::capabilities::TerminalExecutionRequirements,
+                crate::engine::capabilities::TerminalImportPaths,
+            ),
+            TerminalInterpretError,
+        > {
+            self.program.validate_layout_selection(installation)?;
+            let mut paths = crate::engine::capabilities::TerminalImportPaths::default();
+            let requirements = crate::engine::capabilities::check_with_import_paths(
+                &self.program,
+                installation,
+                &[],
+                None,
+                None,
+                Some(&mut paths),
+            )?;
+            Ok((requirements, paths))
+        }
+
         /// Build this program's callable projection once for `providers`, so
         /// several checks and instances of its entries under the same
         /// providers reuse it. Every check that receives it refuses a
@@ -3192,6 +3279,95 @@ pub(crate) mod program {
                     | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
             )
         })
+    }
+
+    #[cfg(test)]
+    mod assembly_return_tests {
+        use super::*;
+        use crate::boundary::effects::TerminalRuntimeSupplyRequest;
+        use crate::engine::calls::frames::tests::empty_program;
+        use semantic_vocabulary::{
+            EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+        };
+        use terminal_psi::{
+            AsmRegisterView, AssemblyExitConstraint, Operation, OperationKind, OperationResult,
+            TerminalMachineResult, Terminator, ValueDeclaration,
+        };
+
+        fn artifact(register: &str) -> terminal_codec::CanonicalTerminalArtifact {
+            let mut module = (**empty_program().catalogs).clone();
+            let body = &mut module.machines[0];
+            let (slot, _, _) = language_core::inline_assembly::scratch_register(register).unwrap();
+            let returned = AsmRegisterView::from_scratch_slot(slot).unwrap();
+            let value = ValueDeclaration {
+                id: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                ),
+                qualifications: Default::default(),
+            };
+            body.contract.result = TerminalMachineResult::Scalar(value);
+            body.assembly_target_requirement = returned.target();
+            body.blocks[0].operations = vec![Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Scalar(value),
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(42),
+                },
+            )];
+            body.blocks[0].terminator = Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: value.id,
+                cleanup_actions: Vec::new(),
+            };
+            body.blocks[0].assembly_exit = Some(AssemblyExitConstraint::ScalarReturn(returned));
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
+            terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap()
+        }
+
+        #[test]
+        fn a_reached_register_return_requires_its_installed_result_placement() {
+            for (name, correct, wrong) in
+                [("linux_x86_64", "eax", "ecx"), ("macos_arm64", "w0", "w1")]
+            {
+                for (register, compatible) in [(correct, true), (wrong, false)] {
+                    let artifact = artifact(register);
+                    let program = TerminalProgram::borrow(artifact.view()).unwrap();
+                    assert!(matches!(
+                        program.execution_requirements(None),
+                        Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "assembly catalog target requirement is not established by the target environment"
+                        ))
+                    ));
+                    let target = psi_target_layouts::terminal_target_context(artifact.view(), name);
+                    let supplies = program
+                        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                            entry: None,
+                            installation: None,
+                            host_imports: &[],
+                            external_completions: &[],
+                            target_machines: Some(&target),
+                            target_layouts: None,
+                            native_code_layouts: None,
+                            memory_ordering: None,
+                            x86_flags: None,
+                        })
+                        .unwrap();
+                    let result = program.execution_requirements(Some(&supplies));
+                    if compatible {
+                        result.unwrap();
+                    } else {
+                        assert!(matches!(
+                            result,
+                            Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "authored assembly register does not hold this calling convention's scalar result"
+                            ))
+                        ));
+                    }
+                }
+            }
+        }
     }
 
     #[cfg(test)]

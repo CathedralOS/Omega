@@ -49,7 +49,7 @@ module links the [binding issuer](representations/bound-framed-machine/issuer/is
 so stage 11 cannot accept a body or entry that skipped the check.
 
 Stages 12 and 13 share the work of laying out a function. Stage 12 fixes the
-instruction order and records any selected branch relaxation. Stage 13 writes
+instruction order and retains branch relaxation history when audit is requested. Stage 13 writes
 instructions directly at their framed offsets and places calls and relocations
 in the closed text section. An audit retains the original layout and unframed
 rows so it can independently check the placed bytes. [Placement](pipeline/13_resolved-layout-to-placed-functions/src/lib.rs)
@@ -141,7 +141,7 @@ in-process digests still left.
 | `NonAuthoritativeCalleeSaveStorageIdentity`, `TargetFrameProtocolEncodingIdentity` (09–13) | frame layout and frame-application roots; exit contract frame disposition | deleted; the frame layout shares the requirements and storage plans, the exit contract shares the protocol plan, and frame application is checked against the protocol its source carries |
 | `SelectedFormEncodingIdentity`, `WholeFunctionExitContractIdentity` (11–13) | layout, relaxation record, exit requirements and encoded-program context; the contract's own recheck | deleted; those records hold a weak `SelectedFormEncodingHandle` and checks compare it so ordinary placement still releases the encoding before object construction; the footprint interning bucket key stays as a storage key |
 | Physical-program digest (`PostAllocationMachineProgram::identity`, 08–13) | stage 09 call origins, installed handlers and body CPU facts; bound encoding subject | kept for now; it no longer hashes the preservation requirements or the allocation publication, which records share and compare |
-| `X86BranchRelaxationIdentity`, `X86BranchRelaxationRevisionIdentity` (12–13) | relaxation replay; exit-contract layout custody | kept for now as replay checkpoints over the function rows; they no longer hash the pre-layout encoding |
+| `X86BranchRelaxationIdentity`, `X86BranchRelaxationRevisionIdentity` (12–13) | requested relaxation replay | Stage 12 hashes the function rows and records attempts and actions only for an audit. Stage 13 checks the issued layout directly and records the relaxation policy in the exit contract. |
 | `OptimizationUnitIdentity` (04) | the unoptimized program record, custody, the post-allocation manifest, execution facts, fact keys | bind the Psi fingerprint, work schedule, entry, target, admitted scalar values, selected machines and boundaries, provider candidates, target geometry, sequence bounds, module attachment and accepted facts. Stage 02 lowers each selected body in Psi order. The seed API also accepts independently constructed functions. It hashes their complete operands once and retains the digest with the read-only graph, so attaching proof facts reuses the same function identity |
 | `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
 | `MachineEffectCatalogIdentity`, `RegisterConstraintCatalogIdentity`, `TargetRegisterEnvironmentIdentity`, `PhysicalRegisterModelIdentity`, `AllocatorAvailabilityIdentity`, `OptimizationSelectionIdentity` | catalog and target configuration roots compared across stages | keep; they name configuration, not a stage's output |

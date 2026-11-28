@@ -58,7 +58,14 @@ pub(super) fn checked_store(
         .get(&(machine.id, Projected::Reference(value.place)))
         .ok_or("a package field store has no projected source")?;
     if origin != index
-        || !versions::same_storage_version(module, machine, opened, producer, operation.id)
+        || !versions::same_storage_version(
+            module,
+            machine,
+            opened,
+            producer,
+            operation.id,
+            Some(value.place),
+        )
     {
         return Err("a package field store mixes openings or uses a stale projection");
     }

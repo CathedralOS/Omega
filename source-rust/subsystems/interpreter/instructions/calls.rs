@@ -832,8 +832,9 @@ pub(crate) mod frames {
         use crate::boundary::results::{TerminalExecutionResult, TerminalStructuralResult};
         use crate::embedding::program::AdmittedTerminalProgram;
         use crate::engine::execution::{CleanupContinuation, CompletedReturn};
-        use crate::storage::byte_sequences::ByteSequenceView;
-        use crate::storage::byte_sequences::storage::ByteSequenceStorage;
+        use crate::storage::byte_sequences::{
+            ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
+        };
         use build_model::accounting::BuildEvaluationSponsor;
         use build_model::contracts::{
             BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity,
@@ -872,6 +873,7 @@ pub(crate) mod frames {
                 loan_completions: Vec::new(),
                 entry,
                 blocks: vec![Block {
+                    assembly_exit: None,
                     id: entry,
                     parameters: Vec::new(),
                     erased_scalar_formals: Vec::new(),
@@ -1171,6 +1173,7 @@ pub(crate) mod component_arguments {
     use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
     use crate::embedding::program::TerminalProgram;
     use crate::engine::execution::TerminalExecution;
+    use crate::storage::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
 
     pub(crate) struct PreparedComponentArguments {
         pub(crate) custody: ComponentInputCustody,
@@ -1184,6 +1187,7 @@ pub(crate) mod component_arguments {
         pub(crate) source: Option<crate::boundary::effects::byte_buffers::BoundaryArguments>,
         pub(crate) values: Vec<TerminalStructuralValue>,
         pub(crate) contents: Vec<crate::TerminalStructuralContents>,
+        byte_arguments: BTreeMap<usize, ByteSequenceView>,
         opaque_arguments: Vec<usize>,
         scalar_arguments: Vec<LentScalarArgument>,
         empty_arguments: Vec<SharedEmptyArgument>,
@@ -1195,12 +1199,25 @@ pub(crate) mod component_arguments {
             &self,
             child: &mut TerminalExecution<'_>,
         ) -> Result<(), TerminalInterpretError> {
-            if self.source.is_none() {
+            if self.source.is_none() && self.byte_arguments.is_empty() {
                 return Ok(());
             }
             let entry = child.program.verified_machine(child.current_machine)?;
             if entry.structural_parameters.len() != self.values.len() {
                 return Err(malformed());
+            }
+            for (&index, view) in &self.byte_arguments {
+                let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
+                let home = child.structural_value(parameter.place)?.clone();
+                let binding =
+                    ByteSequenceBinding::Immutable(view.clone().with_descriptor_home(home));
+                if child
+                    .byte_sequence_values
+                    .insert(parameter.place, binding)?
+                    .is_some()
+                {
+                    return Err(malformed());
+                }
             }
             for &index in &self.opaque_arguments {
                 let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
@@ -1294,7 +1311,7 @@ pub(crate) mod component_arguments {
             {
                 return Err(malformed());
             }
-            let prepared =
+            let mut prepared =
                 self.prepare_boundary_arguments(&receiver.structural_parameters, arguments)?;
             crate::engine::custody::bind_active_structural_arguments(
                 &receiver.structural_parameters,
@@ -1304,8 +1321,8 @@ pub(crate) mod component_arguments {
                 self.account.as_ref(),
             )?;
             validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
-            prepared.opaque_values(self.local_structural_identities.cursor())?;
-            let mut prepared = prepared;
+            let mut byte_arguments =
+                prepared.take_component_byte_views(self.local_structural_identities.cursor())?;
             let lending = arguments
                 .iter()
                 .any(|argument| argument.access != StructuralAccess::Owned);
@@ -1340,39 +1357,94 @@ pub(crate) mod component_arguments {
                     argument.access,
                     terminal_psi::reading_borrow_pair_pattern!()
                 );
+                let error =
+                    |detail: String| TerminalInterpretError::StructuralArgumentPreparation {
+                        stage: "component input",
+                        detail: format!("argument {argument_index}: {detail}"),
+                    };
                 if argument.access != required.access
                     || required.access != supplied.access
                     || (!owned && !lent)
-                    || required.multiplicity != supplied.multiplicity
-                    || !required.projected_qualifications.is_empty()
-                    || !supplied.projected_qualifications.is_empty()
-                    || !value.projected_qualifications.is_empty()
+                {
+                    return Err(error(format!(
+                        "caller access {:?}, receiving access {:?}, provider access {:?}",
+                        argument.access, required.access, supplied.access
+                    )));
+                }
+                if required.multiplicity != supplied.multiplicity
                     || receiver_type.owns_linear_claim != linear
                     || provider_type.owns_linear_claim != linear
-                    || (!linear
-                        && (!receiver_type.no_code_affine_cleanup
-                            || !provider_type.no_code_affine_cleanup))
-                    || !self
-                        .program
-                        .catalogs
-                        .identities
-                        .text(receiver_type.identity)
-                        .zip(
-                            provider
-                                .program
-                                .catalogs
-                                .identities
-                                .text(provider_type.identity),
-                        )
-                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
-                    || (owned
-                        && crate::engine::custody::has_live_loan(
-                            self.reference_referents.as_map(),
-                            value,
-                        ))
                 {
-                    return Err(reject(
-                        "component input lacks exact owned closed Inert type/custody",
+                    return Err(error(format!(
+                        "multiplicity or linear custody differs: receiver {:?}, provider {:?}",
+                        required.multiplicity, supplied.multiplicity
+                    )));
+                }
+                if !required.projected_qualifications.is_empty()
+                    || !supplied.projected_qualifications.is_empty()
+                    || !value.projected_qualifications.is_empty()
+                {
+                    return Err(error(
+                        "component input has unsupported projected qualifications".into(),
+                    ));
+                }
+                let byte_view = byte_arguments.contains_key(&argument_index);
+                let shared_view = |shape: &terminal_psi::StructuralTypeShape| {
+                    matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(carrier)
+                        if carrier.is_shared_readable_view())
+                };
+                if byte_view
+                    && (!shared_view(&receiver_type.shape)
+                        || !shared_view(&provider_type.shape)
+                        || required.access != StructuralAccess::SharedBorrow)
+                {
+                    return Err(error(format!(
+                        "shared byte backing requires matching read-only views: receiving {:?} {:?}, provider {:?} {:?}",
+                        required.access, receiver_type.shape, supplied.access, provider_type.shape
+                    )));
+                }
+                // A shared descriptor only lends its checked view and never
+                // transfers ownership of the array. Owned and generic carriers
+                // still need their ordinary no-code cleanup or linear claim.
+                if !linear
+                    && !byte_view
+                    && (!receiver_type.no_code_affine_cleanup
+                        || !provider_type.no_code_affine_cleanup)
+                {
+                    return Err(error(
+                        "component transfer lacks checked no-code cleanup".into(),
+                    ));
+                }
+                let receiving_identity = self
+                    .program
+                    .catalogs
+                    .identities
+                    .text(receiver_type.identity);
+                let supplying_identity = provider
+                    .program
+                    .catalogs
+                    .identities
+                    .text(provider_type.identity);
+                // Provider admission matched the callable contract and result lifetimes.
+                // Each artifact names the shared input region locally. The scoped
+                // view above establishes the same byte element and access in both.
+                if !byte_view
+                    && !receiving_identity
+                        .zip(supplying_identity)
+                        .is_some_and(|(left, right)| !left.is_empty() && left == right)
+                {
+                    return Err(error(format!(
+                        "closed structural types differ: receiver {receiving_identity:?}, provider {supplying_identity:?}"
+                    )));
+                }
+                if owned
+                    && crate::engine::custody::has_live_loan(
+                        self.reference_referents.as_map(),
+                        value,
+                    )
+                {
+                    return Err(error(
+                        "an owned component input still has a live loan".into(),
                     ));
                 }
                 if lent {
@@ -1476,7 +1548,9 @@ pub(crate) mod component_arguments {
                         "component input requires a loan or resource storage transfer carrier",
                     ));
                 }
-                if lent && self.component_borrows_scalar_cells(value)? {
+                if byte_view {
+                    // Its shared backing is installed alongside the child parameter.
+                } else if lent && self.component_borrows_scalar_cells(value)? {
                     scalar_arguments.push(self.prepare_component_scalar_argument(
                         value,
                         argument_index,
@@ -1551,11 +1625,15 @@ pub(crate) mod component_arguments {
                     )
                 })
                 .collect::<Result<_, _>>()?;
+            for view in byte_arguments.values_mut() {
+                view.lend_array_to_component(self)?;
+            }
             Ok(PreparedComponentArguments {
                 custody: ComponentInputCustody {
                     source: lending.then_some(prepared),
                     values,
                     contents,
+                    byte_arguments,
                     opaque_arguments,
                     scalar_arguments,
                     empty_arguments,
@@ -2891,7 +2969,7 @@ use terminal_psi::{
 
 pub(crate) struct PendingBoundaryCall {
     pub(crate) site: crate::boundary::results::TerminalEffectWait,
-    pub(crate) awaiting_provider_readiness: bool,
+    pub(crate) park: Option<crate::suspension::ParkOccurrence>,
     arguments: crate::boundary::effects::byte_buffers::BoundaryArguments,
     remaining_claims: BTreeMap<semantic_vocabulary::ClaimId, crate::engine::execution::LiveClaim>,
     effect: TerminalEffect,
@@ -3121,13 +3199,23 @@ impl<'artifact> TerminalExecution<'artifact> {
         meter: &mut dyn terminal_work::ExecutionMeter,
         components: &mut crate::embedding::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        if let Some(pending) = self.awaiting_effect.as_ref() {
-            if let Some(status) = self.boundary_effect_wait(operation, handler, pending)? {
-                self.awaiting_effect
-                    .as_mut()
-                    .ok_or(malformed())?
-                    .awaiting_provider_readiness =
-                    matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
+        if let Some(pending) = self.awaiting_effect.as_mut() {
+            operation_kind!(operation => BoundaryCall { boundary, .. });
+            if pending.site.program != self.program.identity
+                || pending.site.machine != self.current_machine
+                || pending.site.block != self.current
+                || pending.site.operation != operation.id
+                || pending.site.boundary != *boundary
+            {
+                return Err(malformed());
+            }
+            if let Some(status) = Self::boundary_effect_wait(
+                operation,
+                handler,
+                pending,
+                self.local_structural_identities.exposure_namespace,
+                &mut self.last_park,
+            )? {
                 return Ok(OperationFlow::Yield(status));
             }
             let pending = self.awaiting_effect.take().ok_or(malformed())?;
@@ -3503,7 +3591,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             result: boundary_declaration.result.clone(),
         };
         let mut pending = PendingBoundaryCall {
-            awaiting_provider_readiness: false,
+            park: None,
             site,
             arguments: boundary_arguments,
             remaining_claims,
@@ -3512,9 +3600,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         if layout_snapshot {
             return self.complete_boundary_effect(operation, handler, pending);
         }
-        if let Some(status) = self.boundary_effect_wait(operation, handler, &pending)? {
-            pending.awaiting_provider_readiness =
-                matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
+        if let Some(status) = Self::boundary_effect_wait(
+            operation,
+            handler,
+            &mut pending,
+            self.local_structural_identities.exposure_namespace,
+            &mut self.last_park,
+        )? {
             self.awaiting_effect = Some(Box::new(pending));
             Ok(OperationFlow::Yield(status))
         } else {
@@ -3524,20 +3616,12 @@ impl<'artifact> TerminalExecution<'artifact> {
     }
 
     fn boundary_effect_wait(
-        &self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
-        pending: &PendingBoundaryCall,
+        pending: &mut PendingBoundaryCall,
+        namespace: Option<u64>,
+        last_park: &mut u64,
     ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
-        operation_kind!(operation => BoundaryCall { boundary, .. });
-        if pending.site.program != self.program.identity
-            || pending.site.machine != self.current_machine
-            || pending.site.block != self.current
-            || pending.site.operation != operation.id
-            || pending.site.boundary != *boundary
-        {
-            return Err(malformed());
-        }
         let ready = handler
             .poll_effect_readiness(&pending.effect)
             .map_err(|rejection| TerminalInterpretError::EffectRejected {
@@ -3553,8 +3637,16 @@ impl<'artifact> TerminalExecution<'artifact> {
             });
         }
         if !ready {
+            let occurrence = match pending.park {
+                Some(existing) => existing,
+                None => crate::suspension::ParkOccurrence::fresh(namespace, last_park)?,
+            };
+            pending.park = Some(occurrence);
             return Ok(Some(TerminalExecutionStatus::AwaitingEffect(
-                pending.site.clone(),
+                crate::TerminalSuspension {
+                    site: pending.site.clone(),
+                    occurrence,
+                },
             )));
         }
         let computed = handler
@@ -3563,6 +3655,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 operation: operation.id,
                 rejection,
             })?;
+        pending.park = None;
         Ok(
             (!computed).then_some(TerminalExecutionStatus::HostComputationPending(
                 pending.site.clone(),

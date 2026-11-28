@@ -83,17 +83,17 @@ pub(crate) fn produce(
             };
             let protocol =
                 |name| owner.is_boundary && is_build_protocol(&source.symbols, owner.symbol, name);
-            let (stream, file_operation) = if owner.is_boundary {
+            let (installed_request, file_operation) = if owner.is_boundary {
                 let operation = requirement.name.as_str();
                 (
-                    sandbox_stream_operation(source, owner.symbol, operation),
+                    installed_request_operation(source, owner.symbol, operation),
                     installed_filesystem_operation(source, owner.symbol, operation),
                 )
             } else {
                 (None, None)
             };
             let launcher = is_installed_launcher(source, owner.symbol, requirement.name.as_str());
-            if stream.is_none()
+            if installed_request.is_none()
                 && file_operation.is_none()
                 && !launcher
                 && ![
@@ -120,7 +120,7 @@ pub(crate) fn produce(
                 },
                 name: requirement.name.as_str(),
             };
-            if let Some(action) = stream {
+            if let Some(action) = installed_request {
                 companions.requests.push(TerminalBuildRequestCall {
                     site: call.site,
                     action,
@@ -329,16 +329,24 @@ fn declared_in_companion(
 }
 
 /// A matching declaration in a user package or a modified toolchain file cannot
-/// acquire a stream service. Call-site and artifact custody are attached above.
-fn sandbox_stream_operation(
+/// acquire a host service. Call-site and artifact custody are attached above.
+fn installed_request_operation(
     source: &TypedTrees,
     owner: SymbolHandle,
     operation: &str,
 ) -> Option<TerminalBuildRequestOperation> {
-    (source.symbols.name(owner) == "SandboxOutput"
-        && operation == "write"
-        && declared_in_companion(source, owner, BuildCompanionFile::SandboxStreams))
-    .then_some(TerminalBuildRequestOperation::SandboxWrite)
+    let (file, action) = match (source.symbols.name(owner), operation) {
+        ("SandboxOutput", "write") => (
+            BuildCompanionFile::SandboxStreams,
+            TerminalBuildRequestOperation::SandboxWrite,
+        ),
+        ("Datagram", "send") => (
+            BuildCompanionFile::SandboxDatagram,
+            TerminalBuildRequestOperation::SendDatagram,
+        ),
+        _ => return None,
+    };
+    declared_in_companion(source, owner, file).then_some(action)
 }
 
 /// The invocation may supply the installed system's public filesystem operations.
@@ -570,6 +578,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "extend_workspace" => Request::ExtendWorkspace,
         "copy_bytes" => Request::CopyBytes,
         "artifact_only" => Request::ArtifactOnly,
+        "inherit_network" => Request::InheritNetwork,
         "register_path_dependency" => Request::PathDependency,
         "register_bundled_dependency" => Request::BundledDependency,
         "register_git_dependency" => Request::GitDependency,

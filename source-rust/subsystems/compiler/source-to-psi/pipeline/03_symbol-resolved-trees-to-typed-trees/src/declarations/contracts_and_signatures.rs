@@ -1515,10 +1515,10 @@ pub(crate) mod signatures {
             kind: &resolved::data::TypeParameterKind,
         ) -> Result<typed::data::TypeParameterKind, Diagnostic> {
             match kind {
-                resolved::data::TypeParameterKind::Type => Ok(typed::data::TypeParameterKind::Type),
-                resolved::data::TypeParameterKind::SomeType => Err(Diagnostic::error(
-                    "typing a per-value package requires checking its hidden field witnesses",
-                )),
+                resolved::data::TypeParameterKind::Type
+                | resolved::data::TypeParameterKind::SomeType => {
+                    Ok(typed::data::TypeParameterKind::Type)
+                }
                 resolved::data::TypeParameterKind::Implementation => {
                     Ok(typed::data::TypeParameterKind::Implementation)
                 }

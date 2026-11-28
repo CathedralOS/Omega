@@ -1,0 +1,424 @@
+//! Follow the Build entry chosen by each executed plan, then run its final product.
+use super::project;
+
+use std::process::ExitStatus;
+
+fn invoke(files: &[(&str, &str)], arguments: &[&str]) -> (ExitStatus, String) {
+    let scratch = project::stage("staged-build-entries", files);
+    let mut command = arguments.to_vec();
+    for (name, _) in files {
+        if !arguments.contains(&"--build-input") {
+            command.extend(["--build-input", *name]);
+        }
+    }
+    command.push("build.omg");
+    let output = project::observe(scratch.path(), &command);
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    (output.status, report)
+}
+
+fn build(body: &str) -> String {
+    format!("machine build(builder: @mutable BuildPlan) {{ {body} }}")
+}
+
+#[test]
+fn a_returned_build_requires_the_filename_even_when_the_namespace_exists() {
+    let prepare = r#"machine build(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "stage.omg" };
+    }"#;
+    let helper = "public machine enabled() -> bool { true }";
+    let stage = r#"use helpers/board.omg;
+machine build(plan: @mutable BuildPlan) {
+    transition |board|::enabled() {
+        true -> ready(plan),
+        false -> missing(plan)
+    }
+    machine ready(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "board" };
+    }
+    machine missing(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "unreachable.omg" };
+    }
+}"#;
+    let check = |source| {
+        invoke(
+            &[
+                ("build.omg", prepare),
+                ("stage.omg", source),
+                ("helpers/board.omg", helper),
+            ],
+            &["--check"],
+        )
+    };
+    let (status, report) = check(stage);
+    assert!(status.success(), "{report}");
+    let obsolete = format!("use helpers;\n{stage}");
+    let (status, report) = check(&obsolete);
+    assert!(!status.success(), "{report}");
+    // `use` names a file, so the parser refuses the bare namespace where
+    // the filename's extension is missing.
+    assert!(
+        report.contains("expected `/ or the .omg filename extension`"),
+        "{report}"
+    );
+    assert!(report.contains("stage.omg:1:12"), "{report}");
+}
+
+#[test]
+fn a_build_cannot_register_a_library_for_its_own_activation() {
+    let source = r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let description: DependencyDescription = |dependency|::from_source(Source::Path { location: "unsupplied" });
+    _ = Build::build_dependency(plan, description);
+    plan.product = BuildProduct::Package { name: "example" };
+}"#;
+    let (status, report) = invoke(&[("build.omg", source)], &["build"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("no visible declaration") && report.contains("build.omg:4:9"),
+        "{report}"
+    );
+}
+
+#[test]
+fn successive_builds_select_the_final_native_and_psi_entry() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let first = build(
+        r#"builder.product = BuildProduct::InterpretedBuild { entry: "stages/configure.omg" };"#,
+    );
+    let middle =
+        build(r#"builder.product = BuildProduct::InterpretedBuild { entry: "release.lock.omg" };"#);
+    let last = format!(
+        r#"machine build(builder: @mutable BuildPlan) {{
+            builder.product = BuildProduct::Application {{ name: "staged" }};
+            Build::bind(builder, {}::ProgramEntry, launch);
+        }}
+        machine launch() {{}}
+        machine main() crashes Trap {{ crash Trap; }}"#,
+        host.target_name()
+    );
+    for command in ["run", "build"] {
+        let (status, report) = invoke(
+            &[
+                ("build.omg", &first),
+                ("stages/configure.omg", &middle),
+                ("release.lock.omg", &last),
+            ],
+            &[command],
+        );
+        assert!(status.success(), "{report}");
+    }
+}
+
+#[test]
+fn a_successor_must_be_one_canonical_file_in_the_frozen_source_view() {
+    for (name, reason) in [
+        (
+            "../outside.omg",
+            "Build successor entry requires a canonical package-relative .omg filename",
+        ),
+        ("absent.omg", "cannot select source"),
+    ] {
+        let entry = build(&format!(
+            r#"builder.product = BuildProduct::InterpretedBuild {{ entry: "{name}" }};"#
+        ));
+        let (status, report) = invoke(&[("build.omg", &entry)], &["build"]);
+        assert!(!status.success(), "{report}");
+        assert!(report.contains(reason), "{report}");
+        if name == "absent.omg" {
+            assert!(report.contains("absent.omg:"), "{report}");
+        }
+    }
+}
+
+#[test]
+fn an_authored_build_must_fill_its_initially_unselected_product() {
+    let (status, report) = invoke(&[("build.omg", &build(""))], &["--check"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("Build returned no project role"),
+        "{report}"
+    );
+}
+
+#[test]
+fn the_returned_product_is_the_last_value_in_the_plan() {
+    let first = build(
+        r#"builder.product = BuildProduct::InterpretedBuild { entry: "not_selected.omg" };
+        builder.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };"#,
+    );
+    let last = r#"machine build(plan: @mutable BuildPlan) {
+    let name: @[u8] = choose_name(true);
+    declare(plan, name);
+}
+machine choose_name(flag: bool) -> @[u8] {
+    match flag { true -> "final_package", _ -> "invalid-name" }
+}
+machine declare<'s>(plan: @mutable BuildPlan<'s>, name: @'s [u8]) {
+    plan.product = BuildProduct::Package { name: name };
+}"#;
+    let (status, report) = invoke(
+        &[("build.omg", &first), ("configure.omg", last)],
+        &["--check"],
+    );
+    assert!(status.success(), "{report}");
+}
+
+#[test]
+fn the_plan_cannot_return_a_name_borrowed_from_its_own_stack_frame() {
+    let entry = build(
+        r#"let name: [u8; 3] = [107u8, 105u8, 116u8];
+        builder.product = BuildProduct::Package { name: @name[..] };"#,
+    );
+    let (status, report) = invoke(&[("build.omg", &entry)], &["--check"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("local storage cannot establish that promise"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_queried_declaration_keeps_its_product_identity() {
+    let first = r#"use {omega}/build/dependency.omg;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "first" };
+    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
+    |dependency|::with_alias(@mutable description, "api");
+    let registration: DependencyRegistration = Build::dependency(plan, description);
+    let info: |reflect|::FieldInfo = |reflect|::field(api::Table::invoke);
+    transition info.name == "invoke" {
+        true -> finish(plan),
+        false -> refuse()
+    }
+    machine finish(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "final_name" };
+    }
+    machine refuse() crashes Trap { crash Trap; }
+}"#;
+    let library = build(r#"builder.product = BuildProduct::Package { name: "descriptions" };"#);
+    for (name, approved) in [("first", true), ("other", false)] {
+        let caller = first.replace("final_name", name);
+        let (status, report) = invoke(
+            &[
+                ("build.omg", &caller),
+                (
+                    "main.omg",
+                    "use {api}/main.omg as table; public data Header { value: |table|::Table; }",
+                ),
+                ("library/build.omg", &library),
+                ("library/main.omg", "public data Table { invoke: u64; }"),
+            ],
+            &["--check"],
+        );
+        assert_eq!(status.success(), approved, "{report}");
+        if !approved {
+            assert!(
+                report.contains("returned Build product differs from the product that issued a declaration description"),
+                "{report}"
+            );
+        }
+    }
+}
+
+#[test]
+fn only_the_returned_workspace_catalog_selects_members() {
+    let workspace = r#"use {omega}/build/workspace.omg;
+machine build(plan: @mutable BuildPlan) {
+    let first: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "not_a_package");
+    plan.product = BuildProduct::Workspace { members: first };
+    select_workspace(plan);
+}
+machine select_workspace(plan: @mutable BuildPlan) {
+    let path: [u8; 5] = [116u8, 111u8, 111u8, 108u8, 115u8];
+    let second: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, @path[..]);
+    plan.product = BuildProduct::Workspace { members: second };
+}"#;
+    let tools = build(r#"builder.product = BuildProduct::Package { name: "tools" };"#);
+    let (status, report) = invoke(
+        &[
+            ("build.omg", workspace),
+            ("tools/build.omg", &tools),
+            ("tools/main.omg", "public machine answer() -> u32 { 42u32 }"),
+        ],
+        &[
+            "--check",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "tools",
+        ],
+    );
+    assert!(status.success(), "{report}");
+
+    let (status, report) = invoke(&[("build.omg", workspace)], &["build"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("a workspace declaration does not name a Product source owner"),
+        "{report}"
+    );
+
+    let duplicate = workspace.replace(
+        "plan.product = BuildProduct::Workspace { members: second };",
+        r#"let repeated: WorkspaceMembers = |workspace|::with_member(plan, second, "tools");
+            plan.product = BuildProduct::Workspace { members: repeated };"#,
+    );
+    assert_ne!(duplicate, workspace);
+    let (status, report) = invoke(&[("build.omg", &duplicate)], &["--check"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("repeated workspace member `tools`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn the_successor_must_be_admitted_before_its_first_instruction() {
+    let first =
+        build(r#"builder.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };"#);
+    let invalid = r#"machine build(builder: @mutable BuildPlan)
+        requires 1u64 == 2u64 {
+            builder.product = BuildProduct::InterpretedBuild { entry: "../outside.omg" };
+        }"#;
+    let (status, report) = invoke(
+        &[("build.omg", &first), ("configure.omg", invalid)],
+        &["build"],
+    );
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("the build entry's `requires` does not hold for this build evaluator"),
+        "{report}"
+    );
+    assert!(
+        !report.contains("requires a canonical package-relative .omg filename"),
+        "{report}"
+    );
+}
+
+#[test]
+fn the_selected_build_must_accept_the_original_builder() {
+    let first =
+        build(r#"builder.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };"#);
+    for (invalid, reason) in [
+        ("machine main() {}", "declares no free build machine"),
+        (
+            "machine build() {} machine main() {}",
+            "one original BuildPlan parameter",
+        ),
+    ] {
+        let (status, report) = invoke(
+            &[("build.omg", &first), ("configure.omg", invalid)],
+            &["build"],
+        );
+        assert!(!status.success(), "{report}");
+        assert!(report.contains(reason), "{report}");
+    }
+}
+
+#[test]
+fn dependency_imports_respect_the_build_files_the_child_entered() {
+    let consumer = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
+        machine build(builder: @mutable BuildPlan) {
+            builder.product = BuildProduct::Application { name: "consumer" };
+            let kit: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
+            Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+        }"#;
+    let first =
+        build(r#"builder.product = BuildProduct::InterpretedBuild { entry: "prepare.omg" };"#);
+    let prepare =
+        build(r#"builder.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };"#);
+    let configure = build(r#"builder.product = BuildProduct::Package { name: "kit" };"#);
+    let marker = "public machine marker() -> i32 { 3 }";
+    let prepare = format!("{prepare}\n{marker}");
+    let configure = format!("{configure}\n{marker}");
+    for (path, permitted) in [
+        ("library/build.omg", true),
+        ("prepare.omg", false),
+        ("configure.omg", false),
+    ] {
+        let source = format!(
+            "use {{kit}}/{path} as lib; machine main() {{ let value: i32 = |lib|::marker(); }}"
+        );
+        let (status, report) = invoke(
+            &[
+                ("build.omg", consumer),
+                ("main.omg", &source),
+                ("kit/build.omg", &first),
+                ("kit/prepare.omg", &prepare),
+                ("kit/configure.omg", &configure),
+                ("kit/library/build.omg", marker),
+            ],
+            &["--check", "--target", "linux_x86_64"],
+        );
+        assert_eq!(status.success(), permitted, "{path}: {report}");
+        if !permitted {
+            assert!(
+                report.contains("may not load dependency build file") && report.contains(path),
+                "{report}"
+            );
+        }
+    }
+}
+
+#[test]
+fn only_executed_core_unsafe_opt_ins_admit_the_returned_product() {
+    let Some(target) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let name = target.target_name();
+    let build = format!(
+        r#"use main.omg as app;
+use {{omega}}/language/core/unsafe.omg as native;
+        boundary trait RawMemoryRead {{}}
+        machine build(plan: @mutable BuildPlan) {{
+            plan.product = BuildProduct::Application {{ name: "reader" }};
+            OPT_IN
+            Build::bind(plan, {name}::ProgramEntry, |app|::main);
+        }}"#
+    );
+    let program = r#"use {omega}/language/core/unsafe.omg as native;
+        machine main() reaches |native|::RawMemoryRead crashes none { inspect(); }
+        machine inspect() reaches |native|::RawMemoryRead crashes none {}
+        machine unused_writer() reaches |native|::RawMemoryWrite crashes none {}"#;
+    let read = "Build::enable_unsafe::<|native|::RawMemoryRead>(plan);";
+    let cases = [
+        (read.to_owned(), None),
+        (
+            format!(
+                "let selected: u32 = match false {{ true -> {{ {read} 1u32 }}, false -> 0u32 }};"
+            ),
+            Some("did not enable Unsafe + RawMemoryRead"),
+        ),
+        (
+            read.replace("RawMemoryRead", "RawMemoryWrite"),
+            Some("did not enable Unsafe + RawMemoryRead"),
+        ),
+        (
+            read.replace("RawMemoryRead", "Unsafe"),
+            Some("requires a specific Unsafe atom declared by core"),
+        ),
+        (
+            read.replace("|native|::RawMemoryRead", "RawMemoryRead"),
+            Some("requires a specific Unsafe atom declared by core"),
+        ),
+    ];
+    for (opt_in, refusal) in cases {
+        let source = build.replace("OPT_IN", &opt_in);
+        let (status, report) = invoke(
+            &[("build.omg", &source), ("main.omg", program)],
+            &["--check", "--target", name],
+        );
+        match refusal {
+            Some(reason) => assert!(!status.success() && report.contains(reason), "{report}"),
+            None => assert!(status.success(), "{report}"),
+        }
+    }
+}

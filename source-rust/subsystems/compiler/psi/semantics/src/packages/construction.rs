@@ -91,8 +91,19 @@ pub(super) fn construction(
             let (origin, producer) = origins
                 .get(&(machine.id, input))
                 .ok_or("repacked field has no opening origin")?;
+            let materialized = match input {
+                Projected::Reference(place) => Some(place),
+                Projected::Descriptor(_) => None,
+            };
             if *origin != index
-                || !versions::same_storage_version(module, machine, row, *producer, operation.id)
+                || !versions::same_storage_version(
+                    module,
+                    machine,
+                    row,
+                    *producer,
+                    operation.id,
+                    materialized,
+                )
             {
                 return Err("repacked field comes from a different or stale opening");
             }

@@ -12,7 +12,6 @@ use target::Architecture;
 
 use crate::x86_branch_relaxation;
 use encoding_admission::layout::relaxation;
-use machine_code::layout::X86BranchRelaxationRecord;
 
 /// The final layout and the trace issued by the pass that produced it.
 #[derive(Debug)]
@@ -57,6 +56,7 @@ pub(super) fn settle<Contracts>(
                 &program.layout,
                 &program.control_alternatives,
                 budget,
+                contracts.audit_requested(),
             )
             .map_err(ResolvedLayoutOptimizationError::Relaxation)?,
         )
@@ -80,8 +80,7 @@ pub(super) fn settle<Contracts>(
         program,
         selections,
         budget,
-        relaxation: relaxation.as_ref().map(X86BranchRelaxationRecord::identity),
-        trace: relaxation.map(std::sync::Arc::new),
+        relaxation: relaxation.map(std::sync::Arc::new),
     };
     if contracts.audit_requested() {
         relaxation::validate_current_layout_optimization(&layout)?;

@@ -129,6 +129,10 @@ pub enum PackageSourceVerificationPhase {
 }
 
 impl CompilerIssuedPackageReviewSet {
+    pub(super) fn into_reviews(self) -> Vec<CompilerIssuedPackageReview> {
+        self.reviews
+    }
+
     pub fn reviews(&self) -> &[CompilerIssuedPackageReview] {
         &self.reviews
     }
