@@ -1,6 +1,6 @@
 # Public filesystem values on Linux x86-64
 
-The fastest of five empty-cache builds took 89.616 s. The median was 90.758 s. The median edited build took 91.894 s. None met the 1.000 s target.
+The combined candidate's five cold runs had a 60.200 s median, versus 88.643 s at the matched base. Its fastest run took 58.983 s, exceeding the cutoff by 57.983 s. The original standalone baseline follows. Its fastest of five empty-cache builds took 89.616 s. The median was 90.758 s. The median edited build took 91.894 s. None met the 1.000 s target.
 
 A release compiler built from `e6477bc08c36684b78cca182ba91bd012b4c5a4d` compiled the original fixture from source on the cloud Xeon. In the independent Linux execution control, both the native executable and Psi returned 0 with empty standard output and an empty working directory after execution. The native executable's SHA-256 was `377cf86f898520ee6e68d736d2b816c3d2c7480391801e8c561d7ea28c449cec`.
 
@@ -131,3 +131,76 @@ All seven full policy results matched between revisions at the same source path.
 The temporary integration candidate is [bd7e9ed177d1e8ea61b980f48644c31c619f6832](https://github.com/CathedralOS/Omega/commit/bd7e9ed177d1e8ea61b980f48644c31c619f6832). Its parents are schema head `bcf570afbce15767e19319cf2f07a0a8ac390c2b` and fixed-array head `880b67dce36f0834dcce799b02ab2168c6c878be`. Both descend from the shared base. The array head reports acceptance of both disjoint-write controls and refusal of both captured-write controls. The compiler source changes combined cleanly. The whole library tree and fixture match the base.
 
 The comparison runs the staged Linux Build entry point from the baseline recipe. Five fresh baseline/combined pairs alternate which compiler goes first. Both cold builds in a pair precede both filename-edited builds. A sixth pair collects stock phase timings and separate cold clients provide GDB spans. The temporary candidate carries only these two source changes. #6743 recorded zero prebuilt dependency hits in this CLI workload. Its three-trial 3.657 s versus 4.247 s edited medians belong to a separate embedding experiment with explicit checked supplier inputs. [Dependency experiment](https://github.com/CathedralOS/Omega/pull/6743)
+
+
+### WIP local handoff
+
+On the same cloud Xeon Platinum 8573C, the schema and fixed-array candidate took 28.443 s less at the cold median (32.1%). Every cold pair improved. The compiler and dependency caches and output began empty. No prebuilt dependencies were supplied. The OS page cache was uncontrolled. The release compiler hashes were `513e72140bbcfb6db5ba1a83af1a5b9e6aa904255c0a6d5de274cb5982c78935` (base) and `d63ecc97f77fbe441a822b6d1d6a2745f9fcf55f43d4176bede950effd389f1f` (combined).
+
+Both revisions produced the expected 524,288-byte ELF in every build. All 24 launches, including the four separate phase builds, exited 0 with empty streams and clean scratch. All 20 ordinary compilations agreed on diagnostics after client path normalization. The combined compiler's original Psi run agreed at exit 0. The 8- and 4,096-slot array controls passed on the component PR. Wall-time attribution between the patches remains open.
+
+The independent combined cold GDB trace recorded 43.341 s in checking (10 calls), 2.666 s in frontend resolution and typing (4), 2.597 s in lowering (299), and 0.993 s in native emission (1). Product preparation (2 calls, 57.381 s) includes child phases. The candidate has no separate layout schema construction symbol. The stock cold run measured 4.667 s in project open and Build planning. The new matched baseline GDB trace was stopped for handoff. Combined CPU sampling and the queued combined proof-control rerun did not start. The archive contains the timing harness, complete measured rows and the completed combined trace. Archive SHA-256 `f52910b2b9916528cd83381cd8a8439d8ecaaae38d7348a8f1efd530a2cc02ef`.
+
+
+### Cold builds
+
+| Pair | Order | Baseline (s) | Combined (s) | Saved (s) |
+|---:|---|---:|---:|---:|
+| 1 | Base first | 89.671 | 61.257 | 28.414 |
+| 2 | Combined first | 88.643 | 58.983 | 29.660 |
+| 3 | Base first | 85.511 | 59.411 | 26.100 |
+| 4 | Combined first | 88.639 | 60.200 | 28.439 |
+| 5 | Base first | 92.900 | 60.582 | 32.319 |
+
+| Metric | Revision | Min | Median | Mean | Max |
+|---|---|---:|---:|---:|---:|
+| Elapsed (s) | base | 85.511 | 88.643 | 89.073 | 92.900 |
+| Elapsed (s) | combined | 58.983 | 60.200 | 60.087 | 61.257 |
+| Peak RSS (MiB) | base | 1,211.281 | 1,227.855 | 1,226.814 | 1,239.879 |
+| Peak RSS (MiB) | combined | 1,069.125 | 1,085.336 | 1,082.824 | 1,091.641 |
+| User CPU (s) | base | 178.871 | 186.682 | 186.701 | 195.029 |
+| User CPU (s) | combined | 129.034 | 130.723 | 130.802 | 132.643 |
+| System CPU (s) | base | 6.766 | 7.156 | 7.123 | 7.480 |
+| System CPU (s) | combined | 3.131 | 3.153 | 3.344 | 3.689 |
+
+### Edited builds
+
+| Pair | Order | Baseline (s) | Combined (s) | Saved (s) |
+|---:|---|---:|---:|---:|
+| 1 | Base first | 88.782 | 62.126 | 26.656 |
+| 2 | Combined first | 88.892 | 61.029 | 27.863 |
+| 3 | Base first | 86.924 | 59.432 | 27.492 |
+| 4 | Combined first | 91.598 | 60.180 | 31.418 |
+| 5 | Base first | 93.388 | 70.672 | 22.716 |
+
+| Metric | Revision | Min | Median | Mean | Max |
+|---|---|---:|---:|---:|---:|
+| Elapsed (s) | base | 86.924 | 88.892 | 89.917 | 93.388 |
+| Elapsed (s) | combined | 59.432 | 61.029 | 62.688 | 70.672 |
+| Peak RSS (MiB) | base | 1,208.672 | 1,217.250 | 1,219.830 | 1,236.488 |
+| Peak RSS (MiB) | combined | 1,061.992 | 1,091.164 | 1,084.343 | 1,098.094 |
+| User CPU (s) | base | 180.367 | 185.634 | 187.955 | 195.269 |
+| User CPU (s) | combined | 129.648 | 131.864 | 134.998 | 147.203 |
+| System CPU (s) | base | 6.991 | 7.279 | 7.935 | 9.266 |
+| System CPU (s) | combined | 3.014 | 3.173 | 3.365 | 4.261 |
+
+### Stock phase timings
+
+| Stage (s) | Base cold | Combined cold | Base edited | Combined edited |
+|---|---:|---:|---:|---:|
+| Open / prepare: ProjectInput -> LocalPreparation | 0.0043 | 0.0018 | 0.0021 | 0.0041 |
+| Open / acquire root: LocalPreparation -> CapturedRoot | 0.0015 | 0.0004 | 0.0009 | 0.0021 |
+| Open / execute Build: CapturedRoot -> BuildStage | 0.3298 | 0.3258 | 0.3178 | 0.3637 |
+| Open / resolve sources: BuildStage -> ProjectSources | 2.9335 | 2.8970 | 2.9142 | 2.9648 |
+| Open / dependency handoff: ProjectSources -> PlannedProducts | 1.2834 | 1.4394 | 1.5974 | 1.3218 |
+| Open / dispose session: PlannedProducts -> ProjectProducts | 0.0003 | 0.0003 | 0.0004 | 0.0002 |
+| Build / Source acquisition: SourcePaths -> SourceFiles | 0.0010 | 0.0013 | 0.0018 | 0.0009 |
+| Build / Source ingress: SourceFiles -> SyntaxTrees | 0.0680 | 0.0941 | 0.2603 | 0.0680 |
+| Build / build-source-judgment: TypedTrees -> AcceptedTerminalSource | 0.0915 | 0.1015 | 0.0828 | 0.1176 |
+| Dependency Builds / Source acquisition: SourcePaths -> SourceFiles | 0.0010 | 0.0012 | 0.0012 | 0.0048 |
+| Dependency Builds / Source ingress: SourceFiles -> SyntaxTrees | 0.0574 | 0.1001 | 0.0642 | 0.0623 |
+| Dependency Builds / build-source-judgment: TypedTrees -> AcceptedTerminalSource | 2.4975 | 2.4324 | 2.3979 | 2.5126 |
+| open_products | 4.5552 | 4.6665 | 4.8356 | 4.6592 |
+| prepare_targets | 0.0064 | 0.0073 | 0.0066 | 0.0075 |
+| teardown | 0.0183 | 0.0203 | 0.0497 | 0.0767 |
+| total elapsed | 103.2858 | 61.6404 | 103.7972 | 62.2891 |
