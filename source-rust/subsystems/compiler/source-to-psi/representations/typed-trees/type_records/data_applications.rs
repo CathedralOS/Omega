@@ -4,7 +4,7 @@
 //! Each view stays associated with its original source type occurrence.
 
 use crate::source_state::TypedTrees;
-use crate::source_state::data::{DataMember, TypeParameterKind};
+use crate::source_state::data::{DataMember, MachineParameterContract, TypeParameterKind};
 use crate::source_state::types::{
     DomainConstraintSubject, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
@@ -690,6 +690,18 @@ impl<'source> ApplicationPreparation<'source> {
         Ok(true)
     }
 
+    /// Whether a static machine argument names one declared machine.
+    fn selects_machine(&self, argument: TypeReferenceHandle) -> bool {
+        let TypeReferenceNode::Named { symbol, .. } =
+            self.source.type_reference_table.type_reference(argument)
+        else {
+            return false;
+        };
+        self.source.symbols.symbols().nodes().is_valid(*symbol)
+            && self.source.symbols.get(*symbol).kind == SymbolKind::Machine
+            && self.source.machine_by_symbol(*symbol).is_some()
+    }
+
     fn application(
         &mut self,
         reference: TypeReferenceHandle,
@@ -749,6 +761,9 @@ impl<'source> ApplicationPreparation<'source> {
                         | TypeParameterKind::Implementation
                         | TypeParameterKind::Const { .. }
                         | TypeParameterKind::Value { .. }
+                        | TypeParameterKind::Machine {
+                            contract: MachineParameterContract::Structural(_)
+                        }
                 )
             })
         {
@@ -756,10 +771,10 @@ impl<'source> ApplicationPreparation<'source> {
         }
         let mut substitutions = Vec::with_capacity(parameters.len());
         for (parameter, argument) in parameters.iter().zip(arguments) {
-            let symbol_kind = if parameter.kind == TypeParameterKind::Implementation {
-                SymbolKind::ConformanceParameter
-            } else {
-                SymbolKind::TypeParameter
+            let symbol_kind = match parameter.kind {
+                TypeParameterKind::Implementation => SymbolKind::ConformanceParameter,
+                TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
+                _ => SymbolKind::TypeParameter,
             };
             if !self
                 .source
@@ -838,6 +853,10 @@ impl<'source> ApplicationPreparation<'source> {
                         )
                         .is_some()
                 }
+                // A static machine argument names the machine it selects. That
+                // the machine has the parameter's whole contract is judged
+                // where the application is read.
+                TypeParameterKind::Machine { .. } => self.selects_machine(*argument),
                 _ => false,
             };
         }

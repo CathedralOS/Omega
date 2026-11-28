@@ -159,6 +159,48 @@ impl Program<'_> {
 
     /// Read `expression` as a term of the sort `usage` asks for, with its
     /// names denoting what `scope` gives them.
+    /// The type of a clause value whose field is read, when the clause
+    /// says it: a formal, a for-every binder, or a call of a mathematical
+    /// function.
+    fn clause_receiver_type(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        receiver: ExpressionHandle,
+    ) -> Checked<Option<ValueType>> {
+        let typed = self.typed;
+        let table = &typed.expression_table;
+        Ok(match table.expression(receiver) {
+            ExpressionNode::Name(path)
+                if !path.static_application.is_valid()
+                    && !path.reserved_result_of.is_valid()
+                    && table.name_path_members(path.members).len() == 1 =>
+            {
+                if let Some(actual) = self.proposition_argument(path.symbol) {
+                    return self.clause_receiver_type(id, scope, actual);
+                }
+                match self.universal_binder(path.symbol) {
+                    Some((_, value_type)) => Some(value_type),
+                    None => scope
+                        .slots
+                        .iter()
+                        .find(|slot| slot.symbol == path.symbol)
+                        .map(|slot| slot.value_type),
+                }
+            }
+            ExpressionNode::Call(call) if self.mathematical => {
+                match self.mathematical_function(call) {
+                    Some(target) => {
+                        let (_, entry) = self.declaration(id, target)?;
+                        Some(self.value_type(id, entry.return_type)?)
+                    }
+                    None => None,
+                }
+            }
+            _ => None,
+        })
+    }
+
     pub(super) fn clause_term(
         &mut self,
         id: MachineId,
@@ -2108,8 +2150,24 @@ impl Program<'_> {
                     // field of a call of a machine parameter has no such
                     // selection: the call's declared result is the record,
                     // and the field is the one of that name.
-                    let receiver = if selected.is_valid() {
-                        self.record(id, typed.symbols.get(selected).parent)?
+                    let owner = if selected.is_valid() {
+                        typed.symbols.get(selected).parent
+                    } else {
+                        SymbolHandle::invalid()
+                    };
+                    // A field of generic data is the same declaration in every
+                    // application; the receiver's own type says which one.
+                    let generic = selected.is_valid()
+                        && typed
+                            .unique_data_definition_by_symbol(owner)
+                            .is_some_and(|data| !data.type_parameters.is_empty());
+                    let receiver = if generic {
+                        self.clause_receiver_type(id, scope, member.receiver)?
+                            .ok_or_else(|| {
+                                unavailable("field of generic data whose receiver has no known type")
+                            })?
+                    } else if selected.is_valid() {
+                        self.record(id, owner)?
                     } else {
                         match table.expression(member.receiver) {
                             ExpressionNode::Call(call) => {
