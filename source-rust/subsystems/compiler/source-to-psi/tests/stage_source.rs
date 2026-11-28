@@ -1234,7 +1234,7 @@ fn typed_trees_check_their_record_format_before_reading_the_forest() {
     }
     let header = b"OmegaTypedTrees3";
     assert!(bytes.starts_with(header));
-    for version in [b'1', b'2', b'4'] {
+    for version in *b"124" {
         let mut other_format = bytes.clone();
         other_format[header.len() - 1] = version;
         assert_eq!(

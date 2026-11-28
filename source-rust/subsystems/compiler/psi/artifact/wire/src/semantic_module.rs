@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 305`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 306`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -136,7 +136,10 @@ pub(crate) mod canonical_order {
         );
         let packages = &module.execution.packages;
         check_order!(packages.schemas.iter().map(|s| s.record), "package schemas");
-        check_order!(packages.sites.iter().map(|s| (s.machine, s.operation)), "package operation sites");
+        check_order!(
+            packages.sites.iter().map(|s| (s.machine, s.operation)),
+            "package operation sites"
+        );
         let demands = &module.execution.task_activation_demands;
         check_order!(
             demands.iter().map(|d| (
@@ -511,6 +514,14 @@ pub(crate) mod canonical_order {
                 "boundary fixed service reach by ServiceId"
             );
         }
+        check_order!(
+            module
+                .interfaces
+                .provider_exports
+                .iter()
+                .map(|row| (row.schema_declaration, row.schema_application)),
+            "provider exports by exact schema"
+        );
         check_order!(
             module.interfaces.provider_candidates.iter().map(|c| (
                 c.boundary,
@@ -4081,7 +4092,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 305 retains per-value package schemas, openings and checked construction, projection, call and store sites.
+// Marker 306 retains per-value package schemas, openings and checked construction, projection, call and store sites.
+// Marker 305 records the supplier's exported provider records separately from local selections.
 // Marker 304 appends the optional assembly exit constraint to each block.
 // Marker 303 makes task activation storage refer to the ordinary program declarations.
 // Marker 302 adds each theorem application's sum arguments after its scalar
@@ -4095,7 +4107,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // at the FloatMeaning carrier and retires proposition tag 19.
 // Marker 295 retires byte-sequence equality proposition tag 12, which only
 // an uncalled producer wrote.
-pub(crate) const FORMAT_MARKER: u16 = 305;
+pub(crate) const FORMAT_MARKER: u16 = 306;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4188,7 +4200,9 @@ pub fn decode_closed_parts_within(
     // already refused a repeated machine identity, the bundle's only refusal.
     let analyses = terminal_semantics::ModuleAnalyses::new(&module)
         .map_err(|_| CodecError::NonCanonicalOrder("machines by MachineId"))?;
-    analyses.package_sites().map_err(CodecError::MalformedStructuralFoundation)?;
+    analyses
+        .package_sites()
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_structural_foundation(&analyses)?;
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.

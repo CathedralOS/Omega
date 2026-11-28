@@ -76,7 +76,7 @@ impl Program<'_> {
             },
             _ => None,
         };
-        if let (Some(label), Some(names)) = (label, self.names.get_mut(id)) {
+        if let (Some(label), Some(names)) = (label, self.machine_names_mut(id)) {
             names.arms.push((
                 transition.source_span,
                 format!("the `{label}` arm of a transition"),
@@ -385,7 +385,7 @@ impl Program<'_> {
             if let Some(earlier) =
                 wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
             {
-                if let Some(names) = self.names.get_mut(id) {
+                if let Some(names) = self.machine_names_mut(id) {
                     names
                         .shadowed_patterns
                         .push((transition.source_span, earlier));

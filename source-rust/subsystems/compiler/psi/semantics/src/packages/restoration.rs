@@ -5,6 +5,7 @@ use super::*;
 use crate::descriptor_lifetimes::{DescriptorPosition, descriptor_location};
 use crate::descriptor_results::DescriptorAnalysis;
 use semantic_vocabulary::PlaceId;
+use std::collections::BTreeSet;
 
 pub(crate) fn local_restoration_homes(
     module: &TerminalModule,

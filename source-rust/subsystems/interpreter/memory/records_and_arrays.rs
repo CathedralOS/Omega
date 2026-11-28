@@ -2767,15 +2767,13 @@ pub(crate) mod scalar_array {
                 self.get(place).is_some()
             }
 
-            pub(crate) fn keys(&self) -> impl Iterator<Item = &PlaceId> {
-                self.rows
-                    .iter()
-                    .filter(|(_, binding)| binding.live)
-                    .map(|(place, _)| place)
-            }
-
             pub(crate) fn remove(&mut self, place: &PlaceId) {
-                self.retire_packed_home(place);
+                if let Some(binding) = self.rows.get_mut(place)
+                    && binding.live
+                {
+                    binding.live = false;
+                    self.live_count -= 1;
+                }
             }
 
             pub(crate) fn publish(
@@ -2817,36 +2815,6 @@ pub(crate) mod scalar_array {
             pub(crate) fn collect_retired(&mut self, mut retained: impl FnMut(PlaceId) -> bool) {
                 self.rows
                     .retain(|place, binding| binding.live || retained(*place));
-            }
-        }
-
-        pub(crate) trait PackedHomeRetirement {
-            fn contains_packed_home(&self, place: &PlaceId) -> bool;
-            fn retire_packed_home(&mut self, place: &PlaceId);
-        }
-
-        impl PackedHomeRetirement for ScalarArrayBindings {
-            fn contains_packed_home(&self, place: &PlaceId) -> bool {
-                self.contains_key(place)
-            }
-
-            fn retire_packed_home(&mut self, place: &PlaceId) {
-                if let Some(binding) = self.rows.get_mut(place)
-                    && binding.live
-                {
-                    binding.live = false;
-                    self.live_count -= 1;
-                }
-            }
-        }
-
-        impl PackedHomeRetirement for std::collections::BTreeSet<PlaceId> {
-            fn contains_packed_home(&self, place: &PlaceId) -> bool {
-                self.contains(place)
-            }
-
-            fn retire_packed_home(&mut self, place: &PlaceId) {
-                self.remove(place);
             }
         }
 
@@ -2920,7 +2888,7 @@ pub(crate) mod scalar_array {
                     2,
                     "one payload cell and one home row"
                 );
-                arrays.retire_packed_home(&place);
+                arrays.remove(&place);
                 assert_eq!(
                     sponsor.live_storage_cells(),
                     2,
@@ -3873,7 +3841,7 @@ pub(crate) mod scalar_array {
             }
         }
     }
-    pub(crate) use bindings::{PackedHomeRetirement, ScalarArrayBindings};
+    pub(crate) use bindings::ScalarArrayBindings;
     pub(crate) use loans::borrowed_array_memberships_match;
     use std::rc::Rc;
     use std::sync::Arc;
