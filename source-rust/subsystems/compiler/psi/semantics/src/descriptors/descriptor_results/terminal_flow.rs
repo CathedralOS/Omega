@@ -65,8 +65,7 @@ fn record_owned_consumption(
         if argument.access != StructuralAccess::Owned {
             return Some(false);
         }
-        if let Some(source) = crate::structural_argument_source(machine, argument.place, 0)
-        {
+        if let Some(source) = crate::structural_argument_source(machine, argument.place, 0) {
             return Some(source.multiplicity != StructuralMultiplicity::Unrestricted);
         }
         match &exactly_one(machine.structural_places.iter(), |place| {
@@ -104,10 +103,8 @@ fn record_owned_consumption(
         }
     }
     if let Some(invocation) = operation.declared_invocation() {
-        let parameters = module.invocation_structural_parameters(
-            invocation.callee,
-            invocation.required_contract,
-        )?;
+        let parameters = module
+            .invocation_structural_parameters(invocation.callee, invocation.required_contract)?;
         consume_call(
             invocation.structural_arguments,
             parameters
@@ -123,7 +120,8 @@ fn record_owned_consumption(
     } = &operation.kind
     {
         let parameters = &module
-            .execution.dynamic_dispatch
+            .execution
+            .dynamic_dispatch
             .interface(*interface)?
             .slots
             .get(usize::try_from(*slot).ok()?)?
@@ -462,10 +460,11 @@ fn adapt_flow(
                     .or_default()
                     .push((location, ScalarTerm::value(result.id, result.scalar_type)));
             }
-            let is_invocation = matches!(
-                &operation.kind,
-                terminal_psi::call_structural_argument_variants!(_arguments)
-            ) || matches!(&operation.kind, OperationKind::Call { .. });
+            let mut needs_invocation_summary =
+                matches!(
+                    &operation.kind,
+                    terminal_psi::call_structural_argument_variants!(_arguments)
+                ) || matches!(&operation.kind, OperationKind::Call { .. });
             // A scalar sibling does not observe the reference leaves
             // beside it. Retain the representation's projected uses;
             // reducing them to roots spuriously extends those loans.
@@ -2006,33 +2005,73 @@ fn adapt_flow(
                         )?;
                     }
                     let mut declarations = module
-                        .interfaces.boundary_machines
+                        .interfaces
+                        .boundary_machines
                         .iter()
                         .filter(|declaration| declaration.id == *boundary);
-                    if let (Some(declaration), None) =
-                        (declarations.next(), declarations.next())
-                        && slot_kind != DescriptorSlotKind::AccessOrigins
-                    {
-                        insert_invocation(
-                            &mut graph.calls,
-                            position,
-                            provider_invocation(
-                                operation.id,
-                                &module.types.structural_types,
+                    if let (Some(declaration), None) = (declarations.next(), declarations.next()) {
+                        let park = super::boundary_calls::checked_park_anchor(
+                            module,
+                            machine,
+                            operation,
+                            declaration,
+                        );
+                        if let Some(shape) = park
+                            && matches!(
                                 slot_kind,
-                                declaration,
-                                structural_arguments,
-                                result,
-                                &graph.place_types,
-                            )?,
-                        )?;
+                                DescriptorSlotKind::BorrowedStorage
+                                    | DescriptorSlotKind::AccessOrigins
+                            )
+                            && result.is_none_or(|r| {
+                                plain_owned_shape(
+                                    module.types.structural_types.iter(),
+                                    r.structural_type,
+                                )
+                            })
+                        {
+                            // The sealed park reads the stored reference, not the
+                            // contents it points to. Keep that read at the actual
+                            // argument path so its owner's field policy still applies.
+                            let [request] = structural_arguments.as_slice() else {
+                                return None;
+                            };
+                            let mut anchor = descriptor_location(
+                                &module.types.structural_types,
+                                request.place,
+                                *graph.place_types.get(&request.place)?,
+                                &request.path,
+                                None,
+                            )?;
+                            anchor.path.push(DescriptorPathSegment::Field(shape.anchor));
+                            step.inputs.push((
+                                Some(anchor.clone()),
+                                Some((access_vocabulary::AccessOperation::Read, anchor.into())),
+                            ));
+                            // This graph records the operation itself. There is
+                            // no implementation to call for a second summary.
+                            needs_invocation_summary = false;
+                        } else if slot_kind != DescriptorSlotKind::AccessOrigins {
+                            insert_invocation(
+                                &mut graph.calls,
+                                position,
+                                provider_invocation(
+                                    operation.id,
+                                    &module.types.structural_types,
+                                    slot_kind,
+                                    declaration,
+                                    structural_arguments,
+                                    result,
+                                    &graph.place_types,
+                                )?,
+                            )?;
+                        }
                     }
                 }
                 _ => {}
             }
             // Record unresolved invocations only after attempting exact
             // construction; a later cohort cannot overwrite unknown effects.
-            if is_invocation && !graph.calls.contains_key(&position) {
+            if needs_invocation_summary && !graph.calls.contains_key(&position) {
                 graph.calls.insert(position, None);
             }
             record_owned_consumption(module, machine, operation, &mut step)?;

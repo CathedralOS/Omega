@@ -72,18 +72,28 @@ pub fn plan_foreign_adapter(
 pub fn plan_native_foreign_bridge(
     request: NativeForeignBridgeRequest,
 ) -> Result<NativeForeignBridgePlan, Error> {
+    let body = plan_call(&request, None)?;
     Ok(NativeForeignBridgePlan::from_planner(
         crate::PhysicalRecipeOrigin(()),
-        plan_call(request, None)?,
+        NativeForeignInstructions {
+            request,
+            instructions: body.instructions,
+            frame_bytes: body.frame_bytes,
+        },
     ))
+}
+
+pub(crate) struct CallBody {
+    pub instructions: AdapterInstructions,
+    pub frame_bytes: u32,
 }
 
 /// Both adapters make an ordinary call. A foreign frame holds addresses; a
 /// returning worker receives an exclusive retained frame with inline homes.
 pub(crate) fn plan_call(
-    request: NativeForeignBridgeRequest,
+    request: &NativeForeignBridgeRequest,
     retained: Option<crate::retained_call::ReturningJobHomes>,
-) -> Result<NativeForeignInstructions, Error> {
+) -> Result<CallBody, Error> {
     let policy = CallingPolicy::native_for_target(request.target);
     let foreign = &request.foreign.plan().call;
     if request.scalar_parameters.len() != foreign.parameters.len() {
@@ -187,7 +197,7 @@ pub(crate) fn plan_call(
         placements.push((placement, size));
     }
     let frame_pointer = allocate_word(&mut cursor)?;
-    let input_table = if retained.is_none() {
+    let input_table = if retained.is_none() && !placements.is_empty() {
         Some((allocate_word(&mut cursor)?, allocate_word(&mut cursor)?))
     } else {
         None
@@ -366,10 +376,9 @@ pub(crate) fn plan_call(
     }
     bytes.frame(frame_bytes, interval, touches, false);
     bytes.push(AdapterOperation::Return);
-    Ok(NativeForeignInstructions {
-            request,
-            instructions: bytes,
-            frame_bytes,
+    Ok(CallBody {
+        instructions: bytes,
+        frame_bytes,
     })
 }
 

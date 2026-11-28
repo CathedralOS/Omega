@@ -52,6 +52,12 @@ struct three_words large_record(struct three_words input, uint64_t increment) {
     return (struct three_words){input.third + increment, input.first + 2*increment, input.second + 3*increment};
 }
 int main(void) {
+#ifdef _WIN32
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+#else
+    const struct rlimit core_limit = {0, 0};
+    assert(setrlimit(RLIMIT_CORE, &core_limit) == 0);
+#endif
 #if TEST_RETAINED_JOB
     struct retained_job first = {sizeof(first), 9, 0};
     struct { struct retained_job job; uint64_t guard; } second = {{sizeof(second), 17, 0}, 91};
@@ -60,12 +66,6 @@ int main(void) {
     bridge_return_owned_job(&first);
     assert(completed == 2 && first.result == 28 && second.job.result == 52 && second.guard == 91);
     assert(first.backing_length == sizeof(first) && second.job.backing_length == sizeof(second));
-#endif
-#ifdef _WIN32
-    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-#else
-    const struct rlimit core_limit = {0, 0};
-    assert(setrlimit(RLIMIT_CORE, &core_limit) == 0);
 #endif
     uint64_t capacity = 0, pending = 0, returned = 0, root = 37, observed = 0;
     struct frame frame = {NULL, &capacity};

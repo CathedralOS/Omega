@@ -165,7 +165,7 @@ fn actual_c_retention_stack_float_and_record_calls() {
     let has_retained = target == NativeTarget::linux_x64() || target == NativeTarget::windows_x64();
     if has_retained {
         let bridge =
-            entry_planning::retained_call::plan_returning_job_bridge(NativeForeignBridgeRequest {
+            entry_planning::retained_call::plan_returning_job_bridge(&NativeForeignBridgeRequest {
                 target,
                 foreign: evaluate_ordinary_boundary_entry_plan(
                     CallingPolicy::native_for_target(target),
@@ -253,6 +253,85 @@ fn actual_c_retention_stack_float_and_record_calls() {
         String::from_utf8_lossy(&output.stderr)
     );
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn an_inline_job_requires_a_supported_target_and_one_closed_scalar() {
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for (target, kinds, error) in [
+        (
+            NativeTarget::linux_arm64(),
+            vec![Some(scalar)],
+            NativeForeignBridgeError::IncompatiblePlan,
+        ),
+        (
+            NativeTarget::windows_x64(),
+            vec![None],
+            NativeForeignBridgeError::UnsupportedValueTransport,
+        ),
+        (
+            NativeTarget::linux_x64(),
+            vec![Some(scalar); 2],
+            NativeForeignBridgeError::UnsupportedValueTransport,
+        ),
+    ] {
+        let foreign = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); kinds.len()],
+                result: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            entry_planning::retained_call::plan_returning_job_bridge(&NativeForeignBridgeRequest {
+                target,
+                foreign,
+                scalar_parameters: kinds,
+            })
+            .unwrap_err(),
+            error
+        );
+    }
+}
+
+#[test]
+fn a_call_without_arguments_does_not_read_an_argument_table() {
+    use post_allocation_machine::adapters::AdapterOperation;
+    for target in [
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let plan = plan_native_foreign_bridge(NativeForeignBridgeRequest {
+            target,
+            foreign: evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: vec![],
+                    result: Some(ValueShape::integer(8, 8)),
+                },
+            )
+            .unwrap(),
+            scalar_parameters: vec![],
+        })
+        .unwrap();
+        let reads = plan
+            .instructions()
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                AdapterOperation::PointerMemory {
+                    load: true, offset, ..
+                } => Some(*offset),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            reads,
+            [runtime_abi::NATIVE_FOREIGN_FRAME_RESULT_BYTE_OFFSET]
+        );
+    }
 }
 
 #[test]

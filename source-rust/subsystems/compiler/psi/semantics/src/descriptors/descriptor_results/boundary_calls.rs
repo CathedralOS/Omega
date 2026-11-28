@@ -31,16 +31,28 @@ pub fn boundary_call_preserves_descriptor_storage(
     else {
         return false;
     };
-    let Some(declaration) = exactly_one(module.interfaces.boundary_machines.iter(), |declaration| {
-        declaration.id == *boundary
-    }) else {
+    let Some(declaration) =
+        exactly_one(module.interfaces.boundary_machines.iter(), |declaration| {
+            declaration.id == *boundary
+        })
+    else {
         return false;
     };
+    if declaration.declaration.as_ref().is_some_and(|d| {
+        matches!(
+            d.execution,
+            terminal_psi::CheckedBoundaryExecution::OwnedActivation(
+                language_core::sealed_intrinsics::ActivationOperation::Park
+            )
+        )
+    }) {
+        // A checked park moves the request and retains its shared anchor.
+        // Neither the carrier's pointer nor the byte it names is rewritten.
+        return checked_park_anchor(module, machine, operation, declaration).is_some();
+    }
     let result = match &operation.result {
         OperationResult::Unit => BoundaryCompletionResult::Unit,
-        OperationResult::Scalar(result) => {
-            BoundaryCompletionResult::Scalar(result.scalar_type)
-        }
+        OperationResult::Scalar(result) => BoundaryCompletionResult::Scalar(result.scalar_type),
         OperationResult::Structural(result) => {
             BoundaryCompletionResult::Structural(result.structural_type)
         }
@@ -53,6 +65,52 @@ pub fn boundary_call_preserves_descriptor_storage(
         structural_arguments,
         |place| machine.structural_place_type(place),
     )
+}
+
+pub(super) fn checked_park_anchor(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    boundary: &BoundaryMachineDeclaration,
+) -> Option<crate::calls::owned_activation::ParkShape> {
+    let OperationKind::BoundaryCall {
+        boundary: selected,
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &operation.kind
+    else {
+        return None;
+    };
+    let [actual] = structural_arguments.as_slice() else {
+        return None;
+    };
+    let [formal] = boundary.structural_parameters.as_slice() else {
+        return None;
+    };
+    if *selected != boundary.id
+        || actual.access != StructuralAccess::Owned
+        // Elaboration records consumption of the request's one root claim.
+        // The ownership checker verifies its identity. It is not a write to
+        // either the held reference or the slot to which it points.
+        || !(completion_receipts.is_empty() || matches!(completion_receipts.as_slice(),
+            [receipt] if receipt.argument_index == 0 && receipt.path.is_empty()))
+        || !matches!(
+            boundary.declaration.as_ref()?.execution,
+            terminal_psi::CheckedBoundaryExecution::OwnedActivation(
+                language_core::sealed_intrinsics::ActivationOperation::Park
+            )
+        )
+    {
+        return None;
+    }
+    let shape = crate::calls::owned_activation::park_shape(module, boundary).ok()?;
+    let ty = crate::runtime_structural_path_tip(
+        module.types.structural_types.iter(),
+        machine.structural_place_type(actual.place)?,
+        &actual.path,
+    )?;
+    (ty.id == formal.structural_type).then_some(shape)
 }
 
 pub fn boundary_completion_preserves_descriptor_storage<'types>(

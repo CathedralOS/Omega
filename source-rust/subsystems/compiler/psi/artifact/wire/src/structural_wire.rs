@@ -788,7 +788,9 @@ pub(crate) mod structural_signature_wire {
         }
     }
 
+    use language_core::sealed_intrinsics::ActivationOperation;
     wire_enum! {
+        ActivationOp: ActivationOperation, "activation control operation" { 0 => Park }
         Execution: CheckedBoundaryExecution, "checked boundary execution" {
             0 => Provider,
             1 => AccessInitialize,
@@ -803,6 +805,7 @@ pub(crate) mod structural_signature_wire {
             10 => HostedPrimitive { operation: HostedOperationWire, requirement: Id },
             11 => NumericPrimitive,
             12 => LayoutTargetFacts,
+            13 => OwnedActivation(operation: ActivationOp),
         }
         Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
         RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

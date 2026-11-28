@@ -623,11 +623,14 @@ machine build_entry(value: u32) -> u32 {{
         "let result: u32 = block root(value); result",
     ] {
         let negative = source("root", body);
-        assert_scalar_callee_refused(&negative);
+        assert_typing_refuses(
+            &negative,
+            "the evaluated call operand is not a runtime callable",
+        );
     }
 }
 
-fn assert_scalar_callee_refused(negative: &str) {
+pub(super) fn assert_typing_refuses(negative: &str, expected: &str) {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source_id = sources
         .add_checked_instance(
@@ -649,10 +652,7 @@ fn assert_scalar_callee_refused(negative: &str) {
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = crate::resolution::resolve(request).unwrap();
     let error = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap_err();
-    assert_eq!(
-        error.message,
-        "the evaluated call operand is not a runtime callable"
-    );
+    assert_eq!(error.message, expected);
 }
 
 /// Inference, opaque contracts and boundary headers must discharge the same
