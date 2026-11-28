@@ -326,9 +326,21 @@ pub(crate) mod call_foundations {
                 return malformed("machine call claim transfer changes the retained owned path");
             }
         }
-        if let Some(result) = operation.result.structural() {
+        let bindings = if let Some(result) = operation.result.structural() {
             validate_structural_call_result_declaration(module, machine, operation, result)?;
             validate_result_claim_shape(module, result, std::iter::empty())?;
+            result.claims.as_slice()
+        } else {
+            &[]
+        };
+        let expected = &contract.result_claim_paths;
+        if !strictly_increasing(expected.iter())
+            || bindings.len() != expected.len()
+            || bindings
+                .iter()
+                .any(|binding| expected.binary_search(&binding.path).is_err())
+        {
+            return malformed("machine call result changes the retained owned paths");
         }
         let mut parameters = std::borrow::Cow::Borrowed(contract.structural_parameters.as_slice());
         if packages
