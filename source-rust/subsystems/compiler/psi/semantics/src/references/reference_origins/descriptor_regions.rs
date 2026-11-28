@@ -303,6 +303,87 @@ fn reference_sources_for_leaves(
         }
         let mut sources = Vec::with_capacity(slot.origins.len());
         for origin in &slot.origins {
+            if let DescriptorStoredOrigin::NativeAddress {
+                carrier,
+                projection,
+                ..
+            } = origin
+            {
+                if projection.window.is_some()
+                    || projection.is_native_enclosing_storage()
+                    || (!projection.exact && projection.stripped_origin_path().is_none())
+                {
+                    return Err("native reference result has no retained pointee projection");
+                }
+                let Some(StructuralTypeShape::Reference {
+                    referent: root,
+                    access: offered,
+                }) = terminal_psi::find_structural_type(types, *carrier).map(|row| &row.shape)
+                else {
+                    return Err("native borrow lost its typed reference");
+                };
+                let mut pointee_path = Vec::new();
+                append_projection(&mut pointee_path, projection)?;
+                let effective = if projection.upgraded_mutability
+                    && *offered == StructuralAccess::SharedBorrow
+                {
+                    StructuralAccess::MutableBorrow
+                } else {
+                    *offered
+                };
+                if super::reference_origin_type(types.iter(), *root, &pointee_path)
+                    != Some(referent)
+                    || !access.admits_referent(effective)
+                {
+                    return Err("native reference result changes its admitted pointee or access");
+                }
+                sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type: leaf.structural_type,
+                    path: vec![ReferenceOriginProjection::Exact(
+                        StructuralPathSegment::Referent,
+                    )],
+                    extent: ReferenceOriginExtent::Projected,
+                    access,
+                });
+                continue;
+            }
+            if let DescriptorStoredOrigin::Invocation {
+                carrier_type,
+                projection,
+            } = origin
+            {
+                // An admitted public contract supplies the promised reference.
+                // Forwarding it must retain both the typed region and its access.
+                let declared = projection
+                    .declared_reference_path()
+                    .ok_or("returned invocation reference lost its declared region")?;
+                super::result_regions::validate_input_region(
+                    types.iter(),
+                    *carrier_type,
+                    StructuralAccess::Owned,
+                    declared,
+                    access,
+                )?;
+                let path = declared
+                    .iter()
+                    .cloned()
+                    .map(ReferenceOriginProjection::Exact)
+                    .collect::<Vec<_>>();
+                if super::reference_origin_type(types.iter(), *carrier_type, &path)
+                    != Some(referent)
+                    || projection.window.is_some()
+                    || projection.is_native_enclosing_storage()
+                {
+                    return Err("returned invocation reference exceeds its admitted typed region");
+                }
+                sources.push(terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type: *carrier_type,
+                    path,
+                    extent: ReferenceOriginExtent::Projected,
+                    access,
+                });
+                continue;
+            }
             if let DescriptorStoredOrigin::Provider(provider) = origin {
                 // The producing call supplies this reference. Its input loans travel
                 // separately in the provider's replayed lifetime dependencies.
@@ -330,7 +411,9 @@ fn reference_sources_for_leaves(
             let extent = match origin {
                 DescriptorStoredOrigin::Parameter { projection, .. }
                 | DescriptorStoredOrigin::IncomingContents { projection, .. }
-                    if projection.indirect || projection.window.is_some() =>
+                    if projection.is_native_enclosing_storage()
+                        || projection.indirect
+                        || projection.window.is_some() =>
                 {
                     return Err("reference result needs a static retained input projection");
                 }
@@ -348,6 +431,16 @@ fn reference_sources_for_leaves(
                 _ => {
                     return Err("reference result backing needs its actual admitted producer");
                 }
+            };
+            let upgraded = access == StructuralAccess::MutableBorrow
+                && matches!(origin,
+                DescriptorStoredOrigin::Parameter { projection, .. }
+                | DescriptorStoredOrigin::IncomingContents { projection, .. }
+                    if projection.upgraded_mutability);
+            let input_access = if upgraded {
+                StructuralAccess::SharedBorrow
+            } else {
+                access
             };
             let (position, mut path) = descriptor_input_origin_path(types, parameters, origin)?;
             if path.iter().any(|step| {
@@ -384,13 +477,13 @@ fn reference_sources_for_leaves(
                 else {
                     return Err("reference result changes its original referent");
                 };
-                if *stored != referent || !access.admits_referent(*ceiling) {
+                if *stored != referent || !input_access.admits_referent(*ceiling) {
                     return Err("reference result changes its input type or access");
                 }
                 path.push(ReferenceOriginProjection::Exact(
                     StructuralPathSegment::Referent,
                 ));
-            } else if !access.admits(parameter.access) {
+            } else if !input_access.admits(parameter.access) {
                 return Err("reference result exceeds its input storage access");
             }
             if parameter.access == StructuralAccess::Owned
@@ -410,16 +503,20 @@ fn reference_sources_for_leaves(
             // element of one array has the same access, so the first
             // element stands for an unknown one; an empty array has
             // no element and fails closed.
-            if !input_path_accessible(types, parameter, &path, access) {
+            if !input_path_accessible(types, parameter, &path, input_access) {
                 return Err("reference result exceeds an input path's access");
             }
             let source = ReferenceOriginSource {
                 place: parameter.place,
                 path,
                 extent,
-                access,
+                access: input_access,
             };
-            sources.push(terminal_psi::StructuralReferenceOrigin::Parameter(source));
+            sources.push(if upgraded {
+                terminal_psi::StructuralReferenceOrigin::UpgradedParameter(source)
+            } else {
+                terminal_psi::StructuralReferenceOrigin::Parameter(source)
+            });
         }
         sources.sort();
         sources.dedup();

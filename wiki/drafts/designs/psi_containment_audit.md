@@ -114,14 +114,11 @@ producer trust.
 
 ## Remaining
 
-1. Settle trusted runs the interpreter cannot confine. A source or trusted
-   saved run gets the working-directory default only for a Linux program on
-   its matching host with no native provider; the rest keep the host
-   namespace when no mapping is given.
-   [Owner question 2](../../../OWNER_QUESTIONS.md#unconfinable-standalone-filesystem)
-   asks whether they should be refused instead.
-2. Bound what a contained guest writes to its mounts. Output to standard
-   streams is capped, but file writes through a read/write mapping are limited
-   only by the host filesystem.
-   [Owner question 1](../../../OWNER_QUESTIONS.md#contained-file-write-bound)
-   asks how.
+The Rust CLI enforces the default working-directory grant for source and
+trusted saved programs on a matching Linux host without a native provider.
+On Windows and other targets outside that path, or with a native provider,
+omitting explicit mappings still selects the host filesystem. Track the repair
+under [standalone filesystem grants](../../../TASKS.md#psi-untrusted-interpretation).
+The [standalone contract](../../spec/build/embedding.md#standalone-interpretation)
+requires refusal before guest effects if a required provider cannot honor the
+granted directories.

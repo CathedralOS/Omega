@@ -1655,6 +1655,7 @@ pub(crate) mod parameter_use {
                     | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. }
                     | LegalizedScalarInstructionKind::ElementViewSubslice { source, .. }
                     | LegalizedScalarInstructionKind::EstablishReference { source, .. }
+                    | LegalizedScalarInstructionKind::UpgradeMutability { source, .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { source, .. } => source.place == place,
                     LegalizedScalarInstructionKind::AtomicAccess { location, .. }
                     | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => location.place == place,

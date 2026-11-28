@@ -59,6 +59,7 @@ pub(crate) mod scalar_graph {
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::Call {
                     psi_operation,
+                    suspension_crossing,
                     origin,
                     target,
                     call_plan,
@@ -129,6 +130,7 @@ pub(crate) mod scalar_graph {
                     }));
                 }
                 Ok(LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
+                    suspension_crossing: *suspension_crossing,
                     descriptor_origins,
                     access_bindings: access_bindings.clone(),
                     target: *target,
@@ -152,6 +154,7 @@ pub(crate) mod scalar_graph {
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::NormalizedForeignCall {
                     psi_operation,
+                    suspension_crossing,
                     boundary,
                     provider_execution,
                     binding,
@@ -173,6 +176,7 @@ pub(crate) mod scalar_graph {
                         .collect();
                 Ok(LegalizedScalarInstructionKind::NormalizedForeignCall(
                     legalized_operations::LegalizedNormalizedForeignCall {
+                        suspension_crossing: *suspension_crossing,
                         boundary: *boundary,
                         provider_execution: *provider_execution,
                         binding: binding.clone(),
@@ -1122,8 +1126,19 @@ pub(crate) mod scalar_graph {
             targeted: &target_operations::TargetUnitOperation,
         ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
             use target_operations::TargetUnitOperation as Target;
-            let (operation, home, indices) = match targeted {
-                Target::EstablishReference {
+            let (operation, home, indices): (_, _, &[_]) = match targeted {
+                Target::BorrowAt {
+                    psi_operation,
+                    result_home,
+                    ..
+                } => (*psi_operation, result_home, &[]),
+                Target::UpgradeMutability {
+                    psi_operation,
+                    result_home,
+                    indices,
+                    ..
+                }
+                | Target::EstablishReference {
                     psi_operation,
                     result_home,
                     indices,
@@ -1147,6 +1162,19 @@ pub(crate) mod scalar_graph {
             let shape = home.layout.shape();
             // Formation already owns its result contract and selector geometry.
             Ok(match targeted {
+                Target::BorrowAt { address, .. } => LegalizedScalarInstructionKind::BorrowAt {
+                    result: result.clone(),
+                    address: *address,
+                    shape,
+                },
+                Target::UpgradeMutability { source, .. } => {
+                    LegalizedScalarInstructionKind::UpgradeMutability {
+                        result: result.clone(),
+                        source: source.clone(),
+                        indices,
+                        shape,
+                    }
+                }
                 Target::EstablishReference {
                     source, storage, ..
                 } => LegalizedScalarInstructionKind::EstablishReference {

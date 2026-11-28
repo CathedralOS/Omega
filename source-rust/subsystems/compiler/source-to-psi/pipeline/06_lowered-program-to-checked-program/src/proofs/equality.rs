@@ -291,6 +291,7 @@ impl Definitions {
                     SignatureEntryKind::Data { .. }
                     | SignatureEntryKind::Record { .. }
                     | SignatureEntryKind::Boolean
+                    | SignatureEntryKind::FunctionType
                     | SignatureEntryKind::Encoding { .. }
                     | SignatureEntryKind::Scheme
                     | SignatureEntryKind::GenericData { .. }

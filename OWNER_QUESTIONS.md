@@ -65,78 +65,29 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="contained-file-write-bound"></a>
-### 1. What bounds how much a contained guest writes to its mounted directories?
+<a id="run-partition-declarations"></a>
+### 1. Which declarations in core own the trusted split and merge of a live run?
 
-A contained `omega run app.psi` gets the caller's working directory read/write
-at `/`, or the explicit mappings that replace it. Its standard output, live
-storage, work and live waits are each capped. Its file writes are not: a
-guest can fill the host disk through `write`, `pwrite64`, `ftruncate` to a
-large length, or many small files and directories.
+A vector needs to split and rejoin its initialized cells while preserving each
+cell's ownership and the backing from which it was borrowed. Both the caller
+and the compiler need to select the same public declaration for each transfer.
+An ordinary helper cannot establish the result from counts and byte ranges.
 
-Checked and found silent:
-[Embedding](wiki/spec/build/embedding.md#loading-and-preparation) asks for
-contained execution "with bounded resources and host bindings that enforce the
-caller's grants" and lets the receiving host set resource limits, but names
-none for files.
-[Runtime directory mappings](wiki/spec/build/command_line.md#runtime-directory-mappings)
-allows creation, modification, renaming and deletion "subject to host
-permissions and the program's admitted operations" and gives no size budget.
-The [containment audit](wiki/drafts/designs/psi_containment_audit.md#remaining)
-lists the gap.
+[Split and merge contracts](wiki/spec/resources/typed_runs.md#split-and-merge-contracts)
+names `Run::split<P, T>` and `Run::merge<P, T>` as the two public, sealed
+machines and specifies their exact declaration identities as the trust boundary.
+[Static declarations and explicit state](wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+says “A data declaration is not a machine owner or namespace.” The lowered-form
+checker rejects such declarations. Core declares `Run` as data. Neither
+partition machine has a catalog entry or an authored caller in the current tree.
 
-Recommendation: one per-run growth budget across all read/write mounts of a
-contained run, with no new flag. The binding charges each operation by how
-far it can grow the mounts: bytes past a file's current end for `write`,
-`pwrite64` and `ftruncate`, and a fixed charge for each created file,
-directory or link. Deleting or shrinking credits nothing back, so a guest
-cannot cycle space. Past the budget the call returns `EDQUOT` to the guest,
-an ordinary failure it can handle, and the run continues. The default is
-1 GiB and 65,536 created entries, shown in the containment audit. A trusted
-run keeps today's behavior and is bounded only by the host. The alternatives
-are a caller-set `--run-write-bytes` limit, which adds a surface the CLI spec
-would have to name, or leaving writes to host quotas, which a
-contained guest's own caller may not have configured.
+Should the sealed catalog and the establishment routes of `Run::Live` name two
+free machines in `core/run.omg`, selected by callers as `|run|::split` and
+`|run|::merge`? If the carrier-qualified names are required, which declaration
+owns them under the static machine rules?
 
-**Specification text, if adopted.** In command_line.md, "Runtime directory
-mappings", add: "A run admitted without producer trust may grow its
-read/write mappings by a bounded total. Past it, an operation that would grow
-them fails with `EDQUOT`, and the run continues."
-
-<a id="unconfinable-standalone-filesystem"></a>
-### 2. How does a trusted run that the interpreter cannot confine get its standalone filesystem?
-
-`omega run app.omg` and a trusted `omega run app.psi` now default to the
-caller's working directory at `/` when the interpreter performs the
-Product's filesystem calls itself: a Linux program on its matching Linux
-host, with no native provider. Two kinds of trusted run cannot be confined
-that way. One is a program whose Build binds a native foreign provider, such
-as a shared-library import, which runs native code in a sponsor that sees
-the host namespace. The other is a program for another target, such as a
-Windows program interpreted on Linux or any program on a macOS host, whose
-filesystem calls the host cannot yet resolve beneath a mapped directory.
-Today both keep the host namespace when no mapping is given, as before.
-
-Checked and found silent:
-[Runtime directory mappings](wiki/spec/build/command_line.md#runtime-directory-mappings)
-gives every `omega run` the working-directory default and requires reads and
-writes to stay within the granted roots, but does not say what happens when
-a selected provider is native code that no mapping can confine.
-[Authority, evidence, and ownership of implementation](wiki/spec/build/embedding.md#authority-evidence-and-ownership-of-implementation)
-says "a binding's type does not constrain malicious native code by itself;
-containment and provider trust remain explicit", without naming the grant
-for that case.
-
-Recommendation: refuse rather than widen. A trusted run that cannot be
-confined to its default view stops before entry and names the provider or
-target that needs the host namespace. The caller can then pass
-`--run-directories-*` mappings, which such a run would also have to refuse
-for native providers, or run the built executable. This keeps the default
-from ever meaning the whole host. The alternative is to keep the host
-namespace for exactly these runs, which preserves today's behavior for
-shared-library providers and cross-target interpretation, but makes the
-default view depend on how a provider is implemented.
-
-**Specification text, if adopted.** In command_line.md, "Runtime directory
-mappings", add: "A run whose selected providers or target the interpreter
-cannot confine to its granted roots is refused before entry."
+**Proposed specification text if free machines are selected.** “The public,
+bodyless machines `split<P, T>` and `merge<P, T>` in `core/run.omg` are
+compiler supplied. The sealed catalog and the establishment routes of
+`Run::Live` select those exact declarations.” The existing bounds, custody,
+backing, loan and constant-work requirements apply to both operations.

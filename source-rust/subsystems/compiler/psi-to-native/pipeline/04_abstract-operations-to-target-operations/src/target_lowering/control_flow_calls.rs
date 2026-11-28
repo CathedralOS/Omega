@@ -1079,6 +1079,7 @@ pub(crate) mod calls {
 
     struct Invocation<'a> {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         target: AbstractCallTarget,
         diagnostic_owner: MachineId,
         scalar_arguments: &'a [ValueId],
@@ -1107,6 +1108,7 @@ pub(crate) mod calls {
         let (call, contract) = match operation {
             AbstractOperation::CallStructural {
                 psi_operation,
+                suspension_crossing,
                 callee,
                 arguments,
                 structural_arguments,
@@ -1118,6 +1120,7 @@ pub(crate) mod calls {
             } => {
                 let call = Invocation {
                     psi_operation: *psi_operation,
+                    suspension_crossing: *suspension_crossing,
                     target: *callee,
                     diagnostic_owner: callee.machine().unwrap_or(function.machine),
                     scalar_arguments: arguments,
@@ -1132,6 +1135,7 @@ pub(crate) mod calls {
             }
             AbstractOperation::Call {
                 psi_operation,
+                suspension_crossing,
                 result,
                 scalar_type,
                 callee,
@@ -1145,6 +1149,7 @@ pub(crate) mod calls {
                 });
                 let call = Invocation {
                     psi_operation: *psi_operation,
+                    suspension_crossing: *suspension_crossing,
                     target: AbstractCallTarget::Machine(*callee),
                     diagnostic_owner: *callee,
                     scalar_arguments: arguments,
@@ -1315,6 +1320,7 @@ pub(crate) mod calls {
         operations.push(TargetUnitOperation::Call {
             origin: target_operations::NativeCallOrigin::Authored,
             psi_operation: call.psi_operation,
+            suspension_crossing: call.suspension_crossing,
             target: match call.target {
                 AbstractCallTarget::Machine(machine) => {
                     target_operations::NativeCallTarget::Machine(machine)
@@ -2133,6 +2139,7 @@ pub(crate) mod selected_boundary_calls {
     ) -> Result<(AbstractOperation, target_operations::NativeCallOrigin), LoweringError> {
         let AbstractOperation::BoundaryCall {
             psi_operation,
+            suspension_crossing,
             result,
             boundary,
             arguments,
@@ -2172,6 +2179,7 @@ pub(crate) mod selected_boundary_calls {
                 AbstractOperation::CallStructural {
                     opened_referents: Vec::new(),
                     psi_operation: *psi_operation,
+                    suspension_crossing: *suspension_crossing,
                     callee: callee.into(),
                     arguments: arguments.clone(),
                     structural_arguments: structural_arguments.clone(),
@@ -2190,6 +2198,7 @@ pub(crate) mod selected_boundary_calls {
                 AbstractOperation::CallStructural {
                     opened_referents: Vec::new(),
                     psi_operation: *psi_operation,
+                    suspension_crossing: *suspension_crossing,
                     result: AbstractStructuralCallResult::Structural {
                         result: result.clone(),
                         selected_evidence: Vec::new(),
@@ -2209,6 +2218,7 @@ pub(crate) mod selected_boundary_calls {
                 if structural_arguments.is_empty() && claim_transfers.is_empty() {
                     AbstractOperation::Call {
                         psi_operation: *psi_operation,
+                        suspension_crossing: *suspension_crossing,
                         result: result.value,
                         scalar_type: result.scalar_type,
                         callee,
@@ -2220,6 +2230,7 @@ pub(crate) mod selected_boundary_calls {
                     AbstractOperation::CallStructural {
                         opened_referents: Vec::new(),
                         psi_operation: *psi_operation,
+                        suspension_crossing: *suspension_crossing,
                         result: AbstractStructuralCallResult::Scalar(*result),
                         callee: callee.into(),
                         arguments: arguments.clone(),

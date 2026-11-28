@@ -404,7 +404,10 @@ fn check_inline_eligibility(
     // boundary call. Physical evidence rejoins that boundary occurrence to this
     // exact call, its stack custody and its callee, so the call stays a call,
     // as boundary settlements and normalized foreign calls do above.
-    if !matches!(contract.call.source, NativeCallOrigin::Authored) {
+    // Inlining a suspension would erase the call at which the parent resumes.
+    if !matches!(contract.call.source, NativeCallOrigin::Authored)
+        || contract.call.suspension_crossing.is_some()
+    {
         return None;
     }
     let CallSiteOwner::Operation(call_op) = contract.owner else {
@@ -1541,6 +1544,7 @@ pub(crate) mod tests {
                     instruction: call_id,
                     owner: CallSiteOwner::Operation(caller_op),
                     call: LegalizedScalarCall {
+                        suspension_crossing: None,
                         source: NativeCallOrigin::Authored,
                         target: NativeCallTarget::Machine(callee_machine),
                         arguments: Vec::new(),
@@ -1831,6 +1835,24 @@ pub(crate) mod tests {
             caller_b0,
             caller_b1,
         }
+    }
+
+    #[test]
+    fn keeps_the_call_at_which_a_parked_parent_resumes() {
+        let environment =
+            register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
+                .unwrap();
+        let CallerAndCallee {
+            mut caller, callee, ..
+        } = caller_and_callee(&environment);
+        let crossing = semantic_vocabulary::SuspensionCrossingId::new(4).unwrap();
+        let ordinary = caller.calls[0].call.canonical_bytes();
+        caller.calls[0].call.suspension_crossing = Some(crossing);
+        assert_ne!(ordinary, caller.calls[0].call.canonical_bytes());
+        let expected = caller.calls[0].clone();
+        let mut functions = [caller, callee];
+        inline_and_simplify(&mut functions, &environment).unwrap();
+        assert_eq!(functions[0].calls.as_slice(), &[expected]);
     }
 
     #[test]

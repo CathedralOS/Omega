@@ -148,23 +148,38 @@ pub(crate) fn residence_rules(
     for block in &machine.blocks {
         for (ordinal, operation) in block.operations.iter().enumerate() {
             let position = (block.id, u32::try_from(ordinal).ok()?);
+            let capture = |source: &StructuralArgument, at| {
+                let (location, _, backing) = captured_storage_source(
+                    &module.types.structural_types,
+                    source.place,
+                    &source.path,
+                    machine.structural_place_type(source.place)?,
+                    at,
+                )?;
+                Some((backing == CapturedBacking::StorageAddress).then_some(location))
+            };
             match &operation.kind {
                 element_view_establish_pair_pattern!(source, ..)
                 | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
-                    let (source, _, capture) = captured_storage_source(
-                        &module.types.structural_types,
-                        source.place,
-                        &source.path,
-                        machine.structural_place_type(source.place)?,
-                        position,
-                    )?;
-                    if capture == CapturedBacking::StorageAddress {
-                        rules.captures.insert((
-                            position,
-                            source,
-                            DescriptorLocation::whole(operation.result.structural()?.place),
-                        ));
+                    if let Some(source) = capture(source, position)? {
+                        let destination =
+                            DescriptorLocation::whole(operation.result.structural()?.place);
+                        rules.captures.insert((position, source, destination));
+                    }
+                }
+                OperationKind::BorrowAt { address } => {
+                    let destination =
+                        DescriptorLocation::whole(operation.result.structural()?.place);
+                    for (at, source) in
+                        crate::storage::native_borrows::address_origin(machine, *address)
+                            .observed_sources()
+                    {
+                        if let Some(source) = capture(source, at)? {
+                            rules
+                                .observations
+                                .push((position, at, source, destination.clone()));
+                        }
                     }
                 }
                 _ => {}
@@ -187,6 +202,7 @@ impl From<DescriptorSlotKind> for RowPurpose {
 }
 
 pub(crate) fn adapt(
+    tracks_native_addresses: bool,
     module: &TerminalModule,
     machines: &[&TerminalMachine],
     machine: &TerminalMachine,
@@ -205,6 +221,7 @@ pub(crate) fn adapt(
         detail: None,
     };
     adapt_flow(
+        tracks_native_addresses,
         module,
         machines,
         machine,
@@ -220,6 +237,7 @@ pub(crate) fn adapt(
 
 #[allow(clippy::too_many_arguments)]
 fn adapt_flow(
+    tracks_native_addresses: bool,
     module: &TerminalModule,
     machines: &[&TerminalMachine],
     machine: &TerminalMachine,
@@ -325,7 +343,7 @@ fn adapt_flow(
         normal_exits: Vec::new(),
     };
     let declarations = definitions::adapt_places(machine, &mut graph)?;
-    let location = |root, path: &[StructuralPathSegment], field| {
+    let location = |graph: &DescriptorMachine, root, path: &[StructuralPathSegment], field| {
         descriptor_location(
             &module.types.structural_types,
             root,
@@ -392,7 +410,7 @@ fn adapt_flow(
                 _ => None,
             };
             if let Some((destination, path, field, source)) = scalar_store
-                && let Some(destination) = location(destination, path, field)
+                && let Some(destination) = location(&graph, destination, path, field)
             {
                 step.scalar_value_stores.push((destination.clone(), source));
                 if scalar_premises && let Some(value) = scalar_expressions.expression(source) {
@@ -435,7 +453,7 @@ fn adapt_flow(
                 }
             }
             if let OperationKind::PrimitiveScalarRead { source, path } = &operation.kind
-                && let Some(location) = location(*source, path, None)
+                && let Some(location) = location(&graph, *source, path, None)
                 && let Some(result) = operation.result.scalar_ref()
             {
                 graph
@@ -463,7 +481,7 @@ fn adapt_flow(
                         ..
                     } => (
                         projection.root,
-                        location(projection.root, projection.path, projection.field),
+                        location(&graph, projection.root, projection.path, projection.field),
                     ),
                     StructuralStorageUse::Canonical { root, path } => (
                         root,
@@ -882,13 +900,14 @@ fn adapt_flow(
                     // Observe every contained descriptor through the
                     // event; no value is consumed or newly derived.
                     step.replace_value_inputs([location(
+                        &graph,
                         subject.place,
                         &subject.path,
                         None,
                     )?]);
                 }
                 OperationKind::ReleaseReference { source, path } => {
-                    let source = location(*source, path, None)?;
+                    let source = location(&graph, *source, path, None)?;
                     step.replace_value_inputs([source.clone()]);
                     step.definitions.push(source);
                 }
@@ -950,6 +969,29 @@ fn adapt_flow(
                             place: *destination_root(&operation.kind)?,
                         },
                     ));
+                }
+                OperationKind::BorrowAt { address } => {
+                    let origin = crate::storage::native_borrows::address_origin(machine, *address);
+                    graph.native_address_borrow(
+                        &module.types.structural_types,
+                        position,
+                        &mut step,
+                        operation.id,
+                        result?,
+                        origin.observed_sources().map(|(at, source)| (at, *source)),
+                        origin.exact,
+                        origin.parameters.clone(),
+                        origin.opaque,
+                    )?;
+                }
+                OperationKind::UpgradeMutability { source } => {
+                    graph.mutability_upgrade(
+                        &module.types.structural_types,
+                        position,
+                        &mut step,
+                        source,
+                        result?,
+                    )?;
                 }
                 OperationKind::EstablishAccessReference { .. }
                     if slot_kind == DescriptorSlotKind::AccessOrigins =>
@@ -1141,11 +1183,11 @@ fn adapt_flow(
                     let destination = DescriptorLocation::whole(result?.place);
                     let source = match &operation.kind {
                         OperationKind::StructuralLeafCopy { source, path } => {
-                            location(*source, path, None)
+                            location(&graph, *source, path, None)
                         }
                         OperationKind::MoveStructuralValue { source }
                         | OperationKind::TransformContent { source, .. } => {
-                            location(source.place, &source.path, None)
+                            location(&graph, source.place, &source.path, None)
                         }
                         OperationKind::StructuralCaseLeafCopy { source, path } => {
                             crate::descriptors::descriptor_lifetimes::canonical_descriptor_location(
@@ -1209,7 +1251,7 @@ fn adapt_flow(
                     field,
                     ..
                 } => {
-                    if let Some(source) = location(*source, path, Some(*field)) {
+                    if let Some(source) = location(&graph, *source, path, Some(*field)) {
                         step.replace_value_inputs([source]);
                     } else {
                         step.may_escape = true;
@@ -1243,7 +1285,7 @@ fn adapt_flow(
                             true,
                         )?,
                     );
-                    if let Some(source) = location(*source, path, *field) {
+                    if let Some(source) = location(&graph, *source, path, *field) {
                         let destination = DescriptorLocation::whole(result.place);
                         step.replace_value_inputs([source.clone()]);
                         step.definitions.push(source.clone());
@@ -1287,8 +1329,8 @@ fn adapt_flow(
                         )?,
                     );
                     if let (Some(destination), Some(source)) = (
-                        location(*destination, path, *field),
-                        location(value.place, &value.path, None),
+                        location(&graph, *destination, path, *field),
+                        location(&graph, value.place, &value.path, None),
                     ) {
                         step.definitions.push(destination.clone());
                         step.copy_value(source, destination.clone());
@@ -1349,14 +1391,14 @@ fn adapt_flow(
                     )?;
                 }
                 OperationKind::EstablishPrimitiveLocal { value, .. } => {
-                    step.scalar_value_stores
-                        .push((location(result?.place, &[], None)?, *value));
+                    let destination = location(&graph, result?.place, &[], None)?;
+                    step.scalar_value_stores.push((destination.clone(), *value));
                     if scalar_premises && let Some(value) = scalar_expressions.expression(*value) {
                         graph
                             .scalar_payload_writes
                             .entry(position)
                             .or_default()
-                            .push((location(result?.place, &[], None)?, value));
+                            .push((destination, value));
                     }
                 }
                 OperationKind::EstablishScalarArray { elements } => {
@@ -1373,8 +1415,8 @@ fn adapt_flow(
                                 result.structural_type,
                                 u64::try_from(ordinal).ok()?,
                             )?;
-                            step.scalar_value_stores
-                                .push((location(result.place, &path, None)?, *value));
+                            let destination = location(&graph, result.place, &path, None)?;
+                            step.scalar_value_stores.push((destination.clone(), *value));
                             if scalar_premises
                                 && let Some(value) = scalar_expressions.expression(*value)
                             {
@@ -1382,7 +1424,7 @@ fn adapt_flow(
                                     .scalar_payload_writes
                                     .entry(position)
                                     .or_default()
-                                    .push((location(result.place, &path, None)?, value));
+                                    .push((destination, value));
                             }
                         }
                     }
@@ -1439,12 +1481,13 @@ fn adapt_flow(
                             }
                         } else {
                             location(
+                                &graph,
                                 result.place,
                                 &[StructuralPathSegment::FixedIndex(index)],
                                 None,
                             )?
                         };
-                        let source = location(source.place, &source.path, None)?;
+                        let source = location(&graph, source.place, &source.path, None)?;
                         step.copy_value(source, destination);
                     }
                 }
@@ -1502,9 +1545,9 @@ fn adapt_flow(
                                     field_ordinal,
                                     field.field,
                                 )?;
-                                location(result?.place, &path, None)?
+                                location(&graph, result?.place, &path, None)?
                             }
-                            _ => location(result?.place, &[], Some(field.field))?,
+                            _ => location(&graph, result?.place, &[], Some(field.field))?,
                         };
                         if let RecordFieldValue::Scalar { value, .. } = &field.value {
                             step.scalar_value_stores.push((destination.clone(), *value));
@@ -1519,7 +1562,7 @@ fn adapt_flow(
                             }
                         }
                         if let Some(source) = field.value.as_structural() {
-                            if let Some(source) = location(source.place, &source.path, None)
+                            if let Some(source) = location(&graph, source.place, &source.path, None)
                             {
                                 step.copy_value(source, destination);
                             } else {
@@ -1580,6 +1623,7 @@ fn adapt_flow(
                     interface,
                     slot,
                     structural_arguments,
+                    arguments,
                     ..
                 } => {
                     let effects_machine = selected_effects_machine(
@@ -1610,6 +1654,18 @@ fn adapt_flow(
                     let complete_contents =
                         call.argument_contents.iter().all(Option::is_some);
                     let effects_machine = effects_machine.filter(|_| complete_contents);
+                    if let Some(selected) = effects_machine {
+                        graph.bind_terminal_native_addresses(
+                            tracks_native_addresses,
+                            &mut call,
+                            module,
+                            machine,
+                            terminal_graph_machine(machines, selected)?,
+                            position,
+                            arguments,
+                            result,
+                        )?;
+                    }
                     if let DescriptorInvocationTarget::Public {
                         effects_machine: target,
                         ..
@@ -1705,6 +1761,24 @@ fn adapt_flow(
                             result,
                             &graph.place_types,
                         )?;
+                        if implemented {
+                            let arguments = match &operation.kind {
+                                OperationKind::BoundaryCall { arguments, .. } => {
+                                    arguments.as_slice()
+                                }
+                                _ => operation.module_invocation()?.arguments,
+                            };
+                            graph.bind_terminal_native_addresses(
+                                tracks_native_addresses,
+                                &mut call,
+                                module,
+                                machine,
+                                terminal_graph_machine(machines, callee)?,
+                                position,
+                                arguments,
+                                result,
+                            )?;
+                        }
                         call.retain_whole_scalar_result_address(module, &public);
                         let complete = call.arguments.iter().all(Option::is_some)
                             && call.argument_contents.iter().all(Option::is_some);
@@ -1827,6 +1901,9 @@ fn adapt_flow(
                             return None;
                         }
                         let call = graph.direct_invocation(
+                            tracks_native_addresses,
+                            machine,
+                            position,
                             module,
                             terminal_graph_machine(machines, callee)?,
                             slot_kind,
@@ -1875,8 +1952,9 @@ fn adapt_flow(
                             0,
                             ready.fields.first()?.id,
                         )?;
+                        let destination = location(&graph, result.place, &path, None)?;
                         graph.originations.entry(position).or_default().push((
-                            location(result.place, &path, None)?,
+                            destination,
                             DescriptorCallOrigin::AccessFormation {
                                 machine: machine.id,
                                 operation: operation.id,
@@ -1964,6 +2042,8 @@ fn adapt_flow(
             if !matches!(
                 operation.kind,
                 OperationKind::EstablishReference { .. }
+                    | OperationKind::BorrowAt { .. }
+                    | OperationKind::UpgradeMutability { .. }
                     | OperationKind::EstablishAccessReference { .. }
                     | OperationKind::EstablishElementView { .. }
                     | OperationKind::EstablishMutableElementView { .. }
@@ -2069,7 +2149,7 @@ fn adapt_flow(
                         );
                     }
                     let source = if let Some(source) =
-                        location(argument.place, &argument.path, None)
+                        location(&graph, argument.place, &argument.path, None)
                     {
                         DescriptorFlowSource::Location(source)
                     } else {
@@ -2102,8 +2182,10 @@ fn adapt_flow(
                             .iter()
                             .position(|step| step.runtime_index().is_some())
                     {
-                        let descriptor = location(argument.place, &argument.path[..index], None)
-                            .ok_or("descriptor arrival indexed source has no exact descriptor prefix")?;
+                        let descriptor =
+                            location(&graph, argument.place, &argument.path[..index], None).ok_or(
+                                "descriptor arrival indexed source has no exact descriptor prefix",
+                            )?;
                         binding.captured_storage = Some((
                             descriptor,
                             Projection::new(&argument.path[index..]).at(position),
@@ -2235,6 +2317,9 @@ fn adapt_flow(
                     *failure_detail =
                         Some("descriptor terminal invocation does not match its callee header");
                     Some(graph.direct_invocation(
+                        tracks_native_addresses,
+                        machine,
+                        position,
                         module,
                         callee,
                         slot_kind,
@@ -2275,7 +2360,7 @@ fn adapt_flow(
                     }
                 }
                 for argument in structural_arguments {
-                    if let Some(source) = location(argument.place, &argument.path, None) {
+                    if let Some(source) = location(&graph, argument.place, &argument.path, None) {
                         step.inputs.push((Some(source), None));
                     } else {
                         step.inputs
@@ -2391,7 +2476,7 @@ fn adapt_flow(
                 *failure_detail =
                     Some("descriptor terminator cleanup has no exact disposal location");
                 edge.definitions
-                    .push(location(action.place(), action.path(), None)?);
+                    .push(location(&graph, action.place(), action.path(), None)?);
             }
             edge.definitions.sort();
             edge.definitions.dedup();
@@ -2405,7 +2490,7 @@ fn adapt_flow(
         {
             *failure_detail =
                 Some("descriptor case terminator has no checked subject projection");
-            let subject = match location(*source, path, None) {
+            let subject = match location(&graph, *source, path, None) {
                 Some(location) => DescriptorFlowSource::Location(location),
                 None => DescriptorFlowSource::Contents(
                     super::contents::descriptor_contents_query_with(
@@ -2554,6 +2639,144 @@ pub(crate) fn captured_storage_source(
         capture,
     ))
 }
+impl DescriptorMachine {
+    /// Bind a scalar actual using the cut where its address was exposed. Remaining scalar
+    /// formals are carried to the enclosing caller until backing becomes known.
+    pub fn native_address_actual<'a>(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        _position: DescriptorPosition,
+        parameter: ValueId,
+        sources: impl IntoIterator<Item = (DescriptorPosition, &'a StructuralArgument)>,
+        exact: bool,
+        parameters: Vec<ValueId>,
+        opaque: bool,
+    ) -> Option<NativeAddressActual> {
+        Some(NativeAddressActual {
+            parameter,
+            exact,
+            parameters,
+            opaque,
+            sources: sources
+                .into_iter()
+                .map(|(at, source)| self.native_observation(types, at, source))
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
+
+    fn native_observation(
+        &self,
+        types: &[StructuralTypeDeclaration],
+        at: DescriptorPosition,
+        source: &StructuralArgument,
+    ) -> Option<NativeAddressObservation> {
+        let root = *self.place_types.get(&source.place)?;
+        let (location, projection, capture) =
+            captured_storage_source(types, source.place, &source.path, root, at)?;
+        Some(NativeAddressObservation {
+            at,
+            location,
+            projection,
+            storage_address: capture == CapturedBacking::StorageAddress,
+            pointee: crate::runtime_structural_path_tip(types.iter(), root, &source.path)
+                .map(|row| row.id),
+        })
+    }
+
+    /// A known address follows the storage that produced it. A native address
+    /// whose backing the caller asserts has its own formation identity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn native_address_borrow<'a>(
+        &mut self,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        step: &mut DescriptorFlowStep,
+        operation: semantic_vocabulary::OperationId,
+        result: &terminal_psi::StructuralOperationResult,
+        sources: impl IntoIterator<Item = (DescriptorPosition, &'a StructuralArgument)>,
+        exact: bool,
+        parameters: Vec<ValueId>,
+        opaque: bool,
+    ) -> Option<()> {
+        let destination = DescriptorLocation::whole(result.place);
+        let StructuralTypeShape::Reference { referent, .. } =
+            find_structural_type(types, result.structural_type)?.shape
+        else {
+            return None;
+        };
+        let mut known = false;
+        let mut needs_native_formation = false;
+        let mut reads = Vec::new();
+        for (at, source) in sources {
+            known = true;
+            let mut observed = self.native_observation(types, at, source)?;
+            let enclosing = !exact || observed.pointee != Some(referent);
+            needs_native_formation |= enclosing;
+            if enclosing {
+                observed.projection = Some(
+                    observed
+                        .projection
+                        .unwrap_or_else(|| Projection::new(&[]))
+                        .into_native_enclosing_storage(),
+                );
+            }
+            reads.push(observed);
+        }
+        if known {
+            step.native_borrow = Some(Box::new((destination.clone(), reads)));
+        }
+        let origins = self.originations.entry(position).or_default();
+        origins.retain(|(location, _)| location != &destination);
+        if !known || opaque || needs_native_formation || !parameters.is_empty() {
+            origins.push((
+                destination,
+                DescriptorCallOrigin::NativeAddress {
+                    opaque,
+                    exact_parameters: exact,
+                    parameters,
+                    machine: self.id,
+                    operation,
+                    place: result.place,
+                    carrier: result.structural_type,
+                    projection: Projection::new(&[]),
+                },
+            ));
+        }
+        Some(())
+    }
+
+    /// A mutability upgrade derives a new exclusive loan of the same referent.
+    /// The receiver's reference retains its bound and its actual input provenance.
+    pub fn mutability_upgrade(
+        &mut self,
+        types: &[StructuralTypeDeclaration],
+        position: DescriptorPosition,
+        step: &mut DescriptorFlowStep,
+        source: &StructuralArgument,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> Option<()> {
+        let query = descriptor_contents_query(
+            types,
+            source.place,
+            *self.place_types.get(&source.place)?,
+            &source.path,
+            None,
+        )?;
+        let source = query.observation();
+        let destination = DescriptorLocation::whole(result.place);
+        step.replace_value_inputs([source.clone()]);
+        step.derivations.push((source.clone(), destination.clone()));
+        if let Some(origins) = self.originations.get_mut(&position) {
+            origins.retain(|(location, _)| location != &destination);
+        }
+        self.contents_queries
+            .insert((position, source.clone(), destination.clone()), query);
+        self.projections
+            .insert((position, source, destination), Projection::upgraded());
+        Some(())
+    }
+}
+
 fn destination_root(kind: &OperationKind) -> Option<&PlaceId> {
     match kind {
         OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
@@ -2683,7 +2906,6 @@ fn selected_effects_machine(
     let mut bodies = module.machines.iter().filter(|body| body.id == target);
     let body = bodies.next()?;
     if bodies.next().is_some()
-        || matches!(signature.result, BoundaryMachineResult::Structural(_))
         || matches!(&signature.result, BoundaryMachineResult::Scalar(result)
             if result.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO)
         || !signature.result.matches_machine_result(&body.result)

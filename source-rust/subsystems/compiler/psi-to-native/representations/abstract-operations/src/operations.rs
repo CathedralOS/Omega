@@ -464,6 +464,7 @@ define_abstract_operations! {
     },
     CallStructural {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         callee: AbstractCallTarget,
         /// Stored referent for each argument the call reborrows through a package opening.
         opened_referents: Vec<(usize, semantic_vocabulary::StructuralTypeId)>,
@@ -486,6 +487,7 @@ define_abstract_operations! {
     },
     BoundaryCall {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         result: AbstractBoundaryResult,
         boundary: BoundaryMachineId,
         arguments: Vec<ValueId>, // Runtime scalar arguments in exact Terminal Psi call order.
@@ -507,6 +509,7 @@ define_abstract_operations! {
     },
     Call {
         psi_operation: OperationId,
+        suspension_crossing: Option<semantic_vocabulary::SuspensionCrossingId>,
         result: ValueId,
         scalar_type: ScalarType,
         callee: MachineId,
@@ -706,6 +709,16 @@ define_abstract_operations! {
         source: StructuralArgument,
         correspondence: super::AccessReferenceBacking,
     },
+    BorrowAt {
+        psi_operation: OperationId,
+        result: OperationResult,
+        address: ValueId,
+    },
+    UpgradeMutability {
+        psi_operation: OperationId,
+        result: OperationResult,
+        source: StructuralArgument,
+    },
     EstablishReference {
         psi_operation: OperationId,
         result: OperationResult,
@@ -898,7 +911,8 @@ macro_rules! structural_paths_of {
             | AbstractOperation::ReturnStructural {
                 cleanup_actions, ..
             } => cleanup_actions.$iter().map(cleanup_path).collect(),
-            AbstractOperation::EstablishReference { source, .. }
+            AbstractOperation::UpgradeMutability { source, .. }
+            | AbstractOperation::EstablishReference { source, .. }
             | AbstractOperation::EstablishAccessReference { source, .. }
             | AbstractOperation::EstablishElementView { source, .. }
             | AbstractOperation::ElementViewLength { source, .. }
@@ -1167,6 +1181,8 @@ impl AbstractOperation {
             | Self::EstablishStructuralLocal { result, .. }
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
+            | Self::BorrowAt { result, .. }
+            | Self::UpgradeMutability { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::EstablishAccessReference { result, .. }
             | Self::ElementViewFixedArray { result, .. }
@@ -1269,6 +1285,8 @@ impl AbstractOperation {
             | Self::EstablishStructuralLocal { psi_operation, .. }
             | Self::EstablishNativeCodeLayout { psi_operation, .. }
             | Self::EstablishRecord { psi_operation, .. }
+            | Self::BorrowAt { psi_operation, .. }
+            | Self::UpgradeMutability { psi_operation, .. }
             | Self::EstablishReference { psi_operation, .. }
             | Self::EstablishAccessReference { psi_operation, .. }
             | Self::ReleaseReference { psi_operation, .. }

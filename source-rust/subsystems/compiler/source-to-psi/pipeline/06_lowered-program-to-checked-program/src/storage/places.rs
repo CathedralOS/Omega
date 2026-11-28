@@ -132,6 +132,9 @@ pub(crate) struct Lineage {
 /// A complete storage-address family, sorted by root and then path.
 /// Unknown or empty captured families are refused before this interface.
 pub(crate) trait StorageAddresses {
+    fn native_storage(&self, _index: usize) -> bool {
+        false
+    }
     fn address_count(&self) -> usize;
     fn address(&self, index: usize) -> &Lineage;
 }
@@ -149,6 +152,7 @@ impl StorageAddresses for Lineage {
 /// Descriptor storage and the payload it permits access to are different
 /// places. Initializing or replacing a descriptor does not write payload bytes.
 enum StorageEffect {
+    NativeWrite(Lineage, Backing),
     Storage(Lineage),
     Payload(Lineage),
 }
@@ -205,13 +209,13 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
     fn partition(
         addresses: &impl StorageAddresses,
         range: std::ops::Range<usize>,
-        mut same: impl FnMut(&Lineage) -> bool,
+        mut same: impl FnMut(&Lineage, usize) -> bool,
     ) -> usize {
         let mut start = range.start;
         let mut end = range.end;
         while start < end {
             let middle = start + (end - start) / 2;
-            if same(addresses.address(middle)) {
+            if same(addresses.address(middle), middle) {
                 start = middle + 1;
             } else {
                 end = middle;
@@ -268,10 +272,10 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
         while left_index < left_range.end && right_index < right_range.end {
             let a = left.address(left_index).segments[depth];
             let b = right.address(right_index).segments[depth];
-            let left_end = partition(left, left_index..left_range.end, |place| {
+            let left_end = partition(left, left_index..left_range.end, |place, _| {
                 place.segments[depth] == a
             });
-            let right_end = partition(right, right_index..right_range.end, |place| {
+            let right_end = partition(right, right_index..right_range.end, |place, _| {
                 place.segments[depth] == b
             });
             match a.cmp(&b) {
@@ -298,13 +302,19 @@ pub(crate) fn overlap(left: &impl StorageAddresses, right: &impl StorageAddresse
     let mut left_index = 0;
     let mut right_index = 0;
     while left_index < left.address_count() && right_index < right.address_count() {
-        let a = left.address(left_index).root;
-        let b = right.address(right_index).root;
-        let left_end = partition(left, left_index..left.address_count(), |place| {
-            place.root == a
+        let a = (
+            left.address(left_index).root,
+            left.native_storage(left_index),
+        );
+        let b = (
+            right.address(right_index).root,
+            right.native_storage(right_index),
+        );
+        let left_end = partition(left, left_index..left.address_count(), |place, i| {
+            (place.root, left.native_storage(i)) == a
         });
-        let right_end = partition(right, right_index..right.address_count(), |place| {
-            place.root == b
+        let right_end = partition(right, right_index..right.address_count(), |place, i| {
+            (place.root, right.native_storage(i)) == b
         });
         match a.cmp(&b) {
             std::cmp::Ordering::Less => left_index = left_end,
@@ -1203,6 +1213,7 @@ pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
     module: &'a terminal_psi::TerminalModule,
+    native_write_services: std::cell::OnceCell<[Option<semantic_vocabulary::ServiceId>; 2]>,
     float_meanings: std::cell::OnceCell<
         Result<terminal_semantics::float_meaning_sources::Sources, &'static str>,
     >,
@@ -1354,6 +1365,7 @@ impl<'a> Storage<'a> {
             machine,
             lowered,
             module,
+            native_write_services: std::cell::OnceCell::new(),
             float_meanings: std::cell::OnceCell::new(),
             types: &module.types.structural_types,
             type_index,
@@ -1418,7 +1430,16 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let backing = if call_write {
+                let backing = if let Stored::MayChange {
+                    exposed_at: Some((block, cut)),
+                } = row.stored
+                {
+                    // A scalar write frame identifies the allocation, without
+                    // promising a byte offset or a particular access width.
+                    storage
+                        .backing(references, &row.destination, block, cut as usize, concerns)?
+                        .enclosing_allocation()
+                } else if call_write {
                     let Some(backing) = storage.optional_backing(
                         references,
                         &row.destination,
@@ -3283,6 +3304,19 @@ impl<'a> Storage<'a> {
         let mut weakened = false;
         loop {
             let row = &self.log[row_index];
+            if matches!(row.stored, Stored::MayChange { .. }) {
+                let prior = self.reaching_backing_supply(
+                    references,
+                    tables,
+                    asked,
+                    watched,
+                    (row.block, row.position - 1),
+                    0,
+                    budget,
+                    concerns,
+                )?;
+                return Ok(prior.without_identity());
+            }
             if budget.initialization == Initialization::WholeArray {
                 // A partial transfer can introduce an unavailable element;
                 // a vacancy, unknown alias effect or non-array producer has
@@ -3454,7 +3488,9 @@ impl<'a> Storage<'a> {
                     .without_identity());
             };
             let reached = match (&row.stored, asked) {
-                (Stored::UnknownPayloadWrite { .. }, _) => Reached::Unknown,
+                (Stored::MayChange { .. } | Stored::UnknownPayloadWrite { .. }, _) => {
+                    Reached::Unknown
+                }
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
                 (Stored::Vacated, Asked::Case(..)) => Reached::Unknown,
                 (Stored::Vacated, Asked::Window { .. }) => {
@@ -4175,8 +4211,8 @@ impl<'a> Storage<'a> {
             )
             && (up_to != usize::MAX || budget.used.is_some())
             && let Some(at) = self.descriptor_position((block, up_to))
-            && let Some((referent, _)) =
-                self.provider_referent(references, original, at, concerns)?
+            && let Some((referent, _, _)) =
+                self.external_referent(references, original, at, concerns)?
         {
             let declaration = self.declaration(referent, concerns)?;
             let depth = if original.segments.last() == Some(&Segment::Referent)
@@ -5378,6 +5414,7 @@ impl<'a> Storage<'a> {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
             OperationKind::DecomposeStructuralValue { subject: source }
+            | OperationKind::UpgradeMutability { source }
             | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
@@ -5524,6 +5561,17 @@ impl<'a> Storage<'a> {
             .iter()
             .filter(|row| row.operation == operation.id)
             .map(|row| {
+                if matches!(
+                    row.stored,
+                    Stored::MayChange {
+                        exposed_at: Some(_)
+                    }
+                ) {
+                    return StorageEffect::NativeWrite(
+                        row.destination.clone(),
+                        row.backing.clone(),
+                    );
+                }
                 if payloads.iter().any(|payload| {
                     row.destination.root == payload.root
                         && row.destination.segments.starts_with(&payload.segments)

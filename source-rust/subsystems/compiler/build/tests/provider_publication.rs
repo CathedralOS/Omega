@@ -9,6 +9,8 @@ mod fixture_repository;
 mod function_table;
 #[path = "provider_publication/provider_grants.rs"]
 mod provider_grants;
+#[path = "provider_publication/owned_psi.rs"]
+mod owned_psi;
 
 use compiler::{Artifact, CompileRequest, NativeTarget, Program, TargetProviderInstallation};
 use host_provider_inputs::ProviderInstallationInputs;

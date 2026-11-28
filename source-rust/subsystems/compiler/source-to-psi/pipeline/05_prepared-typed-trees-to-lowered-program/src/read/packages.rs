@@ -1,24 +1,38 @@
 //! A package ties each field to the same tuple of hidden types. Check that
 //! relationship while both the authored field types and their concrete
 //! occurrences are available, before selecting any physical representation.
-use std::collections::HashMap;
-
 use crate::Unserved;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataMember};
-use crate::source_state::expression::TableStructLiteral;
+use crate::source_state::expression::{PackageFieldType, TableStructLiteral};
 use crate::source_state::type_identity::TypeIdentityRequest;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
-pub(super) fn check_construction(
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
+#[derive(Debug)]
+pub(super) struct PackageFields<'a>(Vec<&'a PackageFieldType>);
+
+impl PackageFields<'_> {
+    pub(super) fn get(&self, symbol: &SymbolHandle) -> Option<&TypeReferenceHandle> {
+        self.0
+            .binary_search_by_key(&symbol_key(*symbol), |field| symbol_key(field.symbol))
+            .ok()
+            .map(|index| &self.0[index].ty)
+    }
+}
+
+pub(super) fn check_construction<'a>(
     typed: &TypedTrees,
     machine: MachineId,
     data: &DataDefinition,
-    literal: &TableStructLiteral,
-) -> Checked<Option<HashMap<SymbolHandle, TypeReferenceHandle>>> {
+    literal: &'a TableStructLiteral,
+) -> Checked<Option<PackageFields<'a>>> {
     let invalid = |reason| super::refuse_at(machine, Unserved::Typing(reason));
     if data.package_parameters.is_empty() {
         return if literal.package.is_none() {
@@ -87,20 +101,18 @@ pub(super) fn check_construction(
             "package construction has an unresolved type argument",
         ));
     }
-    let fields: HashMap<_, _> = package
-        .fields
-        .iter()
-        .map(|field| (field.symbol, field.ty))
-        .collect();
+    let mut rows: Vec<_> = package.fields.iter().collect();
+    rows.sort_unstable_by_key(|field| symbol_key(field.symbol));
     let members = typed
         .data_members
         .span(data.members)
         .ok_or_else(|| invalid("package declaration has a stale field roster"))?;
-    if fields.len() != package.fields.len() || fields.len() != members.len() {
+    if rows.len() != members.len() || rows.windows(2).any(|pair| pair[0].symbol == pair[1].symbol) {
         return Err(invalid(
             "package construction has missing, repeated or extra field types",
         ));
     }
+    let fields = PackageFields(rows);
     for member in members {
         let DataMember::Field(field) = member else {
             return Err(invalid("package literal requires a record declaration"));
@@ -235,6 +247,18 @@ mod tests {
         let machine = MachineId::new(1).unwrap();
         for (witness, fields) in [(file, file_fields), (socket, socket_fields)] {
             check_construction(&typed, machine, &data, &literal(witness, fields)).unwrap();
+        }
+        for (replacement, expected) in [
+            (callback, "repeated"),
+            (
+                SymbolHandle::from_parts(state.arena_index(), state.generation() + 1),
+                "field from another declaration",
+            ),
+        ] {
+            let mut changed = literal(file, file_fields);
+            changed.package.as_mut().unwrap().fields[1].symbol = replacement;
+            let error = check_construction(&typed, machine, &data, &changed).unwrap_err();
+            assert!(error.detail.contains(expected), "{error:?}");
         }
         for fields in [
             [file_fields[0], socket_fields[1]],

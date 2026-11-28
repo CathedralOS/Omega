@@ -98,6 +98,7 @@ impl BuildProviderScope {
                 },
             );
             let child = dependency.inputs.execution_reach_policy(DependencyPurpose::Product);
+            reach_policy.package_names.extend(child.package_names);
             reach_policy.edges.extend(child.edges);
             reach_policy.enabled_unsafe.extend(child.enabled_unsafe);
             if let Some(handoff) = &dependency.generated {
