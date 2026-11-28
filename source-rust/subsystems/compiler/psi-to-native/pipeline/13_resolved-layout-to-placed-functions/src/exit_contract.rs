@@ -461,6 +461,7 @@ pub(crate) fn check_exits(
                         }
                         validate_internal_call(
                             target,
+                            physical,
                             stack_pointer,
                             instruction.id,
                             instruction
@@ -886,6 +887,7 @@ fn check_ordinary_exit_roster(
                     }
                     validate_internal_call(
                         machine.target,
+                        physical,
                         context.stack_pointer,
                         instruction.id,
                         instruction.call.ok_or(
@@ -1121,8 +1123,10 @@ fn validate_preservation_writes(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_internal_call(
     target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
     stack_pointer: RegisterViewId,
     instruction: SelectedInstructionId,
     call_target: SelectedCallTarget,
@@ -1159,7 +1163,9 @@ fn validate_internal_call(
     {
         return Err(NonReturnControlEffect(instruction));
     }
-    let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint, &[]);
+    let selector = selected_instructions::calls::dynamic::selector(physical).map(|reg| reg.id);
+    let effects_match =
+        call_memory_stack_effects_match(target, stack_pointer, footprint, &[], selector);
     if !effects_match {
         return Err(NonReturnStackEffect(instruction));
     }
@@ -1231,7 +1237,7 @@ fn validate_normalized_foreign_call(
         _ => &[],
     };
     let effects_match =
-        call_memory_stack_effects_match(target, stack_pointer, footprint, callbacks);
+        call_memory_stack_effects_match(target, stack_pointer, footprint, callbacks, None);
     if !effects_match {
         return Err(NonReturnStackEffect(instruction));
     }
@@ -1243,6 +1249,7 @@ fn call_memory_stack_effects_match(
     stack_pointer: RegisterViewId,
     footprint: &machine_code::SelectedFormDecodedFootprint,
     callbacks: &[machine_code::SelectedFormCallbackMaterialization],
+    selector: Option<RegisterViewId>,
 ) -> bool {
     let stack_matches = match target.architecture {
         Architecture::X86_64 => {
@@ -1262,8 +1269,13 @@ fn call_memory_stack_effects_match(
         }
         MachineEncodedControlEffect::IndirectTableCallOrTrapV1 => {
             matches!(footprint.encoded.memory,
-                MachineEncodedMemoryEffect::ReadPointerV1 { pointer_operand, byte_count: 8 }
-                    if footprint.encoded.external_operand_reads.last() == Some(&pointer_operand))
+            MachineEncodedMemoryEffect::ReadPointerV1 { pointer_operand, byte_count: 8 }
+                if selector.is_some_and(|selector| reads_selector(
+                    &footprint.encoded.external_operand_reads,
+                    &footprint.register_reads,
+                    pointer_operand,
+                    selector,
+                )))
         }
         MachineEncodedControlEffect::DirectRelativeCallV1
             if callbacks.iter().any(|callback| {
@@ -1289,6 +1301,22 @@ fn call_memory_stack_effects_match(
         _ => false,
     };
     stack_matches && memory_matches
+}
+
+fn reads_selector(
+    inputs: &[u16],
+    registers: &[RegisterViewId],
+    pointer: u16,
+    selector: RegisterViewId,
+) -> bool {
+    if inputs.len() != registers.len() {
+        return false;
+    }
+    let mut reads = inputs
+        .iter()
+        .zip(registers)
+        .filter(|(input, _)| **input == pointer);
+    reads.next().is_some_and(|(_, view)| *view == selector) && reads.next().is_none()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1963,6 +1991,17 @@ mod tests {
     }
 
     #[test]
+    fn an_indirect_call_reads_its_selector_not_its_private_owner() {
+        let selector = RegisterViewId(3);
+        let owner = RegisterViewId(7);
+        let reads = [selector, owner];
+        assert!(reads_selector(&[1, 2], &reads, 1, selector));
+        assert!(!reads_selector(&[1, 2], &reads, 2, selector));
+        assert!(!reads_selector(&[1, 1], &reads, 1, selector));
+        assert!(!reads_selector(&[1, 2], &[selector], 1, selector));
+    }
+
+    #[test]
     fn callback_writes_require_memory_destinations_and_the_target_call_stack() {
         use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
         use machine_code::{
@@ -2039,7 +2078,13 @@ mod tests {
                     encoding: relocation,
                 };
                 let matches = |footprint: &SelectedFormDecodedFootprint, callbacks: &[_]| {
-                    call_memory_stack_effects_match(target, stack_pointer, footprint, callbacks)
+                    call_memory_stack_effects_match(
+                        target,
+                        stack_pointer,
+                        footprint,
+                        callbacks,
+                        None,
+                    )
                 };
                 assert!(matches(&footprint, std::slice::from_ref(&callback)));
                 assert!(!matches(&footprint, &[]));
