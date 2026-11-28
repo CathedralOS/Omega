@@ -2203,12 +2203,11 @@ pub(crate) fn close_typed_cohort(
     {
         validate_computed_arguments(lowerer.source_trees)?;
     }
-    let owners = collect_owners(&lowerer.typed_trees);
     crate::expressions::equality_preparation::prepare_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.conformances,
-        &owners,
+        collect_owners,
     )?;
     crate::declarations::items::provider_defaults::finalize_provider_default_calls_in_cohort(
         &mut lowerer.typed_trees,
@@ -2242,11 +2241,10 @@ pub(crate) fn close_typed_cohort(
     )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
-    let owners = collect_owners(&lowerer.typed_trees);
     crate::types::typing_queries::defer_unbound_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
-        &owners,
+        collect_owners,
     )?;
     crate::types::undeclared_type_names::defer_undeclared_type_names_in_cohort(
         lowerer.source_trees,

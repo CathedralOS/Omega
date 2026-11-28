@@ -1190,14 +1190,17 @@ pub(crate) fn defer_unbound_calls(
     completed: &[SymbolHandle],
 ) -> Result<(), Diagnostic> {
     let cohort = crate::lowerer::TypingCohort::for_machines(frontier, completed);
-    let owners = crate::expressions::operand_owners::CohortOperandOwners::full(program);
-    defer_unbound_calls_in_cohort(program, &cohort, &owners)
+    defer_unbound_calls_in_cohort(
+        program,
+        &cohort,
+        crate::expressions::operand_owners::CohortOperandOwners::full,
+    )
 }
 
 pub(crate) fn defer_unbound_calls_in_cohort(
     program: &mut TypedTrees,
     cohort: &crate::lowerer::TypingCohort<'_>,
-    owners: &crate::expressions::operand_owners::CohortOperandOwners,
+    collect_owners: impl FnOnce(&TypedTrees) -> crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     use crate::source_state::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
@@ -1441,6 +1444,7 @@ pub(crate) fn defer_unbound_calls_in_cohort(
             }
         }
         if !in_expressions.is_empty() {
+            let owners = collect_owners(program);
             for (handle, request, bare, path) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
                 let mut owned = false;
@@ -2811,7 +2815,13 @@ mod tests {
 
     #[test]
     fn empty_call_and_transition_rosters_record_nothing() {
-        assert_eq!(deferred(&TypedTrees::default()).unwrap(), Vec::new());
+        let mut program = TypedTrees::default();
+        let cohort = crate::lowerer::TypingCohort::for_machines(0, &[]);
+        defer_unbound_calls_in_cohort(&mut program, &cohort, |_| {
+            panic!("empty call and transition rosters need no operand owners")
+        })
+        .unwrap();
+        assert!(program.deferred_refusals.is_empty());
     }
 
     #[test]
