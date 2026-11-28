@@ -3523,6 +3523,7 @@ pub(crate) mod installed_interrupts {
         if !member_handle.is_valid() {
             registrar.symbol = selected.requirement;
         } else {
+            registrar.symbol = selected.trait_definition;
             loop {
                 let member = target_trees
                     .expression_table

@@ -944,13 +944,7 @@ mod traversal {
                 for nested in &application.arguments {
                     self.assign_static_argument_type_symbols(nested);
                 }
-                if let Some(member) = self
-                    .expression_table
-                    .static_member(application.member)
-                    .cloned()
-                {
-                    self.assign_static_argument_type_symbols(&member);
-                }
+                self.assign_member_argument_symbols(argument.symbol, application.member);
             }
         }
 
@@ -981,6 +975,7 @@ mod traversal {
             let Some(mut member) = self.expression_table.static_member(handle).cloned() else {
                 return;
             };
+            self.reassign_type_reference(member.type_reference);
             // The member itself belongs to its applied owner, not the lexical
             // namespace. Its supplied arguments still have ordinary lexical scope.
             // A known data declaration already owns its member identities;
