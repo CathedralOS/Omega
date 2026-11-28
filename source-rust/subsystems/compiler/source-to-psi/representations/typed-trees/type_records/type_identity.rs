@@ -2212,15 +2212,7 @@ pub(crate) mod identity_context {
         }
     }
 
-    pub(crate) fn schema_region(ordinal: usize) -> String {
-        compound(
-            RegionForm::Region,
-            [
-                atom(Label::Owner, "schema"),
-                atom(Label::Ordinal, &ordinal.to_string()),
-            ],
-        )
-    }
+    use application_identity::type_identity::schema_region;
 
     #[derive(Clone, Copy, Default)]
     pub(crate) enum SubstitutionSemantics {

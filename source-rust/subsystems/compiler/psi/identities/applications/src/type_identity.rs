@@ -29,7 +29,7 @@ pub fn compiler_type_identity(atom: &str) -> String {
 /// last path component is a primitive spelling is still a nominal declaration.
 pub fn compiler_type_atom(identity: &str) -> Option<String> {
     use vocabulary::{Label, NameForm, TypeForm};
-    let mut visitor = DeclarationIdentitySyntax { depth: 0 };
+    let mut visitor = DeclarationIdentitySyntax::default();
     let mut ty = framing::Reader::new(identity);
     ty.expect_tag(TypeForm::Named).ok()?;
     ty.expect(b'(').ok()?;
@@ -1896,7 +1896,7 @@ pub fn closed_requirement_matches_calling_abi(
     if template.is_empty() {
         return Err(Error::MalformedIdentity);
     }
-    let mut syntax = DeclarationIdentitySyntax { depth: 0 };
+    let mut syntax = DeclarationIdentitySyntax::default();
     let mut reader = framing::Reader::new(declaration);
     reader.callable_regions = true;
     reader.expect_tag(CoordinateTag::ClosedRequirement)?;
@@ -1965,7 +1965,7 @@ pub fn closed_callable_matches_calling_abi(
         semantic_template,
         nominal_template,
         abi,
-        &mut DeclarationIdentitySyntax { depth: 0 },
+        &mut DeclarationIdentitySyntax::default(),
     )
 }
 
@@ -1999,7 +1999,7 @@ fn trait_application(
 /// Check the complete callable framing and its nominal owner without requiring
 /// a concrete application or arguments for an open declaration.
 pub fn callable_belongs_to_declaration(callable: &str, nominal: &str) -> bool {
-    callable_coordinates(callable, &mut DeclarationIdentitySyntax { depth: 0 })
+    callable_coordinates(callable, &mut DeclarationIdentitySyntax::default())
         .is_ok_and(|(path, _)| path == nominal)
 }
 
@@ -2098,8 +2098,10 @@ fn closed_callable_matches(
 
 // This query validates framing, not package authority. Bound recursive identity
 // syntax while leaving declaration custody with the caller's existing owner.
+#[derive(Default)]
 struct DeclarationIdentitySyntax {
     depth: usize,
+    signature_regions: bool,
 }
 
 impl TypeIdentityPackageOwnerVisitor for DeclarationIdentitySyntax {
@@ -2130,6 +2132,13 @@ impl TypeIdentityPackageOwnerVisitor for DeclarationIdentitySyntax {
     }
     fn descriptive_toolchain_owner(&mut self) -> Result {
         Ok(())
+    }
+    fn schema_region(&mut self, _: u32) -> Result {
+        if self.signature_regions {
+            Ok(())
+        } else {
+            Err(Error::Unadmitted(vocabulary::Unadmitted::ApplicationScope))
+        }
     }
 }
 
@@ -2239,7 +2248,7 @@ pub fn visit_type_identity_package_owners(
 /// The description may name the local toolchain without its revision. When
 /// matching declarations, the caller still checks their exact identities.
 pub fn validate_source_type_description(description: &str) -> Result<(), TypeIdentityVisitError> {
-    visit_type_identity_package_owners(description, &mut DeclarationIdentitySyntax { depth: 0 })
+    visit_type_identity_package_owners(description, &mut DeclarationIdentitySyntax::default())
 }
 
 /// Borrow the complete ordered arguments of a named generic application.
@@ -2249,7 +2258,7 @@ pub fn named_application_arguments<'a>(
     description: &'a str,
     expected_name: &str,
 ) -> Result<Option<&'a str>, TypeIdentityVisitError> {
-    visit_named_arguments(description, expected_name, |_| {})
+    visit_named_arguments(description, expected_name, false, |_| {})
 }
 
 /// Read each complete operand when comparing applications with different
@@ -2258,21 +2267,54 @@ pub fn named_application_operands<'a>(
     description: &'a str,
     expected_name: &str,
 ) -> Result<Option<Vec<&'a str>>, TypeIdentityVisitError> {
+    named_operands(description, expected_name, false)
+}
+
+/// Declared callable signatures carry bound region ordinals even after selection.
+pub fn declared_application_operands<'a>(
+    description: &'a str,
+    expected_name: &str,
+) -> Result<Option<Vec<&'a str>>, TypeIdentityVisitError> {
+    named_operands(description, expected_name, true)
+}
+
+pub fn schema_region(ordinal: usize) -> String {
+    use encoding::{atom, compound};
+    use vocabulary::{Label, RegionForm};
+    compound(
+        RegionForm::Region,
+        [
+            atom(Label::Owner, "schema"),
+            atom(Label::Ordinal, &ordinal.to_string()),
+        ],
+    )
+}
+
+fn named_operands<'a>(
+    description: &'a str,
+    expected_name: &str,
+    signature_regions: bool,
+) -> Result<Option<Vec<&'a str>>, TypeIdentityVisitError> {
     let mut operands = Vec::new();
-    let matched = visit_named_arguments(description, expected_name, |argument| {
-        operands.push(argument);
-    })?;
+    let matched =
+        visit_named_arguments(description, expected_name, signature_regions, |argument| {
+            operands.push(argument);
+        })?;
     Ok(matched.map(|_| operands))
 }
 
 fn visit_named_arguments<'a>(
     description: &'a str,
     expected_name: &str,
+    signature_regions: bool,
     mut visit: impl FnMut(&'a str),
 ) -> Result<Option<&'a str>, TypeIdentityVisitError> {
     use vocabulary::{Label, TypeForm};
     let mut reader = framing::Reader::new(description);
-    let mut syntax = DeclarationIdentitySyntax { depth: 0 };
+    let mut syntax = DeclarationIdentitySyntax {
+        depth: 0,
+        signature_regions,
+    };
     reader.expect_tag(TypeForm::Generic)?;
     let arguments = grammar::compound(&mut reader, &mut syntax, |reader, syntax| {
         let name = reader.atom(Label::Name, syntax)?;
@@ -2303,7 +2345,7 @@ pub fn visit_trait_application_package_owners(
 }
 
 pub fn validate_trait_application(identity: &str) -> Result<(), TypeIdentityVisitError> {
-    visit_trait_application_package_owners(identity, &mut DeclarationIdentitySyntax { depth: 0 })
+    visit_trait_application_package_owners(identity, &mut DeclarationIdentitySyntax::default())
 }
 
 /// Read the same argument grammar used inside a canonical type application.
@@ -2362,6 +2404,52 @@ fn scoped<T>(
 #[cfg(test)]
 mod nominal_operand_tests {
     use super::*;
+
+    #[test]
+    fn declared_operands_preserve_the_region_and_the_whole_worker_selection() {
+        use encoding::{CoordinateTag, atom, bare, compound};
+        use vocabulary::{IndexForm, Label, NameForm, OwnerForm, TypeForm};
+        let nominal = |path: &str| {
+            compound(
+                NameForm::Nominal,
+                [bare(OwnerForm::Toolchain), atom(Label::Path, path)],
+            )
+        };
+        let callable = compound(
+            CoordinateTag::NamedCallable,
+            [
+                atom(CoordinateTag::Path, &nominal("worker")),
+                atom(CoordinateTag::Parameters, ""),
+                atom(CoordinateTag::ResultDispatch, ""),
+            ],
+        );
+        let worker = compound(
+            IndexForm::StaticApplication,
+            [
+                atom(IndexForm::ConstName, &nominal("worker")),
+                atom(IndexForm::ConstName, &nominal("worker::entry")),
+                atom(IndexForm::ConstName, &callable),
+            ],
+        );
+        let family = nominal("ReadyActivation");
+        let region = schema_region(0);
+        let signature = compound(
+            TypeForm::Generic,
+            [atom(Label::Name, &family), region.clone(), worker.clone()],
+        );
+        assert_eq!(
+            declared_application_operands(&signature, &family),
+            Ok(Some(vec![region.as_str(), worker.as_str()]))
+        );
+        assert!(named_application_operands(&signature, &family).is_err());
+        assert!(
+            declared_application_operands(
+                &signature.replace("owner(schema)", "owner(local)"),
+                &family
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn nested_operands_keep_their_boundaries_and_order() {

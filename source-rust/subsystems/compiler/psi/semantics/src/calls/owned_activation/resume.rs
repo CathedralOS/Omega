@@ -227,22 +227,19 @@ pub fn resume_shape(
     let [declared_owner, _, _] = source.parameter_types.as_slice() else {
         return Err("resume needs the declared owner, publication and reply");
     };
-    let original = super::declared_operands(
+    if !super::declares_worker(
         module,
-        declaration
-            .declaration
-            .as_ref()
-            .ok_or("resume lost its preparation")?
-            .source
-            .result_type,
-        "ActivationPreparation",
-    )?;
-    let returned = super::declared_operands(module, source.result_type, "ResumeAttempt")?;
-    if super::declared_operands(module, *declared_owner, "SuspendedActivation")? != original
-        || !matches!((original.as_slice(), returned.as_slice()),
-            ([a, r, w, p], [b, s, value, worker, plan])
-            if (a, r, w, p) == (b, s, worker, plan) && *value == reply)
-    {
+        prepared.selected,
+        *declared_owner,
+        "SuspendedActivation",
+        None,
+    )? || !super::declares_worker(
+        module,
+        prepared.selected,
+        source.result_type,
+        "ResumeAttempt",
+        Some(reply),
+    )? {
         return Err("resume changed the declared owner, reply, worker or storage in its outcome");
     }
     Ok(ResumeShape {

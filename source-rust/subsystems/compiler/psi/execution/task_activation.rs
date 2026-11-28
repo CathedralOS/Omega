@@ -54,30 +54,51 @@ impl TerminalActivationStorage {
         })
     }
 
+    fn case_name(self) -> &'static str {
+        match self {
+            Self::Fixed => "Fixed",
+            Self::Split => "Split",
+        }
+    }
+
+    fn core_name(path: &str) -> String {
+        use application_identity::type_identity::{
+            encoding::{atom, bare, compound},
+            vocabulary::{Label, NameForm, OwnerForm},
+        };
+        compound(
+            NameForm::Nominal,
+            [bare(OwnerForm::Toolchain), atom(Label::Path, path)],
+        )
+    }
+
+    /// A source type can name the core case directly or carry its evaluated
+    /// value after constant substitution. Both must designate this exact case.
+    pub fn matches_type_operand(self, operand: &str) -> bool {
+        use application_identity::type_identity::{encoding::atom, vocabulary::IndexForm};
+        let case = Self::core_name(&format!("ActivationStorage::{}", self.case_name()));
+        operand == atom(IndexForm::ConstName, &case)
+            || self
+                .canonical_value()
+                .and_then(|value| value.index_identity())
+                .as_deref()
+                == Some(operand)
+    }
+
     /// The storage binder is a typed enum constant. A commitment to a machine
     /// application includes its checked carrier and encoded value, not a key
     /// printed for a requirement's operands.
     pub fn canonical_value(self) -> Option<application_identity::const_value::CanonicalConstValue> {
         use application_identity::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
         use application_identity::type_identity::{
-            encoding::{atom, bare, compound},
-            vocabulary::{Label, NameForm, OwnerForm, TypeForm},
+            encoding::{atom, compound},
+            vocabulary::{Label, TypeForm},
         };
-        let name = compound(
-            NameForm::Nominal,
-            [
-                bare(OwnerForm::Toolchain),
-                atom(Label::Path, "ActivationStorage"),
-            ],
-        );
+        let name = Self::core_name("ActivationStorage");
         let carrier = compound(TypeForm::Named, [atom(Label::Name, &name)]);
         let value = DecodedCanonicalConstValue::Variant {
             type_name: "ActivationStorage".into(),
-            case_name: match self {
-                Self::Fixed => "Fixed",
-                Self::Split => "Split",
-            }
-            .into(),
+            case_name: self.case_name().into(),
             fields: Vec::new(),
         };
         CanonicalConstValue::from_decoded_in_type(&carrier, &value, "")
