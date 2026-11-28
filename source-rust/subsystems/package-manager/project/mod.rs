@@ -435,7 +435,7 @@ impl SourceHost<'_, '_> {
                 Some((purpose, backing)),
                 &[],
             )
-            .map_err(|error| error.in_dependency_registration(alias))
+            .map_err(|error| error.in_dependency_registration(&acquired.registration_name(alias)))
         }
     }
 

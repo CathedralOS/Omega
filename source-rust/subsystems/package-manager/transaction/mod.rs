@@ -879,16 +879,15 @@ impl PackageCommandError {
 
     /// A single source can run under several requester-local aliases with
     /// different grants. Retain the issued name when an activation fails.
-    pub(crate) fn in_dependency_registration(mut self, alias: Option<&str>) -> Self {
-        if let Some(alias) = alias
-            && let PackageCommandCause::Compilation(
-                CompileFailure::Diagnostics(rows)
-                | CompileFailure::SourceCompletion {
-                    diagnostics: rows, ..
-                },
-            ) = &mut self.cause
+    pub(crate) fn in_dependency_registration(mut self, name: &str) -> Self {
+        if let PackageCommandCause::Compilation(
+            CompileFailure::Diagnostics(rows)
+            | CompileFailure::SourceCompletion {
+                diagnostics: rows, ..
+            },
+        ) = &mut self.cause
         {
-            let context = format!("dependency registration `{alias}` failed: ");
+            let context = format!("dependency registration `{name}` failed: ");
             for diagnostic in rows {
                 diagnostic.message.insert_str(0, &context);
             }

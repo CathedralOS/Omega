@@ -1,11 +1,15 @@
 //! An accepted Build sends a real datagram through its own registration's backing.
+#[cfg(unix)]
+#[path = "build_network/git.rs"]
+mod git;
 #[path = "support/project.rs"]
 mod project;
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
+    ffi::OsString,
     fs,
     io::ErrorKind,
     net::{SocketAddr, UdpSocket},
@@ -16,6 +20,7 @@ use std::{
 struct Fixture {
     packages: TemporaryDirectory,
     peer: UdpSocket,
+    environment: BTreeMap<&'static str, OsString>,
 }
 
 impl Fixture {
@@ -25,6 +30,7 @@ impl Fixture {
         Self {
             packages: TemporaryDirectory::create("omega-build-network", false).unwrap(),
             peer,
+            environment: BTreeMap::new(),
         }
     }
 
@@ -47,6 +53,7 @@ impl Fixture {
         command
             .args(args)
             .current_dir(self.root())
+            .envs(&self.environment)
             .env(
                 "OMEGA_LIBRARY_ROOT",
                 support::repository_root().join("source/library"),
@@ -80,7 +87,11 @@ impl Fixture {
 
     fn update(&self, grant: bool) -> Output {
         let peer = grant.then(|| self.peer.local_addr().unwrap());
-        let mut result = self.cli(&["packages", "update"], grant, peer);
+        self.finish_update(self.cli(&["packages", "update"], grant, peer), grant)
+    }
+
+    fn finish_update(&self, mut result: Output, grant: bool) -> Output {
+        let peer = grant.then(|| self.peer.local_addr().unwrap());
         let mut edited = HashSet::new();
         while result.status.code() == Some(3) {
             let mut accepted = false;
