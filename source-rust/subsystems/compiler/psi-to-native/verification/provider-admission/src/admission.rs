@@ -19,7 +19,7 @@ retained builtin proposals carry plan-index custody as proposals, never
 replacing independent native admission.
 */
 
-use crate::terminal_authority_policy::darwin_imports;
+use crate::terminal_authority_policy::posix_imports;
 use crate::terminal_authority_review::reachability::{AuthorityGraph, ReachableAuthorityEdges};
 use crate::{
     AdmissionSource, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
@@ -267,16 +267,14 @@ pub fn admit_native_providers<'request>(
         access_lifecycles::settle_empty_releases(input, request.terminal_authority_policy)?;
     settlements.extend(run_settlements);
     mechanisms.extend(run_mechanisms);
-    if request.profile == target::TargetProfile::MacosArm64 {
-        darwin_imports::classify_checked_calls(
-            artifact,
-            input.plan(),
-            &settlements,
-            &mut mechanisms,
-            request.terminal_authority_policy,
-            &mut cohort_rows,
-        );
-    }
+    posix_imports::classify_checked_calls(
+        artifact,
+        input.plan(),
+        &settlements,
+        &mut mechanisms,
+        request.terminal_authority_policy,
+        &mut cohort_rows,
+    );
     let effective_policy = request
         .terminal_authority_policy
         .with_reviewed_operations(cohort_rows, mechanisms.iter().map(|leaf| leaf.mechanism))
