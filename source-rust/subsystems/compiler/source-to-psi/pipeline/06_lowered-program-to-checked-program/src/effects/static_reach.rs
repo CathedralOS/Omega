@@ -257,7 +257,8 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
             .iter()
             .filter_map(|entry| match entry {
                 terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service),
-                terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+                terminal_psi::TerminalCallableInvocation::Parameter(_)
+                | terminal_psi::TerminalCallableInvocation::ParameterPath { .. } => None,
             })
             .eq(machine.published_synchronous_entries.iter().copied())
         {
@@ -292,6 +293,20 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
                             .identities
                             .text(elaboration.module.interfaces.services[position].identity)
                     })
+            },
+            |parameter, path| {
+                let root = terminal_semantics::callable_envelopes::structural_formal(
+                    &machine.parameter_order,
+                    &machine.structural_parameters,
+                    parameter,
+                )
+                .ok_or("generic callback field lost its formal")?;
+                terminal_semantics::callable_envelopes::callback_path_commitment(
+                    &elaboration.module.types.structural_types,
+                    root,
+                    path,
+                    |id| elaboration.module.identities.text(id),
+                )
             },
         )
         .map_err(|reason| fault(id, reason))?;

@@ -703,6 +703,33 @@ fn exceeded_reach(
                     format!("parameter {}", u64::from(*position) + 1)
                 }
                 crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::ParameterPath { parameter, path },
+                ) => {
+                    use std::fmt::Write;
+                    use terminal_psi::StructuralPathSegment as Step;
+                    let mut result = format!("parameter {}", u64::from(*parameter) + 1);
+                    for step in path {
+                        match step {
+                            Step::Field(identity) => {
+                                let _ = write!(
+                                    result,
+                                    ".{}",
+                                    module.identities.text(*identity).unwrap_or("?")
+                                );
+                            }
+                            Step::FixedIndex(index) => {
+                                let _ = write!(result, "[{index}]");
+                            }
+                            Step::Case(case) => {
+                                let _ = write!(result, "::{case:?}");
+                            }
+                            Step::Referent => result.push_str(".*"),
+                            _ => result.push_str(".?"),
+                        }
+                    }
+                    result
+                }
+                crate::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Service(service),
                 ) => module
                     .interfaces

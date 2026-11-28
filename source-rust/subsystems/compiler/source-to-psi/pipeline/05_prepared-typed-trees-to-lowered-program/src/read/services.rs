@@ -1,9 +1,11 @@
 //! Keep each callable's authored permissions separate from what its body reaches.
 //! Private omitted axes are inferred from actual calls, never from callers or a
 //! list of eligible implementations. Published axes are checked as ceilings.
+mod parameter_paths;
 use crate::callables::static_contracts::SourceImplementation;
 use crate::read::refuse_at;
 pub(crate) use crate::read::unavailable;
+use parameter_paths::Formal;
 
 use crate::publication::reach::{SourceEnvelope, SourceInvocation as Invocation};
 use crate::source_state::TypedTrees;
@@ -305,6 +307,8 @@ impl Program<'_> {
             policies.push(policy);
             calls.push(uses);
         }
+        let forwarding =
+            parameter_paths::Forwarding::of(&calls, &policies, &self.signatures, components);
         loop {
             let mut changed = false;
             for (id, uses) in calls.iter() {
@@ -379,9 +383,11 @@ impl Program<'_> {
                             Invocation::Service(service) => {
                                 union(&mut reached.invocations, &[Invocation::Service(*service)])
                             }
-                            Invocation::Parameter(position) => {
+                            Invocation::Parameter(_) | Invocation::ParameterPath { .. } => {
+                                let (position, path) =
+                                    target.parameter().expect("parameter invocation");
                                 let source_position = target_signature
-                                    .source_parameter_position(*position as usize)
+                                    .source_parameter_position(position as usize)
                                     .ok_or_else(|| {
                                         unavailable(
                                             id,
@@ -397,21 +403,29 @@ impl Program<'_> {
                                     })?;
                                 // An actual that joins several callable
                                 // formals hands the callee each of them.
-                                let forwarded: Vec<_> = invocation
+                                let mut forwarded = Vec::new();
+                                for (_, formal) in invocation
                                     .parameter_arguments
                                     .iter()
                                     .filter(|(argument, _)| *argument == source_position)
-                                    .map(|(_, parameter)| Invocation::Parameter(*parameter))
-                                    .collect();
+                                {
+                                    if forwarding.grows(invocation, id, position, formal, path) {
+                                        return Err(unavailable(
+                                            id,
+                                            "recursive invocation grows a structural formal path",
+                                        ));
+                                    }
+                                    forwarded.push(formal.invocation(path));
+                                }
                                 if !forwarded.is_empty() {
                                     union(&mut reached.invocations, &forwarded);
                                     continue;
                                 }
-                                let Some(ValueType::Scalar(
-                                    semantic_vocabulary::ScalarType::Callable(contract),
-                                    _,
-                                )) = actual.result
-                                else {
+                                let Some(contract) = parameter_paths::callable_at(
+                                    &self.records,
+                                    actual.result,
+                                    path,
+                                ) else {
                                     return Err(unavailable(
                                         id,
                                         "invocation permission actual has no retained callable type",
@@ -436,7 +450,8 @@ impl Program<'_> {
                                             &mut reached.invocations,
                                             &[Invocation::Service(*service)],
                                         ),
-                                        Invocation::Parameter(_) => {
+                                        Invocation::Parameter(_)
+                                        | Invocation::ParameterPath { .. } => {
                                             return Err(unavailable(
                                                 id,
                                                 "nested invocation permission needs the invocation's exact actual mapping",
@@ -448,10 +463,7 @@ impl Program<'_> {
                         }
                     }
                     for parameter in &invocation.selected_parameters {
-                        union(
-                            &mut reached.invocations,
-                            &[Invocation::Parameter(*parameter)],
-                        );
+                        union(&mut reached.invocations, &[parameter.invocation(&[])]);
                     }
                 }
                 let policy = policies
@@ -1044,54 +1056,54 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
 struct Use<'a> {
     static_binding: Option<u32>,
     /// The caller's callable formals the invoked value may be.
-    selected_parameters: Vec<u32>,
-    parameter_arguments: Vec<(usize, u32)>,
+    selected_parameters: Vec<Formal>,
+    parameter_arguments: Vec<(usize, Formal)>,
     target: &'a CallTarget,
     required_contract: Option<ContractId>,
     arguments: &'a [Expression],
 }
 
-struct CallCollector<'a> {
+#[derive(Default)]
+struct BodyCalls<'a> {
     services: Vec<ServiceReachId>,
     sites: Vec<Use<'a>>,
+}
+
+struct CallCollector<'a, 'r> {
+    records: &'r IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
+    calls: BodyCalls<'a>,
     // Which caller parameters supplied the value now in each slot: one, or
     // each formal a `match` joined there. Empty when another value may be
     // there.
-    parameters: Vec<Vec<u32>>,
+    parameters: Vec<Vec<Formal>>,
 }
 
-impl<'a> CallCollector<'a> {
+impl<'a, 'r> CallCollector<'a, 'r> {
     fn for_body(
         id: MachineId,
         signature: &Signature,
         body: &'a Body,
-        records: &IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
-    ) -> Checked<Self> {
+        records: &'r IdTable<semantic_vocabulary::StructuralTypeId, RecordType>,
+    ) -> Checked<BodyCalls<'a>> {
         let mut collector = Self {
-            services: Vec::new(),
-            sites: Vec::new(),
+            records,
+            calls: BodyCalls::default(),
             parameters: vec![Vec::new(); body.slots.len()],
         };
         for (slot, ty) in signature.parameters.iter().enumerate() {
-            let scalar = match ty {
-                ValueType::Scalar(scalar, _) => Some(scalar),
-                ValueType::Record(record, _, _) => match records
-                    .get(*record)
-                    .map(|record| &record.shape)
-                {
-                    Some(StorageShape::PrimitiveScalar { scalar_type, .. }) => Some(scalar_type),
-                    _ => None,
-                },
-                ValueType::Rigid(_) => None,
-            };
-            if matches!(scalar, Some(semantic_vocabulary::ScalarType::Callable(_)))
-                && let Some(position) = signature.runtime_parameter_position(slot)
+            if matches!(
+                ty,
+                ValueType::Record(..)
+                    | ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_), _)
+            ) && let Some(position) = signature.runtime_parameter_position(slot)
                 && let Some(binding) = collector.parameters.get_mut(slot)
             {
-                *binding =
-                    vec![u32::try_from(position).map_err(|_| {
-                        unavailable(id, "invocation parameter coordinate overflow")
-                    })?];
+                let position = u32::try_from(position)
+                    .map_err(|_| unavailable(id, "invocation parameter coordinate overflow"))?;
+                binding.push(Formal {
+                    position,
+                    path: Vec::new(),
+                });
             }
         }
         for statement in &body.statements {
@@ -1115,17 +1127,29 @@ impl<'a> CallCollector<'a> {
                         .get_mut(*slot)
                         .ok_or_else(|| unavailable(id, "binding names no body slot"))? = parameter;
                 }
+                Statement::CaptureReference { slot, original } => {
+                    let value = collector
+                        .parameters
+                        .get(*original)
+                        .ok_or_else(|| {
+                            unavailable(id, "captured reference names no original slot")
+                        })?
+                        .clone();
+                    *collector.parameters.get_mut(*slot).ok_or_else(|| {
+                        unavailable(id, "captured reference names no destination slot")
+                    })? = value;
+                }
                 _ => {}
             }
         }
-        Ok(collector)
+        Ok(collector.calls)
     }
 
     /// The caller's formals `expression` may be, or none when some value it
     /// may be came from elsewhere. A value `match` may be any of its arms,
     /// and a named machine is no formal: invoking it enters only what its
     /// callable type permits.
-    fn parameters(&self, expression: &Expression) -> Vec<u32> {
+    fn parameters(&self, expression: &Expression) -> Vec<Formal> {
         let mut found = Vec::new();
         if self.traced(expression, &mut found) {
             found.sort_unstable();
@@ -1136,7 +1160,17 @@ impl<'a> CallCollector<'a> {
         }
     }
 
-    fn traced(&self, expression: &Expression, found: &mut Vec<u32>) -> bool {
+    fn traced(&self, expression: &Expression, found: &mut Vec<Formal>) -> bool {
+        if let Some((base, path)) = parameter_paths::projection(self.records, expression) {
+            let start = found.len();
+            if !self.traced(base, found) {
+                return false;
+            }
+            for formal in &mut found[start..] {
+                formal.path.extend_from_slice(&path);
+            }
+            return true;
+        }
         match &expression.kind {
             E::Match { arms, default, .. } => {
                 arms.iter().all(|(_, arm)| self.traced(arm, found))
@@ -1149,7 +1183,7 @@ impl<'a> CallCollector<'a> {
                 value: Some(value),
             } if statements.is_empty() => self.traced(value, found),
             E::MachineValue { .. } => true,
-            E::Requalify(value) => self.traced(value, found),
+            E::Requalify(value) | E::Borrow { place: value, .. } => self.traced(value, found),
             _ => match Self::slot(expression).and_then(|slot| self.parameters.get(slot)) {
                 Some(parameters) if !parameters.is_empty() => {
                     found.extend_from_slice(parameters);
@@ -1169,22 +1203,22 @@ impl<'a> CallCollector<'a> {
     }
 }
 
-fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>) {
+fn collect_statement<'a>(statement: &'a Statement, collector: &mut CallCollector<'a, '_>) {
     match statement {
         Statement::Observe { value, .. }
         | Statement::Bind { value, .. }
         | Statement::Evaluate {
             expression: value, ..
         }
-        | Statement::Decompose { subject: value } => collect_expression(value, calls),
+        | Statement::Decompose { subject: value } => collect_expression(value, collector),
         Statement::Store {
             destination, value, ..
         } => {
-            collect_expression(destination, calls);
-            collect_expression(value, calls);
+            collect_expression(destination, collector);
+            collect_expression(value, collector);
         }
         // Capturing an existing reference aliases its already evaluated
-        // binding; its initializer's calls were charged at that earlier Bind.
+        // binding; its initializer's collector were charged at that earlier Bind.
         Statement::CaptureReference { .. } => {}
         Statement::Witness { .. }
         | Statement::AssemblyAdjacent { .. }
@@ -1195,41 +1229,41 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>
             default,
             ..
         } => {
-            collect_expression(subject, calls);
+            collect_expression(subject, collector);
             for (selector, target, _) in arms {
                 if let Some(condition) = selector.condition.as_deref() {
-                    collect_expression(condition, calls);
+                    collect_expression(condition, collector);
                 }
-                collect_target(target, calls);
+                collect_target(target, collector);
             }
             if let Some((target, _)) = default {
-                collect_target(target, calls);
+                collect_target(target, collector);
             }
         }
         Statement::Arm { guard, target, .. } => {
             if let Some(guard) = guard.condition() {
-                collect_expression(guard, calls);
+                collect_expression(guard, collector);
             }
-            collect_target(target, calls);
+            collect_target(target, collector);
         }
     }
 }
-fn collect_target<'a>(target: &'a Target, calls: &mut CallCollector<'a>) {
+fn collect_target<'a>(target: &'a Target, collector: &mut CallCollector<'a, '_>) {
     if let Target::Value(value) | Target::AssemblyReturn(_, value) = target {
-        collect_expression(value, calls);
+        collect_expression(value, collector);
     }
 }
-fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<'a>) {
+fn collect_expression<'a>(expression: &'a Expression, collector: &mut CallCollector<'a, '_>) {
     match &expression.kind {
         E::TheoremApplication { .. } | E::Applied { .. } => {}
         E::Block {
             statements, value, ..
         } => {
             for statement in statements {
-                collect_statement(statement, calls);
+                collect_statement(statement, collector);
             }
             if let Some(value) = value {
-                collect_expression(value, calls);
+                collect_expression(value, collector);
             }
         }
         E::Call {
@@ -1240,20 +1274,20 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             ..
         } => {
             let selected_parameters = if let CallTarget::Selected { callable, .. } = callee {
-                let parameters = calls.parameters(callable);
-                collect_expression(callable, calls);
+                let parameters = collector.parameters(callable);
+                collect_expression(callable, collector);
                 parameters
             } else {
                 Vec::new()
             };
             let mut parameter_arguments = Vec::new();
             for (position, argument) in arguments.iter().enumerate() {
-                for parameter in calls.parameters(argument) {
+                for parameter in collector.parameters(argument) {
                     parameter_arguments.push((position, parameter));
                 }
-                collect_expression(argument, calls);
+                collect_expression(argument, collector);
             }
-            calls.sites.push(Use {
+            collector.calls.sites.push(Use {
                 static_binding: *static_reach_binding,
                 selected_parameters,
                 parameter_arguments,
@@ -1265,8 +1299,8 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         E::NativeBorrow {
             services, operand, ..
         } => {
-            union_services(&mut calls.services, services);
-            collect_expression(operand, calls);
+            union_services(&mut collector.calls.services, services);
+            collect_expression(operand, collector);
         }
         E::OwnedTemporary { value: base, .. }
         | E::Field { base, .. }
@@ -1282,20 +1316,20 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         | E::BitwiseNot(base)
         | E::Cast(base)
         | E::Requalify(base)
-        | E::Referent(base) => collect_expression(base, calls),
+        | E::Referent(base) => collect_expression(base, collector),
         E::Borrow { place, access, .. } => {
-            collect_expression(place, calls);
+            collect_expression(place, collector);
             // An exclusive borrower can replace the callback before its next read.
             if access.is_exclusive()
                 && let Some(slot) = CallCollector::slot(place)
-                && let Some(binding) = calls.parameters.get_mut(slot)
+                && let Some(binding) = collector.parameters.get_mut(slot)
             {
                 binding.clear();
             }
         }
         E::Record { fields, .. } | E::Case { fields, .. } => {
             for (_, field) in fields {
-                collect_expression(field, calls);
+                collect_expression(field, collector);
             }
         }
         E::Match {
@@ -1304,15 +1338,15 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             default,
             ..
         } => {
-            collect_expression(subject, calls);
+            collect_expression(subject, collector);
             for (selector, arm) in arms {
                 if let Some(pattern) = selector.test() {
-                    collect_expression(pattern, calls);
+                    collect_expression(pattern, collector);
                 }
-                collect_expression(arm, calls);
+                collect_expression(arm, collector);
             }
             if let Some(default) = default {
-                collect_expression(default, calls);
+                collect_expression(default, collector);
             }
         }
         E::TestMembership {
@@ -1322,33 +1356,33 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
         }
         | E::Strict { left, right, .. }
         | E::ShortCircuit { left, right, .. } => {
-            collect_expression(left, calls);
-            collect_expression(right, calls);
+            collect_expression(left, collector);
+            collect_expression(right, collector);
         }
         E::PackedInteger {
             operands: elements, ..
         }
         | E::Array { elements } => {
             for element in elements {
-                collect_expression(element, calls);
+                collect_expression(element, collector);
             }
         }
         E::CollectionSubslice { base, start, end } => {
-            collect_expression(base, calls);
+            collect_expression(base, collector);
             if let Some(start) = start {
-                collect_expression(start, calls);
+                collect_expression(start, collector);
             }
             if let Some(end) = end {
-                collect_expression(end, calls);
+                collect_expression(end, collector);
             }
         }
         E::Index { base, index } | E::ByteElement { base, index, .. } => {
-            collect_expression(base, calls);
-            collect_expression(index, calls);
+            collect_expression(base, collector);
+            collect_expression(index, collector);
         }
         E::Atomic(operation) => {
             for operand in operation.inputs() {
-                collect_expression(operand, calls);
+                collect_expression(operand, collector);
             }
         }
         E::SavedSubject(_)
@@ -1444,15 +1478,17 @@ impl Program<'_> {
             row.signature.reaches =
                 crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
             row.signature.invokes = crate::Ceiling::Authored(
-                services
-                    .envelope(context, &row.envelope)?
-                    .invocations
-                    .into_iter()
-                    .filter_map(|entry| match entry {
-                        terminal_psi::TerminalCallableInvocation::Service(service) => Some(service),
-                        terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
-                    })
-                    .collect(),
+                services.row(
+                    context,
+                    &row.envelope
+                        .invocations
+                        .iter()
+                        .filter_map(|entry| match entry {
+                            Invocation::Service(service) => Some(*service),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>(),
+                )?,
             );
         }
         let boundaries = self.boundaries.rows.keys().collect::<Vec<_>>();
@@ -1466,15 +1502,17 @@ impl Program<'_> {
             row.signature.reaches =
                 crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
             row.signature.invokes = crate::Ceiling::Authored(
-                services
-                    .envelope(context, &row.envelope)?
-                    .invocations
-                    .into_iter()
-                    .filter_map(|entry| match entry {
-                        terminal_psi::TerminalCallableInvocation::Service(service) => Some(service),
-                        terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
-                    })
-                    .collect(),
+                services.row(
+                    context,
+                    &row.envelope
+                        .invocations
+                        .iter()
+                        .filter_map(|entry| match entry {
+                            Invocation::Service(service) => Some(*service),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>(),
+                )?,
             );
         }
         Ok(services)
@@ -1488,7 +1526,7 @@ fn source_roots(envelope: &SourceEnvelope, roots: &mut Vec<ServiceReachId>) {
             .iter()
             .filter_map(|target| match target {
                 Invocation::Service(service) => Some(*service),
-                Invocation::Parameter(_) => None,
+                Invocation::Parameter(_) | Invocation::ParameterPath { .. } => None,
             }),
     );
 }
@@ -1656,7 +1694,7 @@ impl<'t> Program<'t> {
                 .iter()
                 .filter_map(|entry| match entry {
                     Invocation::Service(service) => Some(*service),
-                    Invocation::Parameter(_) => None,
+                    Invocation::Parameter(_) | Invocation::ParameterPath { .. } => None,
                 })
                 .map(|source| self.applied_source_service(id, source))
                 .collect::<Checked<Vec<_>>>()?;

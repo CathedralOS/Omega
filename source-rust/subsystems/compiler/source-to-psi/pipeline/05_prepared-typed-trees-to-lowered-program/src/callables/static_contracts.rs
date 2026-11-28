@@ -6,7 +6,7 @@ use semantic_vocabulary::MachineId;
 use semantic_vocabulary::ServiceReachId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
-use terminal_psi::{TerminalCallableInvocation, TerminalCallableTermination, TerminalModule};
+use terminal_psi::{TerminalCallableTermination, TerminalModule};
 
 use crate::publication::reach::{ServiceMap, SourceInvocation};
 use crate::{Signature, Unserved, refuse};
@@ -35,6 +35,7 @@ impl StaticSourceEnvelope {
         &self,
         context: MachineId,
         services: &ServiceMap,
+        names: &terminal_psi::TerminalIdentityTable,
     ) -> Checked<StaticCallableEnvelope> {
         let service_reach = match &self.service_reach {
             SourceServiceCeiling::Open => StaticServiceCeiling::Open,
@@ -45,14 +46,7 @@ impl StaticSourceEnvelope {
         let mut invocations = self
             .invocations
             .iter()
-            .map(|invocation| match invocation {
-                SourceInvocation::Parameter(position) => {
-                    Ok(TerminalCallableInvocation::Parameter(*position))
-                }
-                SourceInvocation::Service(service) => services
-                    .service(context, *service)
-                    .map(TerminalCallableInvocation::Service),
-            })
+            .map(|invocation| services.invocation(context, invocation, names))
             .collect::<Checked<Vec<_>>>()?;
         invocations.sort();
         invocations.dedup();
@@ -73,7 +67,7 @@ impl StaticSourceEnvelope {
                 .iter()
                 .filter_map(|invocation| match invocation {
                     SourceInvocation::Service(service) => Some(*service),
-                    SourceInvocation::Parameter(_) => None,
+                    SourceInvocation::Parameter(_) | SourceInvocation::ParameterPath { .. } => None,
                 }),
         );
     }
@@ -332,7 +326,7 @@ impl StaticContracts {
                                     .signature
                                     .as_ref()
                                     .map(Signature::static_signature),
-                                envelope: requirement.envelope.publish(context, services)?,
+                                envelope: requirement.envelope.publish(context, services, qualifications.identities.as_table())?,
                             })
                         })
                         .collect::<Checked<Vec<_>>>()?,
@@ -389,7 +383,11 @@ impl StaticContracts {
                 application: source.application.clone(),
                 implementation,
                 required,
-                envelope: source.envelope.publish(context, services)?,
+                envelope: source.envelope.publish(
+                    context,
+                    services,
+                    qualifications.identities.as_table(),
+                )?,
                 provider: source
                     .provider
                     .as_ref()
