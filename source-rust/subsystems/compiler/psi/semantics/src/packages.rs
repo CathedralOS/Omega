@@ -42,7 +42,7 @@ type ProjectedOrigins = BTreeMap<(MachineId, Projected), (u32, OperationId)>;
 pub struct CheckedPackageSites {
     fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), StructuralFieldType>,
     calls: BTreeMap<Site, CallableContractId>,
-    stored: BTreeMap<Site, StructuralTypeId>,
+    stored: BTreeMap<Site, StructuralFieldType>,
     repacked_fields: BTreeMap<(MachineId, OperationId, StructuralFieldId), OperationId>,
     projected_fields: BTreeMap<Site, StructuralFieldId>,
     descriptors: BTreeMap<Site, (u32, CallableContractId)>,
@@ -59,13 +59,21 @@ impl CheckedPackageSites {
         self.fields.get(&(machine, operation, field))
     }
 
-    /// The exact field type after substituting the destination's live witness.
+    /// The destination field after substituting this package's live witness.
+    pub fn stored_field_type(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+    ) -> Option<&StructuralFieldType> {
+        self.stored.get(&(machine, operation))
+    }
+
     pub fn stored_type(
         &self,
         machine: MachineId,
         operation: OperationId,
     ) -> Option<StructuralTypeId> {
-        self.stored.get(&(machine, operation)).copied()
+        self.stored_field_type(machine, operation)?.as_structural()
     }
 
     /// The projection that supplied a dependent operand for this repacking.
@@ -400,7 +408,11 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
             if let Some(TerminalPackageEvent::Store { opening, field }) = event {
                 let ty =
                     store::checked_store(module, machine, operation, *opening, *field, &projected)?;
-                checked.stored.insert((machine.id, operation.id), ty);
+                let site = (machine.id, operation.id);
+                if let StructuralFieldType::Scalar(ScalarType::Callable(contract)) = &ty {
+                    checked.descriptors.insert(site, (*opening, *contract));
+                }
+                checked.stored.insert(site, ty);
             }
             check_field_accesses(module, machine, operation, event, &checked)?;
             if matches!(operation.kind, OperationKind::EstablishRecord { .. })

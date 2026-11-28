@@ -7390,6 +7390,7 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            package_sites: &terminal_semantics::packages::CheckedPackageSites,
         ) -> Result<(), CodecError> {
             let OperationKind::StructuralScalarFieldStore {
                 destination,
@@ -7435,6 +7436,10 @@ pub(crate) mod storage_foundations {
                     "structural scalar field store does not select a relevant scalar field",
                 );
             };
+            let expected = package_sites
+                .stored_field_type(machine.id, operation.id)
+                .and_then(StructuralFieldType::scalar_type)
+                .unwrap_or(expected);
             if declared_scalar_type(machine, *value) != Some(expected) {
                 return malformed("structural scalar field store value type does not match field");
             }
@@ -12944,7 +12949,14 @@ fn validate_operation_foundation(
             storage_foundations::validate_write_only_primitive_store(module, machine, operation)?
         }
         OperationKind::StructuralScalarFieldStore { .. } => {
-            storage_foundations::validate_structural_scalar_field_store(module, machine, operation)?
+            storage_foundations::validate_structural_scalar_field_store(
+                module,
+                machine,
+                operation,
+                analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?,
+            )?
         }
         OperationKind::MoveStructuralField { .. } => {
             storage_foundations::validate_move_structural_field(module, machine, operation)?
