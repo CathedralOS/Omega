@@ -697,9 +697,16 @@ fn two_ready_owners_need_independent_live_backing() {
 fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("pipeline/06_lowered-program-to-checked-program/tests/fixtures/owned_activation");
-    for (fixture, permitted) in [
-        ("positive/issue_pair", true),
-        ("negative/forge_pair", false),
+    for (fixture, refusal) in [
+        ("positive/issue_pair", None),
+        (
+            "negative/forge_pair",
+            Some("not one of the domain's establishment routes"),
+        ),
+        (
+            "negative/take_from_protected_record",
+            Some("this function is not allowed to write this value"),
+        ),
     ] {
         let source = std::fs::read_to_string(directory.join(fixture).join("main.omg")).unwrap();
         let mut typed = schema_customer_source::source_with_core(
@@ -710,8 +717,10 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
         )
         .unwrap();
         let mut entries = vec![typed.realized_machine_named("main").unwrap().symbol];
-        if permitted {
-            entries.push(typed.realized_machine_named("await_reply").unwrap().symbol);
+        if refusal.is_none() {
+            for name in ["await_reply", "take_permit", "unpack_permit"] {
+                entries.push(typed.realized_machine_named(name).unwrap().symbol);
+            }
         }
         let request = production::TerminalSourceCompilation {
             calling: None,
@@ -751,7 +760,15 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
             request,
             terminal_codec::TerminalPublication::Portable,
         );
-        if permitted {
+        if let Some(reason) = refusal {
+            let Err(diagnostics) = judged else {
+                panic!("{fixture} must refuse: {reason}");
+            };
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic.message.contains(reason)),
+                "{diagnostics:?}"
+            );
+        } else {
             let accepted =
                 judged.expect("the checked issuer transfers both borrows of the funded slot");
             let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
@@ -794,16 +811,6 @@ fn only_the_checked_issuer_can_make_a_pair_of_funded_reply_handles() {
                 terminal_semantics::calls::owned_activation::park_shape(&module, &wrong_role)
                     .is_err(),
                 "changing both the use and its declared prerequisite cannot turn an answer into a request"
-            );
-        } else {
-            let Err(diagnostics) = judged else {
-                panic!("an equally shaped pair from another issuer must reject");
-            };
-            assert!(
-                diagnostics.iter().any(|d| d
-                    .message
-                    .contains("not one of the domain's establishment routes")),
-                "{diagnostics:?}"
             );
         }
     }
