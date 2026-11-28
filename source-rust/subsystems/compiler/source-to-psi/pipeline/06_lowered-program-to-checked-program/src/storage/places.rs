@@ -4737,6 +4737,47 @@ impl<'a> Storage<'a> {
         Ok(!trace.crossed_entries[index(owner.get())])
     }
 
+    /// A locally constructed package can retain the original concrete callable
+    /// SSA value. Its checked projection transports that exact initializer into
+    /// the opening. This transport gives the proof solver no scalar equality.
+    fn reads_constructed_package_descriptor(
+        &self,
+        references: &DescriptorAnalysis<'_>,
+        read: &Operation,
+        held: &ScalarTerm,
+    ) -> bool {
+        let ScalarTerm::Value {
+            id,
+            scalar_type: ScalarType::Callable(contract),
+        } = held
+        else {
+            return false;
+        };
+        let Some(sites) = references.checked_package_sites(self.module) else {
+            return false;
+        };
+        let Some(field) = sites.projected_field(self.machine, read.id) else {
+            return false;
+        };
+        sites.admits_descriptor(self.module, self.machine, read.id, *contract)
+            && self.lowered.operations().any(|operation| {
+                let OperationKind::EstablishRecord { fields } = &operation.kind else {
+                    return false;
+                };
+                sites
+                    .field_type(self.machine, operation.id, field)
+                    .and_then(terminal_psi::StructuralFieldType::scalar_type)
+                    == Some(ScalarType::Callable(*contract))
+                    && fields.iter().any(|member| {
+                        member.field == field
+                            && matches!(
+                                member.value,
+                                terminal_psi::RecordFieldValue::Scalar { value, .. } if value == *id
+                            )
+                    })
+            })
+    }
+
     /// The equation a read establishes on its normal successor:
     /// `read == v` when `v` is the one value its place holds on every path
     /// to it, else none.
@@ -4813,7 +4854,8 @@ impl<'a> Storage<'a> {
                 self.lowered,
                 operation,
                 held_type,
-            ) {
+            ) || self.reads_constructed_package_descriptor(references, operation, &held)
+            {
                 return Ok(None);
             }
             return Err(self.unsupported(
