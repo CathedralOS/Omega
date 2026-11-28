@@ -384,7 +384,7 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         let node = self.node(id, handle)?;
         if let ExpressionNode::Member(member) = node {
-            return self.member(id, slots, member, source, Access::Read);
+            return self.member(id, slots, handle, member, source, Access::Read);
         }
         let expected = match node {
             // A constant supplies its declared carrier through the ordinary
@@ -948,7 +948,7 @@ impl<'t> Program<'t> {
                 );
             }
             ExpressionNode::Member(member) => {
-                let value = self.member(id, slots, member, source, Access::Read)?;
+                let value = self.member(id, slots, handle, member, source, Access::Read)?;
                 return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Borrow(_) => {
@@ -1180,7 +1180,7 @@ impl<'t> Program<'t> {
         let value = match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source, projection)?
+                self.member(id, slots, target, member, source, projection)?
             }
             ExpressionNode::Indexed(indexed) => self.indexed(
                 id,

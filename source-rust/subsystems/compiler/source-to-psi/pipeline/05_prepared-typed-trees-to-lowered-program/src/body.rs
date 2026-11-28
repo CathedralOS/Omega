@@ -1439,6 +1439,7 @@ pub enum ExpressionKind {
     /// position in the record's declaration and its operand; every field
     /// appears exactly once.
     Record {
+        package_witnesses: Vec<StructuralTypeId>,
         fields: Vec<(usize, Expression)>,
         erased: Vec<(StructuralFieldId, Expression)>,
     },

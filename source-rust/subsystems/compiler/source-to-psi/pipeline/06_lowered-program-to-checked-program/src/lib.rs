@@ -732,6 +732,13 @@ pub(crate) fn finish_discharge<'m>(
         inferred_results,
     } = prepared;
     let module = view.module;
+    analyses.package_sites().map_err(|detail| Refusal {
+        reason: RefusalReason::ForeignIdentity,
+        site: terminal_check_tables::RefusalSite::Program,
+        source_span: None,
+        detail: detail.to_owned(),
+        obligation: None,
+    })?;
     let formed = formation::FormedModule::new(
         module,
         view.nominal_calls,

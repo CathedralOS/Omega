@@ -1132,6 +1132,31 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
+            if self.package_witnesses.get(&source.declaration) == Some(&record) {
+                let reference = source
+                    .application
+                    .as_ref()
+                    .ok_or_else(|| {
+                        malformed(machine, "abstract package referent lost its source type")
+                    })?
+                    .reference;
+                if !matches!(declaration.shape, crate::StorageShape::Opaque)
+                    || self.typed.package_qualified_type_identity_text(reference)
+                        != declaration.identity
+                    || self
+                        .typed
+                        .type_reference_table
+                        .type_reference(reference)
+                        .as_named_symbol()
+                        != Some(source.declaration)
+                {
+                    return Err(malformed(
+                        machine,
+                        "abstract package referent changed its binder",
+                    ));
+                }
+                continue;
+            }
             if let crate::StorageShape::TypeParameter(rigid) = declaration.shape {
                 let retained = self
                     .rigid_storage

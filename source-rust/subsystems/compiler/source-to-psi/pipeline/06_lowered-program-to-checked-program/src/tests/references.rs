@@ -187,6 +187,7 @@ pub(super) fn store(slot: usize, path: Vec<usize>, value: Expression) -> Stateme
 pub(super) fn pair_of(a: u128, b: u128) -> Expression {
     of(
         ExpressionKind::Record {
+            package_witnesses: Vec::new(),
             erased: Vec::new(),
             fields: vec![(0, unsigned(a)), (1, unsigned(b))],
         },

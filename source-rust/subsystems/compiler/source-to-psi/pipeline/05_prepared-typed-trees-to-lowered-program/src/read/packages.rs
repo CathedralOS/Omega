@@ -128,6 +128,126 @@ pub(super) fn check_construction(
     Ok(Some(fields))
 }
 
+impl super::Program<'_> {
+    /// A declared hidden binder and each fresh opening have different
+    /// nominal types. Their storage rows have no readable fields or owned
+    /// contents. Only a reference to the sized witness has public geometry.
+    pub(super) fn package_witness_type(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+    ) -> Checked<Option<crate::body::ValueType>> {
+        use super::places::RecordSource;
+        use crate::body::{RecordType, StorageShape, ValueType};
+        let typed = self.typed;
+        let types = &typed.type_reference_table;
+        if !types.contains_type_reference(reference) {
+            return Ok(None);
+        }
+        let Some(symbol) = types.type_reference(reference).as_named_symbol() else {
+            return Ok(None);
+        };
+        if !typed.symbols.symbols().nodes().is_valid(symbol)
+            || typed.symbols.get(symbol).kind != symbols::SymbolKind::TypeParameter
+        {
+            return Ok(None);
+        }
+        if let Some(&row) = self.package_witnesses.get(&symbol) {
+            return Ok(Some(ValueType::record(row)));
+        }
+        let owner = typed.symbols.get(symbol).parent;
+        let declared = owner.is_valid()
+            && typed
+                .unique_data_definition_by_symbol(owner)
+                .is_some_and(|data| {
+                    typed
+                        .data_type_parameters
+                        .span_or_empty(data.package_parameters)
+                        .iter()
+                        .any(|parameter| parameter.symbol == symbol)
+                });
+        let opened = || {
+            typed.package_openings.iter().any(|(_, opening)| {
+                opening.witnesses.iter().any(|(_, ty)| {
+                    types.contains_type_reference(*ty)
+                        && types.type_reference(*ty).as_named_symbol() == Some(symbol)
+                })
+            })
+        };
+        if !declared && !opened() {
+            return Ok(None);
+        }
+        let identity = typed.package_qualified_type_identity_text(reference);
+        if identity.is_empty() {
+            return Err(super::unavailable(
+                machine,
+                "package witness lacks its nominal identity",
+            ));
+        }
+        let source = RecordSource {
+            declaration: symbol,
+            constant_input_owner: None,
+            cleanup: None,
+            application: Some(crate::source_state::SourceTypeApplication {
+                reference,
+                substitutions: Vec::new(),
+                scope: Default::default(),
+            }),
+            region_owner: owner,
+            fields: Vec::new(),
+            cases: Vec::new(),
+            erased: Vec::new(),
+        };
+        let row = self.push_record_row(
+            RecordType {
+                identity,
+                multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+                cleanup: None,
+                shape: StorageShape::Opaque,
+                requires: Vec::new(),
+                authored_layout: false,
+                erased: Vec::new(),
+            },
+            source,
+        );
+        self.package_witnesses.insert(symbol, row);
+        Ok(Some(ValueType::record(row)))
+    }
+
+    pub(super) fn retain_package_schema(
+        &mut self,
+        machine: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+        data: &DataDefinition,
+    ) -> Checked<()> {
+        if data.package_parameters.is_empty() {
+            return Ok(());
+        }
+        let parameters = self
+            .typed
+            .data_type_parameters
+            .span(data.package_parameters)
+            .ok_or_else(|| super::unavailable(machine, "package schema lost its binder roster"))?;
+        let witnesses = parameters
+            .iter()
+            .map(|parameter| {
+                self.package_witnesses
+                    .get(&parameter.symbol)
+                    .copied()
+                    .ok_or_else(|| {
+                        super::unavailable(
+                            machine,
+                            "package binder has no uniformly represented field",
+                        )
+                    })
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        self.package_schemas
+            .push(terminal_psi::TerminalPackageSchema { record, witnesses });
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -150,7 +150,11 @@ impl Program<'_> {
         values.sort_by_key(|(position, _)| *position);
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::Record { fields: values, erased: Vec::new() },
+            kind: ExpressionKind::Record {
+                package_witnesses: Vec::new(),
+                fields: values,
+                erased: Vec::new(),
+            },
             result: Some(result),
             source,
         })
@@ -318,7 +322,11 @@ impl Program<'_> {
         values.sort_by_key(|(position, _)| *position);
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::Record { fields: values, erased: Vec::new() },
+            kind: ExpressionKind::Record {
+                package_witnesses: Vec::new(),
+                fields: values,
+                erased: Vec::new(),
+            },
             result: Some(result),
             source,
         })
@@ -438,6 +446,7 @@ impl Program<'_> {
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Record {
+                package_witnesses: Vec::new(),
                 fields: vec![(0, value)],
                 erased: Vec::new(),
             },

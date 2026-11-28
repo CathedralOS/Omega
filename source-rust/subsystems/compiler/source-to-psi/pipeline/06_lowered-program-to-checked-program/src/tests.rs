@@ -1489,6 +1489,7 @@ fn read(base: Expression, field: usize) -> Expression {
 fn point_of(x: Expression, y: Expression) -> Expression {
     of_type(
         ExpressionKind::Record {
+            package_witnesses: Vec::new(),
             erased: Vec::new(),
             fields: vec![(0, x), (1, y)],
         },
@@ -1523,6 +1524,22 @@ fn bounded() -> Shaped {
 
 fn elaborate_places(machines: Vec<Shaped>) -> crate::lowering::Elaboration {
     elaborate_over(machines, &records())
+}
+
+#[test]
+fn checked_program_refuses_a_package_site_without_a_producing_operation() {
+    let mut elaboration = elaborate_places(vec![bounded()]);
+    elaboration.module.execution.packages.sites.push(terminal_psi::TerminalPackageSite {
+        machine: id(1),
+        operation: OperationId::new(9999).unwrap(),
+        event: terminal_psi::TerminalPackageEvent::Construct { witnesses: Vec::new() },
+    });
+    let refusal = match crate::judge(Ok(elaboration)) {
+        Err(refusal) => refusal,
+        Ok(_) => panic!("unreplayed package evidence reached a Stage06 verdict"),
+    };
+    assert_eq!(refusal.reason, terminal_check_tables::RefusalReason::ForeignIdentity);
+    assert_eq!(refusal.detail, "package site names an absent operation");
 }
 
 fn affine_records() -> IdTable<StructuralTypeId, RecordType> {
@@ -2855,6 +2872,7 @@ fn a_whole_assignment_replaces_every_leaf_after_constructing_its_operands() {
                 2,
                 of_type(
                     ExpressionKind::Record {
+                        package_witnesses: Vec::new(),
                         erased: Vec::new(),
                         fields: vec![(0, place(1, point())), (1, place(1, point()))],
                     },
@@ -3837,6 +3855,7 @@ fn a_membership_test_establishes_its_case_on_its_true_edge_and_a_write_to_the_su
         0,
         of_type(
             ExpressionKind::Record {
+                package_witnesses: Vec::new(),
                 erased: Vec::new(),
                 fields: vec![(0, case_of(DOT, vec![(0, unsigned(3))]))],
             },
@@ -4214,6 +4233,7 @@ fn domains<'a>(
 fn literal_of(record: u64, fields: Vec<Expression>) -> Expression {
     of_type(
         ExpressionKind::Record {
+            package_witnesses: Vec::new(),
             erased: Vec::new(),
             fields: fields.into_iter().enumerate().collect(),
         },

@@ -985,6 +985,9 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if let Some(witness) = self.package_witness_type(id, handle)? {
+            return Ok(witness);
+        }
         // A declared structural premise may define an otherwise rigid
         // parameter. Read its constructor under the preceding source frame;
         // a sibling actual cannot rewrite that constructor's arguments.
