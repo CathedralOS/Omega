@@ -159,8 +159,19 @@ pub(crate) fn normalize_contract(
     context: &TypeIdentityContext<'_>,
 ) -> IdentityResult<String> {
     with_contract_scope(program, contract, context, |signature, context| {
-        normalize_signature(program, signature, context)
-            .map(|signature| compound(TypeForm::Callable, [signature]))
+        let behavioral = normalize_signature(program, signature, context)?;
+        let contract = if program.trait_machine_signature(signature.symbol).is_some() {
+            record(
+                "nominal-requirement",
+                [
+                    name("requirement", &symbol(program, signature.symbol, context)?),
+                    behavioral,
+                ],
+            )
+        } else {
+            behavioral
+        };
+        Ok(compound(TypeForm::Callable, [contract]))
     })
 }
 

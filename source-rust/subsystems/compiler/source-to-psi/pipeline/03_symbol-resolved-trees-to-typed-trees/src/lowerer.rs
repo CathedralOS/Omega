@@ -2000,6 +2000,7 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
+    crate::expressions::runtime_callables::finish_requirement_types(&mut lowerer.typed_trees)?;
     lowerer.lower_const_initializer_evidence(cohort.const_declarations)
 }
 

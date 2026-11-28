@@ -998,27 +998,32 @@ fn normal_result_membership_checks_stored_machine_contracts_against_the_target()
     let application = identities.intern("normal-membership-test-selection");
     module.identities = identities.build();
     let scalar_result = proof.result.scalar_ref().unwrap();
-    module.execution.callables.contracts.push(TerminalCallableContract {
-        id: semantic_vocabulary::CallableContractId::new(1).unwrap(),
-        identity,
-        scalar_parameters: proof.parameters.clone(),
-        parameter_order: proof.parameter_order.clone(),
-        structural_parameters: Vec::new(),
-        result: terminal_psi::BoundaryMachineResult::Scalar(scalar_result.value_type()),
-        proof_result: proof.result.clone(),
-        entry_claim_paths: Vec::new(),
-        result_claim_paths: Vec::new(),
-        result_reference_regions: Vec::new(),
-        proof,
-        evidence_contract: Vec::new(),
-        envelope: TerminalCallableEnvelope {
-            service_reach: Vec::new(),
-            invocations: Vec::new(),
-            suspends: false,
-            blocks: false,
-            termination: TerminalCallableTermination::NotGuaranteed,
-        },
-    });
+    module
+        .execution
+        .callables
+        .contracts
+        .push(TerminalCallableContract {
+            id: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+            identity,
+            requirement: None,
+            scalar_parameters: proof.parameters.clone(),
+            parameter_order: proof.parameter_order.clone(),
+            structural_parameters: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Scalar(scalar_result.value_type()),
+            proof_result: proof.result.clone(),
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            proof,
+            evidence_contract: Vec::new(),
+            envelope: TerminalCallableEnvelope {
+                service_reach: Vec::new(),
+                invocations: Vec::new(),
+                suspends: false,
+                blocks: false,
+                termination: TerminalCallableTermination::NotGuaranteed,
+            },
+        });
     module
         .execution.callables
         .descriptors
