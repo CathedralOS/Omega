@@ -34,11 +34,13 @@ through that dispatch. [Active-case expansion](src/passes/specialization/reflect
 Specialization serves type parameters given plain named types (a builtin
 type, a data declaration with no parameters, a type parameter in scope) and
 implementation parameters given plain named implementations (one with no
-parameters, of exactly the bound's trait, or an implementation parameter in
-scope), on a generic machine of one state with a body. Both kinds are bound
+parameters, of exactly the bound's trait at the types supplied for the
+binders before it, such as `CoinByBoth` for `E satisfies
+EqualImpliesIdentity<T>` with `T` given `Coin`, or an implementation
+parameter in scope), on a generic machine of one state with a body. Both kinds are bound
 through one operand shape. In the machine generated for an implementation,
-each call through the parameter enters the machine the implementation selects
-for that requirement and records the requirement it was written against
+each call through the parameter, in the body or a clause, enters the machine
+the implementation selects for that requirement and records the requirement it was written against
 (`StaticRequirementDispatch`), which structural elaboration reads
 (`read/calls.rs`, `requirement_call`). Two names of one implementation value
 are one application. A call that names a trait's requirement and applies the
