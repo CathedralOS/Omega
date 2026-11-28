@@ -4,11 +4,10 @@ Renders 12 frames of 48 by 22 ASCII characters, zooming into the seahorse-valley
 boundary. Each pixel runs up to 40 binary64 escape-time steps. Frames begin
 with the ANSI cursor-home sequence `ESC [ H` and use `Clock.sleep(70)` for pacing.
 
-After completing the sample's package review, run from the repository root:
+Run the sample's Build from the repository root. It supplies the clock and console services for the animation.
 
 ```sh
-omega run samples/cli/rendering/mandelbrot_zoom/main.omg
-omega run --psi-work-budget 100000000 samples/cli/rendering/mandelbrot_zoom/main.omg
+omega run --psi-work-budget 100000000 samples/cli/rendering/mandelbrot_zoom/build.omg
 ```
 
 To compare the published native program with the interpreter, run
