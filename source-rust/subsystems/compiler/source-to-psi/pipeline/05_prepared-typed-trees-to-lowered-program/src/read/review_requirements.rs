@@ -3,10 +3,7 @@
 use super::Program;
 use crate::body::{Policy, Signature};
 use crate::callables::static_contracts::SourceServiceCeiling;
-use crate::publication::reach::SourceInvocation;
-use crate::publication::{
-    RequirementInvocation, RequirementReview, RequirementReviewMetadata, RequirementService,
-};
+use crate::publication::{RequirementReview, RequirementReviewMetadata, RequirementService};
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
 use semantic_vocabulary::MachineId;
@@ -153,15 +150,7 @@ impl Program<'_> {
         let synchronous_invocations = envelope
             .invocations
             .iter()
-            .map(|invocation| match invocation {
-                SourceInvocation::Parameter(position) => {
-                    Ok(RequirementInvocation::Parameter(*position))
-                }
-                SourceInvocation::ParameterPath { .. } => {
-                    Err("a public requirement cannot declare an inferred invocation path")
-                }
-                SourceInvocation::Service(id) => service(*id).map(RequirementInvocation::Service),
-            })
+            .map(|invocation| invocation.try_map_service(|id| service(*id)))
             .collect::<Result<_, _>>()?;
         let terminates = match envelope.termination {
             TerminalCallableTermination::NotGuaranteed => false,

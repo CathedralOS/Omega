@@ -15,10 +15,8 @@ pub struct TerminalPermissionAcceptance {
 
 /// A package service and method rejoined to their nominal declarations in checked source.
 pub struct RuntimeServicePermission {
-    pub owner: PackageKeyIdentity,
-    pub service_path: String,
-    pub requirement_path: String,
-    pub permitted: semantic_vocabulary::TerminalAuthorityDisposition,
+    pub service: crate::record::PackageReviewServiceIdentity,
+    pub permission: crate::record::PackagePolicyTerminalPermission,
 }
 
 impl TerminalPermissionAcceptance {
@@ -146,11 +144,16 @@ mod tests {
                 .compare_runtime_permissions(package, TargetProfile::WindowsX64, &[], &[])
                 .is_err()
         );
+        let nominal = |path: &str| crate::record::PackageReviewNominalIdentity {
+            owner: crate::record::PackageReviewNominalOwner::Package(other),
+            path: path.into(),
+        };
         let permission = |class| RuntimeServicePermission {
-            owner: other,
-            service_path: "Console".into(),
-            requirement_path: "Console::write".into(),
-            permitted: TerminalAuthorityDisposition::from_classes([class]),
+            service: nominal("Console").into(),
+            permission: crate::record::PackagePolicyTerminalPermission {
+                requirement: nominal("Console::write"),
+                permitted: TerminalAuthorityDisposition::from_classes([class]),
+            },
         };
         let rows = [permission(TerminalAuthorityClass::ProcessOutput)];
         assert!(
@@ -173,6 +176,22 @@ mod tests {
                 .compare_runtime_permissions(package, target, &rows, &[])
                 .is_ok()
         );
+        // The exact source that declares a service or its method is part of its
+        // reviewed identity, independently of the package supplying its body.
+        let toolchain = crate::record::PackageReviewNominalOwner::ToolchainSource(
+            crate::record::PackageReviewToolchainSourceIdentity { digest: [2; 32] },
+        );
+        let mut other_service = permission(TerminalAuthorityClass::ProcessOutput);
+        other_service.service.declaration.owner = toolchain;
+        let mut other_method = permission(TerminalAuthorityClass::ProcessOutput);
+        other_method.permission.requirement.owner = toolchain;
+        for changed in [other_service, other_method] {
+            assert!(
+                acceptance
+                    .compare_runtime_permissions(package, target, &[changed], &[])
+                    .is_err()
+            );
+        }
         assert!(
             acceptance
                 .compare_runtime_permissions(package, target, &[], &[])

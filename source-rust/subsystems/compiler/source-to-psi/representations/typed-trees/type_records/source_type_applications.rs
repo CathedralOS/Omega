@@ -46,6 +46,27 @@ impl SourceTypeScope {
         read(&substitutions, &starts, &rigid)
     }
 
+    /// The argument belongs to the scope before its binder's tuple. This
+    /// applies equally to a named type and to the binder in an array extent.
+    pub fn argument_for_parameter(&self, symbol: SymbolHandle) -> Option<SourceTypeApplication> {
+        let mut frame = Some(self);
+        while let Some(current) = frame {
+            if let Some((_, reference)) = current
+                .substitutions
+                .iter()
+                .find(|(binder, _)| *binder == symbol)
+            {
+                return Some(SourceTypeApplication {
+                    reference: *reference,
+                    scope: current.parent.clone().unwrap_or_default(),
+                    substitutions: Vec::new(),
+                });
+            }
+            frame = current.parent.as_deref();
+        }
+        None
+    }
+
     /// Read a supplied type under the scope that preceded its argument tuple.
     /// Sibling bindings in the same tuple cannot rewrite one another's actuals.
     /// Constructor children retain this returned scope when they are inspected.
@@ -68,24 +89,10 @@ impl SourceTypeScope {
             else {
                 return Ok(application);
             };
-            let mut frame = Some(application.scope.as_ref());
-            let mut supplied = None;
-            while let Some(current) = frame {
-                if let Some((_, actual)) = current
-                    .substitutions
-                    .iter()
-                    .find(|(parameter, _)| parameter == symbol)
-                {
-                    supplied = Some((*actual, current.parent.clone().unwrap_or_default()));
-                    break;
-                }
-                frame = current.parent.as_deref();
-            }
-            let Some((reference, scope)) = supplied else {
+            let Some(supplied) = application.scope.argument_for_parameter(*symbol) else {
                 return Ok(application);
             };
-            application.reference = reference;
-            application.scope = scope;
+            application = supplied;
         }
     }
 

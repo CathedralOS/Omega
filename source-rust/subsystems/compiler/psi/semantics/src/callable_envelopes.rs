@@ -3,40 +3,79 @@
 //! Named envelopes belong to the selected declaration, independently of any
 //! descriptor. Compare parameters by their ordered signature positions.
 
-mod parameter_paths;
-pub use parameter_paths::{callback_path_commitment, structural_formal};
-
 use semantic_vocabulary::{ScalarType, ServiceId};
 use terminal_psi::{
     BoundaryParameterKind, StructuralParameterDeclaration, TerminalCallableEnvelope,
     TerminalCallableInvocation, TerminalCallableTermination, TerminalModule, ValueDeclaration,
 };
 
-/// Only stable projections can name a synchronous callback in a public signature.
-pub fn projected_callback(
+type NamedStep = semantic_vocabulary::CanonicalStructuralPathSegment<String, String>;
+type LocalStep = semantic_vocabulary::CanonicalStructuralPathSegment;
+
+/// Resolve an exported invocation path in the receiving signature. Numeric
+/// field and case IDs are local to a program and cannot identify a supplier's
+/// callback once the description has crossed a package boundary.
+pub fn projected_callable(
     module: &TerminalModule,
     root: semantic_vocabulary::StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
-) -> Option<semantic_vocabulary::CallableContractId> {
+    path: &[NamedStep],
+) -> Option<(semantic_vocabulary::CallableContractId, Vec<LocalStep>)> {
     use terminal_psi::StructuralPathSegment as Step;
-    if !path.iter().all(|step| {
-        matches!(
-            step,
-            Step::Field(_) | Step::Case(_) | Step::FixedIndex(_) | Step::Referent
-        )
-    }) {
+    if path.is_empty() {
         return None;
     }
+    let types = &module.types.structural_types;
+    let mut runtime = Vec::with_capacity(path.len());
+    for part in path {
+        runtime.push(match part {
+            NamedStep::Field(name) => Step::Field(module.identities.index_of(name)?),
+            NamedStep::FixedIndex(index) => Step::FixedIndex(*index),
+            NamedStep::Referent => Step::Referent,
+            NamedStep::Case(name) => {
+                let sum = crate::runtime_structural_path_tip(types.iter(), root, &runtime)?;
+                let case = terminal_psi::structural_case_by_identity(
+                    sum.shape.sum_cases()?,
+                    module.identities.index_of(name)?,
+                )?;
+                Step::Case(case.id)
+            }
+        });
+    }
+    let local = crate::canonical_primitive_read_path(types.iter(), root, &runtime)?;
     let ScalarType::Callable(contract) =
-        crate::primitive_read_projection_type(module.types.structural_types.iter(), root, path)?
+        crate::canonical_primitive_read_type(types.iter(), root, &local)?
     else {
         return None;
     };
-    module
-        .execution
-        .callables
-        .contract(contract)
-        .map(|_| contract)
+    Some((contract, local))
+}
+
+pub fn named_invocation_path(
+    module: &TerminalModule,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+) -> Option<Vec<NamedStep>> {
+    use terminal_psi::StructuralPathSegment as Step;
+    let types = &module.types.structural_types;
+    let runtime = crate::descriptor_lifetimes::descriptor_path(types, root, path)?;
+    runtime
+        .iter()
+        .enumerate()
+        .map(|(i, part)| {
+            Some(match part {
+                Step::Field(id) => NamedStep::Field(module.identities.text(*id)?.to_owned()),
+                Step::FixedIndex(index) => NamedStep::FixedIndex(*index),
+                Step::Referent => NamedStep::Referent,
+                Step::Case(id) => {
+                    let sum =
+                        crate::runtime_structural_path_tip(types.iter(), root, &runtime[..i])?;
+                    let case = sum.shape.sum_cases()?.iter().find(|case| case.id == *id)?;
+                    NamedStep::Case(module.identities.text(case.identity)?.to_owned())
+                }
+                _ => return None,
+            })
+        })
+        .collect()
 }
 
 fn validate_envelope(
@@ -127,11 +166,18 @@ fn validate_bounds(
                     return Err("callable invocation ceiling names a non-callable scalar formal");
                 }
             }
-            TerminalCallableInvocation::ParameterPath { parameter, path } => {
-                let formal = structural_formal(order, structures, *parameter)
-                    .ok_or("callback field entry has no structural formal")?;
-                if path.is_empty() || projected_callback(module, formal, path).is_none() {
-                    return Err("callback field entry does not select a callable in its formal");
+            TerminalCallableInvocation::ProjectedParameter { parameter, path } => {
+                let position = *parameter as usize;
+                if order.get(position) != Some(&BoundaryParameterKind::Structural) {
+                    return Err("projected invocation does not name a structural parameter");
+                }
+                let lane = order[..position]
+                    .iter()
+                    .filter(|kind| **kind == BoundaryParameterKind::Structural)
+                    .count();
+                let root = structures[lane].structural_type;
+                if projected_callable(module, root, path).is_none() {
+                    return Err("projected invocation does not name a callable field");
                 }
             }
             TerminalCallableInvocation::Service(_) => {}
@@ -229,7 +275,7 @@ pub fn validate_callable_operational_refinements(
             .filter_map(|entry| match entry {
                 TerminalCallableInvocation::Service(service) => Some(*service),
                 TerminalCallableInvocation::Parameter(_)
-                | TerminalCallableInvocation::ParameterPath { .. } => None,
+                | TerminalCallableInvocation::ProjectedParameter { .. } => None,
             })
             .collect();
         if entries != contract.published_synchronous_entries
@@ -266,7 +312,7 @@ pub fn validate_callable_operational_refinements(
             .filter_map(|entry| match entry {
                 TerminalCallableInvocation::Service(service) => Some(*service),
                 TerminalCallableInvocation::Parameter(_)
-                | TerminalCallableInvocation::ParameterPath { .. } => None,
+                | TerminalCallableInvocation::ProjectedParameter { .. } => None,
             })
             .collect();
         if entries != machine.published_synchronous_entries {

@@ -8,6 +8,16 @@ use crate::fields::{
     U32, wire_enum, wire_record,
 };
 use application_identity::const_value::FiniteScalarValue;
+use semantic_vocabulary::InvocationPathSegment as NamedStep;
+
+wire_enum! {
+    InvocationPathSegment: NamedStep, "InvocationPathSegment" {
+        1 => Field(name: crate::fields::Text),
+        2 => FixedIndex(index: crate::fields::U64),
+        3 => Case(name: crate::fields::Text),
+        4 => Referent,
+    }
+}
 use terminal_psi::{
     TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
     TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion, TerminalDynamicSlot,

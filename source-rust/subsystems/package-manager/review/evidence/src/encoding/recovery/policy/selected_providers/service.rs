@@ -73,6 +73,7 @@ pub(in crate::encoding::recovery) fn method(
             Ok(super::super::tag!(reader => {
                 1 => ServiceSynchronousInvocation::Parameter(reader.u32()?),
                 2 => ServiceSynchronousInvocation::Service(reader.string()?),
+                3 => super::super::behavior::projected_parameter(reader)?,
             }))
         })?,
         may_suspend: reader.boolean()?,

@@ -620,6 +620,10 @@ accepting the compilation. A slot that is not a boundary trait or
 requirement, and a provider with no machine or several for a requirement,
 are refused by name.
 
+For a body that calls a field of a parameter, its inferred `invokes` row
+names that field. Passing the enclosing record into a helper substitutes the
+actual record at the helper's parameter path; it does not charge its siblings.
+
 A machine that states `satisfies Trait::requirement` owes the same witness
 wherever it is judged, as a supply, a subject declaration or a callee
 (`read/machine.rs`, `satisfied_requirements`). A clause of a trait with

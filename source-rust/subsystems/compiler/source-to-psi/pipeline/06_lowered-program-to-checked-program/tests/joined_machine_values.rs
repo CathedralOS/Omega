@@ -126,6 +126,76 @@ fn a_call_through_a_joined_machine_value_invokes_each_formal_that_reaches_it() {
     assert_eq!(written.exceeded, rejection.exceeded, "{written:?}");
 }
 
+/// The forwarded record has two callbacks of the same type. Its caller may
+/// enter only the one the helper calls, not any callback in the record.
+#[test]
+fn borrowing_and_forwarding_a_record_invokes_only_its_selected_field() {
+    let program = Program::of(
+        "data Read = machine() -> i32 reaches none crashes none; \
+        data Preview { active: Read; idle: Read; } \
+        machine display(operations: @Preview) -> i32 { operations.active() } \
+        machine display_idle(operations: @Preview) -> i32 { operations.idle() } \
+        machine choose(operations: @Preview) -> i32 { display(operations) }",
+    );
+    let row = invokes(&program);
+    let [TerminalCallableInvocation::ProjectedParameter { parameter: 0, path }] = &row[..] else {
+        panic!("forwarding lost the active field: {row:?}");
+    };
+    let Some(semantic_vocabulary::InvocationPathSegment::Field(name)) = path.last() else {
+        panic!("expected the selected field, got {path:?}");
+    };
+    assert!(name.ends_with("active"), "{name}");
+    program.judged(|_| {}).accepted();
+    let id = program.machine("choose").id;
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!("the checked forwarding body must publish");
+    };
+    let module = accepted.prepare_publication().unwrap();
+    let bytes = terminal_codec::encode_module(module.module()).unwrap();
+    let reopened = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(
+        reopened
+            .execution
+            .callables
+            .machine_envelope(id)
+            .unwrap()
+            .invocations,
+        row
+    );
+    let idle = program
+        .elaboration()
+        .module
+        .execution
+        .callables
+        .machine_envelope(program.machine("display_idle").id)
+        .expect("idle has its own inferred effects")
+        .invocations
+        .clone();
+    assert_ne!(row, idle);
+    let rejection = program
+        .judged(|lowered| {
+            let row = lowered
+                .module
+                .execution
+                .callables
+                .machine_envelopes
+                .iter_mut()
+                .flatten()
+                .find(|row| row.machine == id)
+                .unwrap();
+            row.envelope.invocations = idle;
+        })
+        .rejected();
+    assert!(
+        rejection
+            .exceeded
+            .iter()
+            .any(|error| error.contains("active")),
+        "{rejection:?}"
+    );
+}
+
 /// When one arm is the formal `left` and the other selects the machine
 /// `named` in place, the call may enter only `left` among the formals:
 /// stage 05 publishes that one, and the checker accepts it.

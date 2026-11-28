@@ -25,12 +25,12 @@ pub(super) fn validate(
     }
     ordered(invocations)?;
     for invocation in invocations {
-        match invocation {
-            PackageReviewSynchronousInvocation::Service(service) => service.validate_resolved()?,
-            PackageReviewSynchronousInvocation::Parameter(ordinal)
-                if (*ordinal as usize) < scope.parameters => {}
-            _ => return Err("public invocation escapes its explicit value telescope"),
+        if let Some(service) = invocation.service() {
+            service.validate_resolved()?;
         }
+        invocation
+            .validate_parameter(scope.parameters)
+            .map_err(|_| "public invocation escapes its explicit value telescope")?;
     }
     if let PackagePolicyTermination::Terminates { premises } = termination {
         ordered(premises)?;

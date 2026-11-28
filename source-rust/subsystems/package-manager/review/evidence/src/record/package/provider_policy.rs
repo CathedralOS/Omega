@@ -85,20 +85,14 @@ impl self::PackagePolicyServiceMethod {
             &self.synchronous_invocations,
             self.parameter_count,
         )?;
-        let declared_parameters =
-            self.synchronous_invocations
-                .iter()
-                .filter_map(|entry| match entry {
-                    ServiceSynchronousInvocation::Parameter(position) => Some(position),
-                    ServiceSynchronousInvocation::Service(_) => None,
-                });
+        let declared_parameters = self
+            .synchronous_invocations
+            .iter()
+            .filter_map(ServiceSynchronousInvocation::parameter_path);
         let authority_parameters = authority
             .synchronous_invocations
             .iter()
-            .filter_map(|entry| match entry {
-                PackageReviewSynchronousInvocation::Parameter(position) => Some(position),
-                PackageReviewSynchronousInvocation::Service(_) => None,
-            });
+            .filter_map(PackageReviewSynchronousInvocation::parameter_path);
         if !declared_parameters.eq(authority_parameters) {
             return Err("provider authority differs from its declared invocation parameters");
         }
@@ -109,15 +103,9 @@ impl self::PackagePolicyServiceMethod {
         }
         service_set(&authority.service_reach)?;
         for invocation in &authority.synchronous_invocations {
-            match invocation {
-                PackageReviewSynchronousInvocation::Parameter(ordinal) => {
-                    if *ordinal as usize >= self.parameter_count {
-                        return Err("provider invocation parameter is outside its telescope");
-                    }
-                }
-                PackageReviewSynchronousInvocation::Service(service) => {
-                    service.validate_resolved()?
-                }
+            invocation.validate_parameter(self.parameter_count)?;
+            if let Some(service) = invocation.service() {
+                service.validate_resolved()?;
             }
         }
         for premise in &authority.progress_premises {
