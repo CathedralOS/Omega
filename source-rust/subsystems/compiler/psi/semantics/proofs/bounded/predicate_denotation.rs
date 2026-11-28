@@ -573,7 +573,8 @@ fn normalize(
     }
 }
 
-fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
+/// The denotation of a comparison between two integer literals on one closed carrier.
+pub fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
     let (left, right) = match proposition {
         semantic_vocabulary::ordered_comparison_operands!(left, right) => (left, right),
         _ => return None,
