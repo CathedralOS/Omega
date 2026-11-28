@@ -1,0 +1,5 @@
+[package]
+name = "selected-body-issuer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true

@@ -115,9 +115,9 @@ pub mod compute {
     }
 }
 
+use register_homes::AllocatorAvailabilityPlan;
 use register_homes::AllocatorAvailabilityPolicy;
-use register_homes::{AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan};
-use register_model::{PhysicalRegisterModelIdentity, RegisterClassId, RegisterViewId};
+use register_model::{RegisterClassId, RegisterViewId};
 
 pub fn materialize_allocator_availability(
     register_environment: TargetRegisterEnvironmentIdentity,
@@ -146,21 +146,7 @@ pub fn materialize_allocator_availability(
     Ok(ValidatedAllocatorAvailability { plan, receipt })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AllocatorAvailabilityValidationReceipt {
-    pub(crate) identity: AllocatorAvailabilityIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) physical: PhysicalRegisterModelIdentity,
-    pub(crate) reservations: register_model::RegisterReservationProfileIdentity,
-}
-
-impl AllocatorAvailabilityValidationReceipt {
-    receipt_accessor_rows!(AllocatorAvailabilityValidationReceipt {
-        identity: AllocatorAvailabilityIdentity,
-        physical: PhysicalRegisterModelIdentity,
-        register_environment: TargetRegisterEnvironmentIdentity,
-    });
-}
+pub use selected_analysis_facts::AllocatorAvailabilityValidationReceipt;
 
 validated_plan_carrier!(
     ValidatedAllocatorAvailability: AllocatorAvailabilityPlan,
