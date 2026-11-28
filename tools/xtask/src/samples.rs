@@ -756,7 +756,7 @@ pub fn verify_sample(
     let has_input = input
         .try_exists()
         .map_err(|error| format!("{}: {error}", input.display()))?;
-    let oracle = application::Oracle::load(project, entry, target, has_input, evidence)?;
+    let oracle = application::Oracle::load(project, entry, target, evidence)?;
     if !has_input && oracle.is_empty() {
         if project.rel_path.split('/').any(|p| p == "probes") {
             return Ok("no-oracle".to_owned());
