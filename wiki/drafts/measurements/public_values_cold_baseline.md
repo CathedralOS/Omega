@@ -20,3 +20,25 @@ The timer starts immediately before launching `omega build --target linux_x86_64
 After each original build, the harness runs the published ELF. It then replaces all five occurrences of `portable_source.tmp` in that client's `main.omg` with `portable_edited.tmp` and launches a fresh compiler process in the same client. Dependency sources, resolver cache and build directory persist. The two filenames have the same byte length. The edited ELF must have a different hash, exit 0, produce empty streams and leave the working directory empty. The tracked fixture stays unchanged.
 
 Five independent pairs measure ordinary wall time. Five additional pairs collect the compiler's stock `--timings` output. Native launches and their checks occur outside every build timing. Phase rows can nest, and work on parallel threads can overlap in wall time.
+
+## Cold phase trace
+
+A separate Linux run with GDB measured 158.131 s inside the compiler, with its stock `--timings` enabled. The same optimized executable ran without recompilation. It emitted the Linux ELF and exited normally. A function's duration below is the union of its call intervals across threads, so recursive or concurrent calls to that function count once at each instant. Functions can run inside other rows.
+
+| Measured scope | Calls | Wall seconds |
+|---|---:|---:|
+| Product preparation, including its frontend and checkers | 2 | 149.407 |
+| Psi 06 judgment | 10 | 115.398 |
+| Psi 05 `lower_program_with_parallel` | 299 | 7.101 |
+| CLI project open and Build plan | 1 | 6.317 |
+| Frontend `prepare_with_body_scope` | 4 | 3.631 |
+| Native emission | 1 | 2.265 |
+| Layout schema `record_argument` | 8 | 0.037 |
+
+The final checker call lasted 58.845 s. Two earlier checker calls each exceeded 22 s. In project open, source resolution took 3.940 s, dependency handoff took 1.943 s and root Build execution took 0.428 s. The frontend and layout rows cover only the named functions. The GDB script records their precise symbols. GDB stops contribute overhead, so use the separately collected ordinary CLI measurements for throughput.
+
+The [trace script](public_values_cold_baseline/trace_phases.py) records [entry-to-return intervals](public_values_cold_baseline/span-events.tsv). Run the [interval summary](public_values_cold_baseline/span_summary.py) on that TSV to reproduce the call counts and unions. For a new trace, use a new original client with the same environment and mbx reservation as the wall runs. Generate a symbol map with `nm -C target/release/omega`, set `BENCH_NM` to its absolute path and `BENCH_SPANS` to the desired output TSV. In the client's empty scratch directory run the following through mbx with absolute paths.
+
+```sh
+gdb -nx -batch -x /absolute/path/to/trace_phases.py --args /absolute/path/to/omega build --timings --target linux_x86_64 /absolute/path/to/public_values/build.omg
+```
