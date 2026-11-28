@@ -153,33 +153,16 @@ impl super::Program<'_> {
             .binary_search_by_key(&symbol_key(symbol), |(binder, _)| symbol_key(*binder))
     }
 
-    /// A declared hidden binder and each fresh opening have different
-    /// nominal types. Their storage rows have no readable fields or owned
-    /// contents. Only a reference to the sized witness has public geometry.
-    pub(super) fn package_witness_type(
-        &mut self,
-        machine: MachineId,
-        reference: TypeReferenceHandle,
-    ) -> Checked<Option<crate::body::ValueType>> {
-        use super::places::RecordSource;
-        use crate::body::{RecordType, StorageShape, ValueType};
+    /// Declaration binders and opened witnesses retain their source identity
+    /// even when their only occurrence is an index of a custody domain.
+    pub(super) fn is_package_witness_symbol(&self, symbol: SymbolHandle) -> bool {
         let typed = self.typed;
-        let types = &typed.type_reference_table;
-        if !types.contains_type_reference(reference) {
-            return Ok(None);
-        }
-        let Some(symbol) = types.type_reference(reference).as_named_symbol() else {
-            return Ok(None);
-        };
         if !typed.symbols.symbols().nodes().is_valid(symbol)
             || typed.symbols.get(symbol).kind != symbols::SymbolKind::TypeParameter
         {
-            return Ok(None);
+            return false;
         }
-        let slot = match self.witness_index(symbol) {
-            Ok(index) => return Ok(Some(ValueType::record(self.package_witnesses[index].1))),
-            Err(slot) => slot,
-        };
+        let types = &typed.type_reference_table;
         let owner = typed.symbols.get(symbol).parent;
         let declared = owner.is_valid()
             && typed
@@ -199,9 +182,35 @@ impl super::Program<'_> {
                 })
             })
         };
-        if !declared && !opened() {
+        declared || opened()
+    }
+
+    /// A declared hidden binder and each fresh opening have different
+    /// nominal types. Their storage rows have no readable fields or owned
+    /// contents. Only a reference to the sized witness has public geometry.
+    pub(super) fn package_witness_type(
+        &mut self,
+        machine: MachineId,
+        reference: TypeReferenceHandle,
+    ) -> Checked<Option<crate::body::ValueType>> {
+        use super::places::RecordSource;
+        use crate::body::{RecordType, StorageShape, ValueType};
+        let typed = self.typed;
+        let types = &typed.type_reference_table;
+        if !types.contains_type_reference(reference) {
             return Ok(None);
         }
+        let Some(symbol) = types.type_reference(reference).as_named_symbol() else {
+            return Ok(None);
+        };
+        let slot = match self.witness_index(symbol) {
+            Ok(index) => return Ok(Some(ValueType::record(self.package_witnesses[index].1))),
+            Err(slot) => slot,
+        };
+        if !self.is_package_witness_symbol(symbol) {
+            return Ok(None);
+        }
+        let owner = typed.symbols.get(symbol).parent;
         let identity = typed.package_qualified_type_identity_text(reference);
         if identity.is_empty() {
             return Err(super::unavailable(
@@ -248,25 +257,39 @@ impl super::Program<'_> {
         if data.package_parameters.is_empty() {
             return Ok(());
         }
-        let parameters = self
-            .typed
+        let typed = self.typed;
+        let parameters = typed
             .data_type_parameters
             .span(data.package_parameters)
             .ok_or_else(|| super::unavailable(machine, "package schema lost its binder roster"))?;
-        let witnesses = parameters
-            .iter()
-            .map(|parameter| {
-                self.witness_index(parameter.symbol)
-                    .ok()
-                    .map(|index| self.package_witnesses[index].1)
-                    .ok_or_else(|| {
-                        super::unavailable(
-                            machine,
-                            "package binder has no uniformly represented field",
-                        )
-                    })
-            })
-            .collect::<Checked<Vec<_>>>()?;
+        let mut witnesses = Vec::with_capacity(parameters.len());
+        for parameter in parameters {
+            let missing =
+                || super::unavailable(machine, "package schema lost its declared witness");
+            let types = &typed.type_reference_table;
+            let reference = types
+                .find_named_type_reference(parameter.symbol)
+                .ok_or_else(missing)?;
+            if !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).parent != data.symbol
+            {
+                return Err(missing());
+            }
+            // The sole use may be an index such as Resident<P, S>. Its value
+            // field has the Extent carrier, so reading that field need not
+            // have requested a separate opaque row for S.
+            let Some(crate::body::ValueType::Record(witness, ..)) =
+                self.package_witness_type(machine, reference)?
+            else {
+                return Err(missing());
+            };
+            witnesses.push(witness);
+        }
         self.package_schemas
             .push(terminal_psi::TerminalPackageSchema { record, witnesses });
         Ok(())

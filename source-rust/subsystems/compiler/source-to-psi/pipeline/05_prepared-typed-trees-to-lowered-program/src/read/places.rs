@@ -451,6 +451,44 @@ impl Program<'_> {
         application: Option<crate::source_state::SourceTypeApplication>,
     ) -> Checked<ValueType> {
         let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
+        if data.package_parameters.is_empty() {
+            return self.read_record_definition(id, data, application);
+        }
+        let hidden = typed
+            .data_type_parameters
+            .span(data.package_parameters)
+            .ok_or_else(|| unserved("package declaration lost its hidden type roster"))?;
+        if hidden.iter().any(|parameter| {
+            parameter.kind != crate::source_state::data::TypeParameterKind::Type
+                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).kind != SymbolKind::TypeParameter
+                || typed.symbols.get(parameter.symbol).parent != data.symbol
+        }) {
+            return Err(unserved(
+                "package field scope contains a foreign or non-type parameter",
+            ));
+        }
+        // The declaration binds S for both its field types and the custody
+        // predicates emitted for those fields, including a nested Owner<S>.
+        let scope = std::sync::Arc::new(crate::source_state::SourceTypeScope {
+            parent: Some(self.source_scope.clone()),
+            substitutions: Vec::new(),
+            rigid_parameters: hidden.iter().map(|parameter| parameter.symbol).collect(),
+        });
+        let outer = std::mem::replace(&mut self.source_scope, scope);
+        let read = self.read_record_definition(id, data, application);
+        self.source_scope = outer;
+        read
+    }
+
+    fn read_record_definition(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        application: Option<crate::source_state::SourceTypeApplication>,
+    ) -> Checked<ValueType> {
+        let typed = self.typed;
         let symbol = data.symbol;
         self.served(id, symbol)?;
         let same =
@@ -672,34 +710,7 @@ impl Program<'_> {
             // The supplied types are admitted above; the members are read as
             // fields of this declaration, which state their lifetimes.
             self.elision = super::regions::Elision::Members;
-            if data.package_parameters.is_empty() {
-                return self.declared_members(id, members);
-            }
-            let hidden = typed
-                .data_type_parameters
-                .span(data.package_parameters)
-                .ok_or_else(|| unserved("package declaration lost its hidden type roster"))?;
-            if hidden.iter().any(|parameter| {
-                parameter.kind != crate::source_state::data::TypeParameterKind::Type
-                    || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
-                    || typed.symbols.get(parameter.symbol).kind != SymbolKind::TypeParameter
-                    || typed.symbols.get(parameter.symbol).parent != symbol
-            }) {
-                return Err(unserved(
-                    "package field scope contains a foreign or non-type parameter",
-                ));
-            }
-            // The package's own abstract types are in scope while reading its
-            // members, including a nested uniform carrier such as Owner<S>.
-            let scope = std::sync::Arc::new(crate::source_state::SourceTypeScope {
-                parent: Some(self.source_scope.clone()),
-                substitutions: Vec::new(),
-                rigid_parameters: hidden.iter().map(|parameter| parameter.symbol).collect(),
-            });
-            let outer = std::mem::replace(&mut self.source_scope, scope);
-            let read = self.declared_members(id, members);
-            self.source_scope = outer;
-            read
+            self.declared_members(id, members)
         })();
         self.lifetime_owner = enclosing;
         self.elision = elision;
