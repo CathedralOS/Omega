@@ -1045,12 +1045,16 @@ pub(crate) mod primitive_storage {
                             .map(|parameter| parameter.structural_type)
                     })
                     .ok_or_else(invalid)?;
-                let storage_scalar = super::primitive_projection::read_leaf_type(types, identity, path, |index| {
-                    values.get(&index).copied()
-                }).ok_or_else(invalid)?;
+                let storage_scalar =
+                    super::primitive_projection::read_leaf_type(types, identity, path, |index| {
+                        values.get(&index).copied()
+                    })
+                    .ok_or_else(invalid)?;
                 let expected = match packages.projected_field(machine.id, operation.id) {
-                    Some(field) => packages.field_type(machine.id, operation.id, field)
-                        .and_then(terminal_psi::StructuralFieldType::scalar_type).ok_or_else(invalid)?,
+                    Some(field) => packages
+                        .field_type(machine.id, operation.id, field)
+                        .and_then(terminal_psi::StructuralFieldType::scalar_type)
+                        .ok_or_else(invalid)?,
                     None => storage_scalar,
                 };
                 if expected != result.scalar_type {
@@ -1239,7 +1243,7 @@ pub(crate) mod structural_establishment {
             }
             OperationKind::EstablishRecord { fields } => {
                 let result = structural_result(operation, machine, block)?;
-                let instantiated = fields
+                let field_types = fields
                     .iter()
                     .filter_map(|input| {
                         packages
@@ -1247,6 +1251,9 @@ pub(crate) mod structural_establishment {
                             .map(|ty| (input.field, ty.clone()))
                     })
                     .collect();
+                let instantiated =
+                    abstract_operations::InstantiatedFieldTypes::from_fields(field_types)
+                        .ok_or(LoweringError::DuplicatePackageField(operation.id))?;
                 AbstractOperation::EstablishRecord {
                     psi_operation: operation.id,
                     result,

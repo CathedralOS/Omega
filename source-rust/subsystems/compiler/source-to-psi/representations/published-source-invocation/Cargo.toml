@@ -1,0 +1,15 @@
+[package]
+name = "published-source-invocation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "invocation.rs"
+
+[dependencies]
+source-invocation-issuer = { path = "issuer" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+symbols = { path = "../../../foundation/declaration-identity" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
+typed-trees = { path = "../typed-trees" }

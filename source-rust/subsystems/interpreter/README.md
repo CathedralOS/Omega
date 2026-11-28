@@ -330,8 +330,11 @@ accounting.
   reserve before copying, and whole-owner writeback moves the reservation with
   the bytes. Retirement releases live bytes, not consumed work.
 - [Runtime rows](memory/primitives.rs) own one cell per live
-  scalar or structural table entry, including staged call/edge bindings and
-  cleanup copies. New entries and overlapping copies reserve first;
+  scalar or structural table entry, including staged call/edge bindings. Cleanup preflight borrows the live
+  frame and reserves a cell for each staged change to a home, claim or
+  affine frontier entry. Projected edge transfers keep those reservations
+  until the edge charge succeeds or the attempt ends.
+  New entries and overlapping copies reserve first;
   replacements keep their cell, frame moves carry the lease, and table joins
   transfer reservations without charging again.
 - Root activations and suspended call headers each reserve one

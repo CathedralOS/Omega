@@ -2305,19 +2305,22 @@ pub(crate) mod operation_encoding {
     field!(u32, |bytes, value| bytes.u32(*value));
     field!(u64, |bytes, value| bytes.u64(*value));
     field!(
-        std::collections::BTreeMap<semantic_vocabulary::StructuralFieldId, terminal_psi::StructuralFieldType>,
+        abstract_operations::InstantiatedFieldTypes,
         |bytes, fields| {
-            bytes.len(fields.len());
-            for (id, field_type) in fields {
+            bytes.len(fields.fields().len());
+            for (id, field_type) in fields.fields() {
                 bytes.id(*id);
                 encode_scalar_restriction(bytes, field_type);
             }
         }
     );
-    field!((usize, semantic_vocabulary::StructuralTypeId), |bytes, referent| {
-        bytes.len(referent.0);
-        bytes.id(referent.1);
-    });
+    field!(
+        (usize, semantic_vocabulary::StructuralTypeId),
+        |bytes, referent| {
+            bytes.len(referent.0);
+            bytes.id(referent.1);
+        }
+    );
     field!(bool, |bytes, value| bytes.boolean(*value));
     field!(abstract_operations::AbstractResult, |bytes, value| {
         encode_abstract_result(bytes, *value)
@@ -2975,10 +2978,18 @@ pub(crate) mod operation_encoding {
         let witness = StructuralTypeId::new(9).unwrap();
         let scalar = StructuralFieldType::Scalar(ScalarType::Boolean);
         let reference = StructuralFieldType::Structural(witness);
-        let fields = std::collections::BTreeMap::from([
+        let fields = abstract_operations::InstantiatedFieldTypes::from_fields(vec![
             (second, reference.clone()),
             (first, scalar.clone()),
-        ]);
+        ])
+        .unwrap();
+        assert!(
+            abstract_operations::InstantiatedFieldTypes::from_fields(vec![
+                (first, scalar.clone()),
+                (first, reference.clone()),
+            ])
+            .is_none()
+        );
 
         let mut output = CanonicalBytes::collect();
         fields.encode(&mut output);

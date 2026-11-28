@@ -5,6 +5,7 @@
 use super::{
     ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity, form, identity,
 };
+use crate::compile_product::declaration_lookup::authored_requests::{AuthoredRequests, refusal};
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationOperand;
@@ -15,9 +16,6 @@ use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::ProductDeclarationLookup;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
-use crate::compile_product::declaration_lookup::authored_requests::{
-    AuthoredRequests, refusal,
-};
 use symbols::SymbolHandle;
 
 struct Formation {
@@ -210,14 +208,33 @@ pub fn collect_product_provider_selections(
     declared: &[Arc<ProductDeclarationRequest>],
     executed: &[ExecutedProductSelection],
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    collect_provider_records(
+        context,
+        activation,
+        declared,
+        executed,
+        BuildOperation::ProviderSelection,
+    )
+}
+
+/// Export and local dispatch name the same kind of closed satisfaction. Keep
+/// their executed authorizations separate: exporting a provider never selects
+/// it for bare calls in the supplier.
+pub(crate) fn collect_provider_records(
+    context: ProviderPlanningContext<'_>,
+    activation: Option<SymbolHandle>,
+    declared: &[Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+    operation: BuildOperation,
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let requests = declared
         .iter()
-        .filter(|request| request.operation == BuildOperation::ProviderSelection)
+        .filter(|request| request.operation == operation)
         .collect::<Vec<_>>();
     let mut events = executed
         .iter()
         .enumerate()
-        .filter(|(_, event)| event.request.operation == BuildOperation::ProviderSelection)
+        .filter(|(_, event)| event.request.operation == operation)
         .peekable();
     if requests.is_empty() && events.peek().is_none() {
         return Ok(Vec::new());
@@ -230,7 +247,7 @@ pub fn collect_product_provider_selections(
             ProductOperandRole::Provider,
         ],
     );
-    let authored = AuthoredRequests::new(typed, declared, BuildOperation::ProviderSelection)?;
+    let authored = AuthoredRequests::new(typed, declared, operation)?;
     let mut formations = Vec::with_capacity(authored.rows().len());
     // Unexecuted requests still have to name valid declarations.
     for row in authored.rows() {
@@ -268,23 +285,34 @@ pub fn collect_product_provider_selections(
             )
         })?;
         selection.target = event.target;
-        selection.composition_mode = event.composition.ok_or_else(|| {
-            refusal(
+        if operation == BuildOperation::ProviderSelection {
+            selection.composition_mode = event.composition.ok_or_else(|| {
+                refusal(
+                    request,
+                    "executed provider choice lost its evaluated composition mode",
+                )
+            })?;
+        } else if event.composition.is_some()
+            || event.target.is_some()
+            || event.test_group.is_some()
+        {
+            return Err(refusal(
                 request,
-                "executed provider choice lost its evaluated composition mode",
-            )
-        })?;
+                "a supplier export does not choose its receiver or target",
+            ));
+        }
         let span = typed.symbols.rejoin_product_occurrence(request.source_span);
-        selection.origin = crate::compile_product::declaration_lookup::capture_build_selection_origin(
-            &typed.symbols,
-            activation,
-            author,
-            span,
-            Some(u64::try_from(ordinal).map_err(|_| {
-                refusal(request, "provider event ordinal exceeds its representation")
-            })?),
-        )
-        .map_err(|reason| refusal(request, reason))?;
+        selection.origin =
+            crate::compile_product::declaration_lookup::capture_build_selection_origin(
+                &typed.symbols,
+                activation,
+                author,
+                span,
+                Some(u64::try_from(ordinal).map_err(|_| {
+                    refusal(request, "provider event ordinal exceeds its representation")
+                })?),
+            )
+            .map_err(|reason| refusal(request, reason))?;
         // Preserve every choice and its order. Provider planning owns overlap,
         // composition, and complete coverage against the selected schemas.
         selections.push(selection);
