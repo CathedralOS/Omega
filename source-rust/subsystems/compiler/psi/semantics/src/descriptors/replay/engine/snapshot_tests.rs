@@ -810,11 +810,11 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
         projection: Projection::new(&[]),
         parameters,
     };
-    let bind = |storage: Option<DescriptorLocation>, forwarded: Option<ValueId>| {
+    let bind = |storage: Option<DescriptorLocation>, forwarded: Option<ValueId>, exact: bool, observed_type| {
         let native_address_arguments = [NativeAddressActual {
             parameter: formal,
-            exact: true,
-            sources: storage.into_iter().map(|storage| (storage, None, Some(scalar))).collect(),
+            exact,
+            sources: storage.into_iter().map(|storage| (storage, None, observed_type)).collect(),
             parameters: forwarded.into_iter().collect(),
         }];
         let origins = replay.substitute_actuals(&machine, &state, DescriptorActualInputs {
@@ -823,18 +823,28 @@ fn native_borrow_results_follow_scalar_address_actuals_back_to_their_storage() {
         }, &make_origin(vec![formal]))?;
         origins.iter().map(|origin| replay.exported(&machine, origin)).collect::<Option<Vec<_>>>()
     };
-    assert!(bind(Some(local), None).is_none());
+    assert!(bind(Some(local.clone()), None, true, Some(scalar)).is_none());
     assert!(matches!(
-        bind(Some(input), None).as_deref(),
+        bind(Some(input.clone()), None, true, Some(scalar)).as_deref(),
         Some([DescriptorStoredOrigin::Parameter { position: 0, projection }]) if projection == &Projection::new(&[])
     ));
     for relayed in [Some(forwarded), None] {
         assert!(matches!(
-            bind(None, relayed).as_deref(),
+            bind(None, relayed, true, None).as_deref(),
             Some([DescriptorStoredOrigin::NativeAddress { parameters, .. }])
                 if parameters == &relayed.into_iter().collect::<Vec<_>>()
         ));
     }
+    for (exact, observed_type) in [(false, Some(scalar)), (true, Some(reference))] {
+        assert!(bind(Some(local.clone()), None, exact, observed_type).is_none());
+        let origins = bind(Some(input.clone()), None, exact, observed_type).unwrap();
+        assert_eq!(origins.len(), 2);
+        assert!(origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. })));
+        assert!(origins.iter().any(|origin| matches!(origin,
+            DescriptorStoredOrigin::Parameter { position: 0, projection } if projection.is_native_enclosing_storage()
+        )));
+    }
+
 }
 
 #[test]

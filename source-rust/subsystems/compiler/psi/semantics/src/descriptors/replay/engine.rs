@@ -267,6 +267,29 @@ pub(crate) struct Summary {
     pub(crate) storage_frame: StorageFrame,
 }
 
+/// The header declares which references a caller may receive. For a selected
+/// implementation, preserve any native formation's actual scalar backing so
+/// forwarding it cannot erase a known address in this call.
+fn selected_target_summary(target: &DescriptorInvocationTarget, body: &Summary) -> Option<Summary> {
+    let mut public = direct_target_summary(target)?;
+    public.effects = body.effects.clone();
+    public.invalidates_contents |= body.invalidates_contents;
+    if let ResultObservations::Observed { slots: Some(declared), .. } = &mut public.result
+        && let Some(actuals) = body.result.slots()
+    {
+        for slot in declared {
+            if !slot.origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::Invocation { .. })) {
+                continue;
+            }
+            let Some(body_slot) = actuals.iter().find(|row| row.path == slot.path) else { continue; };
+            if body_slot.origins.iter().any(|origin| matches!(origin, DescriptorStoredOrigin::NativeAddress { .. })) {
+                slot.origins.clone_from(&body_slot.origins);
+            }
+        }
+    }
+    Some(public)
+}
+
 fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary> {
     match target {
         DescriptorInvocationTarget::Machine(_) => None,
@@ -3613,10 +3636,7 @@ impl<'a> Replay<'a> {
                 ..
             } => {
                 let effects = self.summary(*machine, depth)?;
-                let mut summary = direct_target_summary(target)?;
-                summary.effects = effects.effects.clone();
-                summary.invalidates_contents |= effects.invalidates_contents;
-                Some(Arc::new(summary))
+                Some(Arc::new(selected_target_summary(target, &effects)?))
             }
             DescriptorInvocationTarget::Public { realizations, .. }
                 if !realizations.is_empty() =>
@@ -3647,10 +3667,7 @@ impl<'a> Replay<'a> {
                 ..
             } => {
                 let effects = self.summaries.get(machine)?.as_ref()?;
-                let mut summary = direct_target_summary(target)?;
-                summary.effects = effects.effects.clone();
-                summary.invalidates_contents |= effects.invalidates_contents;
-                Some(Arc::new(summary))
+                Some(Arc::new(selected_target_summary(target, &effects)?))
             }
             DescriptorInvocationTarget::Public { realizations, .. }
                 if !realizations.is_empty() =>
@@ -3693,7 +3710,8 @@ impl<'a> Replay<'a> {
         reads: &DescriptorReadDepth<'_>,
     ) -> Value {
         let value = self.substitute_with_depth(machine, state, call, origin, reads);
-        if matches!(
+        if !matches!(origin, DescriptorStoredOrigin::NativeAddress { .. })
+            && matches!(
             call.target,
             DescriptorInvocationTarget::Public {
                 extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,

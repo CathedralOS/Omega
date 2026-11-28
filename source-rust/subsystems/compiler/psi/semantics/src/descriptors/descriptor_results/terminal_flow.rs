@@ -1569,6 +1569,7 @@ fn adapt_flow(
                     interface,
                     slot,
                     structural_arguments,
+                    arguments,
                     ..
                 } => {
                     let effects_machine = selected_effects_machine(
@@ -1599,6 +1600,12 @@ fn adapt_flow(
                     let complete_contents =
                         call.argument_contents.iter().all(Option::is_some);
                     let effects_machine = effects_machine.filter(|_| complete_contents);
+                    if let Some(selected) = effects_machine {
+                        graph.bind_terminal_native_addresses(
+                            &mut call, module, machine, terminal_graph_machine(machines, selected)?,
+                            position, arguments, result,
+                        )?;
+                    }
                     if let DescriptorInvocationTarget::Public {
                         effects_machine: target,
                         ..
@@ -1694,6 +1701,16 @@ fn adapt_flow(
                             result,
                             &graph.place_types,
                         )?;
+                        if implemented {
+                            let arguments = match &operation.kind {
+                                OperationKind::BoundaryCall { arguments, .. } => arguments.as_slice(),
+                                _ => operation.module_invocation()?.arguments,
+                            };
+                            graph.bind_terminal_native_addresses(
+                                &mut call, module, machine, terminal_graph_machine(machines, callee)?,
+                                position, arguments, result,
+                            )?;
+                        }
                         call.retain_whole_scalar_result_address(module, &public);
                         let complete = call.arguments.iter().all(Option::is_some)
                             && call.argument_contents.iter().all(Option::is_some);
@@ -2791,7 +2808,6 @@ fn selected_effects_machine(
     let mut bodies = module.machines.iter().filter(|body| body.id == target);
     let body = bodies.next()?;
     if bodies.next().is_some()
-        || matches!(signature.result, BoundaryMachineResult::Structural(_))
         || matches!(&signature.result, BoundaryMachineResult::Scalar(result)
             if result.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO)
         || !signature.result.matches_machine_result(&body.result)

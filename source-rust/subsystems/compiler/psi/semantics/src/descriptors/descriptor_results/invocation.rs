@@ -140,6 +140,27 @@ impl DescriptorMachine {
         Some(())
     }
 
+    pub(crate) fn bind_terminal_native_addresses(
+        &self,
+        call: &mut DescriptorInvocation,
+        module: &TerminalModule,
+        caller: &TerminalMachine,
+        callee: &TerminalMachine,
+        position: DescriptorPosition,
+        arguments: &[ValueId],
+        result: Option<&terminal_psi::StructuralOperationResult>,
+    ) -> Option<()> {
+        self.bind_native_address_arguments(
+            call,
+            &module.types.structural_types,
+            position,
+            &callee.structural_parameters,
+            result,
+            callee.parameters.iter().map(|formal| formal.id).zip(arguments.iter().copied()),
+            |actual| crate::storage::native_borrows::address_origin(caller, actual),
+        )
+    }
+
     // A call that never returns can still read or write its arguments.
     // Both call forms use the shared signature checks and retain the
     // complete parameter list and supplied arguments at the pre-call cut.
@@ -198,18 +219,8 @@ impl DescriptorMachine {
                     .map(|actual| self.place_types.get(&actual.place).copied()),
             )?
         };
-        self.bind_native_address_arguments(
-            &mut call,
-            &module.types.structural_types,
-            position,
-            &callee.structural_parameters,
-            result,
-            callee
-                .parameters
-                .iter()
-                .map(|formal| formal.id)
-                .zip(inputs.arguments.iter().copied()),
-            |actual| crate::storage::native_borrows::address_origin(caller, actual),
+        self.bind_terminal_native_addresses(
+            &mut call, module, caller, callee, position, inputs.arguments, result,
         )?;
         call.scalar_arguments = descriptor_scalar_arguments(
             callee
