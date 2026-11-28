@@ -5782,7 +5782,10 @@ pub(crate) mod scalar_store {
                 if *storage_scalar != value.scalar_type
                     && !matches!(
                         (*storage_scalar, value.scalar_type),
-                        (semantic_vocabulary::ScalarType::Callable(_), semantic_vocabulary::ScalarType::Callable(_))
+                        (
+                            semantic_vocabulary::ScalarType::Callable(_),
+                            semantic_vocabulary::ScalarType::Callable(_)
+                        )
                     )
                 {
                     return Err(invalid());

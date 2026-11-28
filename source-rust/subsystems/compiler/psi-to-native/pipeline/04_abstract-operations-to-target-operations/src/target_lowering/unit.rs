@@ -2535,7 +2535,13 @@ mod structural_scalar {
         let (scalar_byte_offset, field_byte_size) = if namespace.is_empty() {
             direct_scalar_field_geometry(carrier_type, *field, storage_scalar, structural_types)?
         } else {
-            static_field_geometry(carrier_type, namespace, *field, storage_scalar, structural_types)?
+            static_field_geometry(
+                carrier_type,
+                namespace,
+                *field,
+                storage_scalar,
+                structural_types,
+            )?
         };
         let destination_is_view = matches!(
             structural_types

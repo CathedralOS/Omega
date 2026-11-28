@@ -109,7 +109,9 @@ fn project<'a>(
                     } => {
                         let actual = semantic_vocabulary::ScalarType::Callable(*opened);
                         if value.scalar_type != actual {
-                            return Err("package callable store changed its checked value contract");
+                            return Err(
+                                "package callable store changed its checked value contract",
+                            );
                         }
                         body.package_sites.stored_field(
                             structural_types,
