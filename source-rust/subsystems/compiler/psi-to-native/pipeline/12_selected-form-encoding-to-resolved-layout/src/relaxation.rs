@@ -27,10 +27,7 @@ pub(super) fn validate_optimized_x86_branch_relaxation(
         Some(first) => {
             first.iteration == 1
                 && first.input
-                    == revision_identity(
-                        revision_roots(&source.roots(), source.target()),
-                        source.functions(),
-                    )
+                    == revision_identity(revision_roots(source.target()), source.functions())
         }
     };
     if !started_from_source {
@@ -39,14 +36,8 @@ pub(super) fn validate_optimized_x86_branch_relaxation(
     Ok(())
 }
 
-fn revision_roots(
-    source: &machine_code::ResolvedLayoutRoots,
-    target: NativeTarget,
-) -> RevisionRoots {
-    RevisionRoots {
-        pre_layout: source.pre_layout,
-        target,
-    }
+fn revision_roots(target: NativeTarget) -> RevisionRoots {
+    RevisionRoots { target }
 }
 
 fn validate_current_x86_branch_relaxation(
@@ -64,7 +55,7 @@ fn validate_current_x86_branch_relaxation(
     {
         return Err(OptimizedX86BranchRelaxationError::ArtifactMismatch);
     }
-    let roots = revision_roots(source, target);
+    let roots = revision_roots(target);
     if artifact.output_revision != revision_identity(roots, artifact.functions())
         || artifact.identity
             != artifact_identity(
@@ -134,7 +125,7 @@ pub fn validate_current_layout_optimization(
         || current.budget != facts.budget()
         || current.relaxation != relaxation.map(X86BranchRelaxationRecord::identity)
         || current.baseline.machine != program.context.plan
-        || current.baseline.pre_layout != program.encoding.identity()
+        || !current.baseline.pre_layout.names(&program.encoding)
     {
         return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);
     }

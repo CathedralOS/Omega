@@ -99,7 +99,6 @@ fn malformed(instruction: SelectedInstructionId) -> OptimizedX86BranchRelaxation
 
 fn revision_roots(source: &ResolvedMachineLayout) -> RevisionRoots {
     RevisionRoots {
-        pre_layout: source.pre_layout(),
         target: source.target(),
     }
 }
@@ -128,7 +127,7 @@ fn finish_artifact(
     Ok(StagedOptimizedX86BranchRelaxation {
         record: X86BranchRelaxationRecord {
             machine: Arc::clone(source.machine()),
-            pre_layout: source.pre_layout(),
+            pre_layout: source.pre_layout().clone(),
             target: source.target(),
             policy,
             budget,
@@ -1235,7 +1234,6 @@ mod tests {
     impl IdentityFixture {
         fn new() -> Self {
             let roots = RevisionRoots {
-                pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
                 target: NativeTarget::linux_x64(),
             };
             let functions = vec![function(1)];
@@ -1472,7 +1470,6 @@ mod tests {
 
     fn sweep_roots() -> RevisionRoots {
         RevisionRoots {
-            pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([14; 32]),
             target: NativeTarget::linux_x64(),
         }
     }
@@ -1515,7 +1512,7 @@ mod tests {
         let roots = sweep_roots();
         let baseline = machine_code::ResolvedMachineLayout {
             machine: post_allocation_machine::test_support::placeholder_plan(),
-            pre_layout: roots.pre_layout,
+            pre_layout: machine_code::test_support::placeholder_encoding(),
             target: roots.target,
             policy: machine_code::SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
             functions: vec![function(1)],

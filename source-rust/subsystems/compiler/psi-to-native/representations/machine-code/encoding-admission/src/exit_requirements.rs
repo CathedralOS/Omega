@@ -19,7 +19,7 @@ use target::{Architecture, NativeTarget};
 /// plan, so the exit check compares the plan the encoder used.
 pub fn prepare_exit_requirements(
     program: &PostAllocationMachineProgram,
-    encoding: &SelectedFormEncoding,
+    encoding: &std::sync::Arc<SelectedFormEncoding>,
 ) -> Result<EncodedExitRequirements, WholeFunctionExitContractError> {
     use WholeFunctionExitContractError as Error;
     let mut rows = encoding.rows().iter();
@@ -141,7 +141,7 @@ pub fn prepare_exit_requirements(
         abi,
         encoding: ExitEncoding {
             machine: std::sync::Arc::clone(encoding.machine()),
-            identity: encoding.identity(),
+            pre_layout: machine_code::SelectedFormEncodingHandle::of(encoding),
             frame: encoding.frame.clone(),
             decoded: std::sync::Arc::clone(&encoding.encoded),
         },

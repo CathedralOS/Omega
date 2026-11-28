@@ -12,10 +12,10 @@ mod test_plans;
 mod text_placement;
 
 pub use exit_contract::{
-    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
-    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
-    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
-    WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
+    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitEvidence,
+    WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
+    WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
+    WholeFunctionReturnValueEvidence,
 };
 pub use fragment_emission::{
     FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmissionSource,

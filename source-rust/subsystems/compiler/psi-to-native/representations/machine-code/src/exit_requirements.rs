@@ -58,7 +58,8 @@ pub struct EncodedExitRequirements {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExitEncoding {
     pub machine: std::sync::Arc<post_allocation_machine::PostAllocationMachinePlan>,
-    pub identity: crate::SelectedFormEncodingIdentity,
+    /// The encoding these requirements were read from; layouts name the same one.
+    pub pre_layout: crate::SelectedFormEncodingHandle,
     pub frame: Option<std::sync::Arc<crate::TargetFrameLayoutPlan>>,
     pub decoded: std::sync::Arc<crate::SelectedFormEncodedRowStore>,
 }

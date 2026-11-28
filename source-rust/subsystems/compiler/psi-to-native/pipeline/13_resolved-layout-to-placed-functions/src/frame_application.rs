@@ -29,10 +29,7 @@ use machine_code::{
 pub use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
 };
-use machine_code::{
-    FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
-    target_frame_protocol_encoding_identity,
-};
+use machine_code::{FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan};
 use selected_instructions::{MachineAlternativeKey, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
@@ -91,9 +88,6 @@ pub(crate) fn validate_function_fragment_frame_application(
         return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
     }
     let protocol = &staged.source.frame_input.protocol;
-    if staged.application.frame_protocol != target_frame_protocol_encoding_identity(protocol) {
-        return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);
-    }
     validate_frame_protocol_application(
         staged.source.fragments(),
         protocol,
@@ -347,7 +341,6 @@ pub(crate) fn apply_frame_protocol_to_fragments(
     }
 
     Ok(FunctionFragmentFrameApplication {
-        frame_protocol: target_frame_protocol_encoding_identity(protocol),
         functions: applications,
         fragments,
     })
@@ -951,8 +944,7 @@ pub(crate) fn validate_frame_protocol_application(
     if source.functions.len() != controls.len() {
         return Err(FunctionFragmentFrameApplicationError::FunctionRosterMismatch);
     }
-    if candidate.frame_protocol != target_frame_protocol_encoding_identity(protocol)
-        || candidate.functions.len() != source.functions.len()
+    if candidate.functions.len() != source.functions.len()
         || !same_plan_roots(source, &candidate.fragments)
     {
         return Err(FunctionFragmentFrameApplicationError::ArtifactMismatch);

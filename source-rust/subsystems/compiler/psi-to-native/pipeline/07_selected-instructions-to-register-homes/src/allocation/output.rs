@@ -120,8 +120,7 @@ pub(crate) mod current {
                 effects: &self.effects,
                 ranges: self.ranges.plan(),
                 legality: self.legality.plan(),
-                homes: self.homes.plan(),
-                homes_identity: self.homes.receipt().identity(),
+                homes: self.homes.plan_handle(),
             }
         }
 
@@ -238,7 +237,7 @@ pub(crate) mod retained {
         ) -> Result<Self, AllocationAdmissionError> {
             let current = staged.project();
             let publication = Arc::new(register_homes::AllocationPublicationFacts::retain(
-                current.post_allocation_manifest().record().clone(),
+                Arc::clone(current.post_allocation_manifest().record()),
                 current.selections().clone(),
                 current.budget_per_pass(),
             ));
@@ -284,7 +283,9 @@ pub(crate) mod runtime_spill {
                 selections: self.source.selections(),
                 budget: self.source.budget_per_pass(),
                 history: self.source.history(),
-                evidence: AllocationEvidence::RuntimeSpill(self.manifest.record().identity),
+                evidence: AllocationEvidence::RuntimeSpill(std::sync::Arc::clone(
+                    self.manifest.record(),
+                )),
             }
         }
     }
@@ -389,7 +390,8 @@ impl<'program> AllocationOutput<'program> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationEvidence {
-    RuntimeSpill(optimization_core::PostAllocationOptimizationManifestIdentity),
+    /// Runtime recovery names the manifest it published.
+    RuntimeSpill(std::sync::Arc<register_homes::PostAllocationOptimizationManifest>),
     RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
     FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
     ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),

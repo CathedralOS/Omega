@@ -28,21 +28,18 @@ use machine_code::exit_requirements::{
     ProcessExitRequirements, TrapRequirements,
 };
 use machine_code::fragment_origins::FragmentOrigins;
-use machine_code::{
-    ResolvedMachineLayout, ResolvedSelectedFormRow,
-    whole_function_exit_contract_identity as contract_identity,
-};
+use machine_code::{ResolvedMachineLayout, ResolvedSelectedFormRow};
 pub use machine_code::{
-    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
-    WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
-    WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
-    WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
+    WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitEvidence,
+    WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
+    WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
+    WholeFunctionReturnValueEvidence,
 };
+use placement::FunctionExitLayout;
 use register_environment::{FrameAbiPreservationConvention, TargetExitAbi};
 use register_model::{
     PreservationConvention, RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
 };
-use placement::FunctionExitLayout;
 use selected_instructions::{
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedBlockId, SelectedCallTarget,
@@ -65,9 +62,6 @@ impl StagedWholeFunctionExitContract {
     pub fn contract(&self) -> &WholeFunctionExitContract {
         &self.contract
     }
-    pub fn identity(&self) -> WholeFunctionExitContractIdentity {
-        self.contract.identity
-    }
 }
 
 pub use machine_code::exit_requirements::WholeFunctionExitContractError;
@@ -85,7 +79,7 @@ struct ValidationInputs<'a> {
     layout: &'a Arc<ResolvedMachineLayout>,
     frame: Option<(
         &'a ValidatedTargetFrameLayout,
-        &'a TargetFrameProtocolEncodingPlan,
+        &'a Arc<TargetFrameProtocolEncodingPlan>,
     )>,
     contract: &'a WholeFunctionExitContract,
 }
@@ -111,7 +105,7 @@ pub(crate) fn validate_exit_record_for_current_layout(
     program: FunctionExitLayout<'_>,
     frame: Option<(
         &ValidatedTargetFrameLayout,
-        &TargetFrameProtocolEncodingPlan,
+        &Arc<TargetFrameProtocolEncodingPlan>,
     )>,
     contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
@@ -125,9 +119,8 @@ pub(crate) fn validate_exit_record_for_current_layout(
         frame,
         contract: contract.contract(),
     };
-    let context = check_validation_context(&inputs, custody, program.protocol_identity)?;
-    check_ordinary_exit_roster(&inputs, &context)?;
-    require_artifact(contract.identity() == contract.contract().recomputed_identity())
+    let context = check_validation_context(&inputs, custody)?;
+    check_ordinary_exit_roster(&inputs, &context)
 }
 
 fn compute_inner(
@@ -147,7 +140,7 @@ fn compute_inner(
     };
     if encoding.machine != machine.plan
         || *layout.machine() != machine.plan
-        || layout.pre_layout() != encoding.identity
+        || *layout.pre_layout() != encoding.pre_layout
         || selected_plan.target != machine.target
         || layout.target() != machine.target
         || machine.physical_register_model != physical.identity()
@@ -192,7 +185,7 @@ fn compute_inner(
                 policy,
                 WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
                     layout: Arc::clone(frame),
-                    protocol: program.protocol_identity,
+                    protocol: Arc::clone(protocol),
                 },
             )
         }
@@ -523,13 +516,11 @@ fn compute_inner(
         });
     }
 
-    let mut contract = WholeFunctionExitContract {
-        identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
-        post_allocation_manifest: machine.post_allocation_manifest,
+    let contract = WholeFunctionExitContract {
         post_allocation_machine: Arc::clone(&machine.plan),
         register_environment: machine.register_environment,
         physical_register_model: machine.physical_register_model,
-        pre_layout: encoding.identity,
+        pre_layout: encoding.pre_layout.clone(),
         resolved_layout: Arc::clone(layout),
         layout_custody,
         target,
@@ -544,7 +535,6 @@ fn compute_inner(
         callee_saved_units: convention.callee_saved.clone(),
         functions: Box::new(functions),
     };
-    contract.identity = contract_identity(&contract);
     Ok(contract)
 }
 
@@ -557,7 +547,6 @@ fn require_artifact(condition: bool) -> Result<(), WholeFunctionExitContractErro
 fn check_validation_context(
     inputs: &ValidationInputs<'_>,
     custody: WholeFunctionExitLayoutCustody,
-    protocol_identity: machine_code::TargetFrameProtocolEncodingIdentity,
 ) -> Result<ValidationContext, WholeFunctionExitContractError> {
     let ValidationInputs {
         selected,
@@ -571,7 +560,7 @@ fn check_validation_context(
     let encoding = &exits.encoding;
     if encoding.machine != machine.plan
         || *layout.machine() != machine.plan
-        || layout.pre_layout() != encoding.identity
+        || *layout.pre_layout() != encoding.pre_layout
         || selected.target != machine.target
         || layout.target() != machine.target
         || physical.identity() != machine.physical_register_model
@@ -631,17 +620,16 @@ fn check_validation_context(
         };
         WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
             layout: frame.shared_plan(),
-            protocol: protocol_identity,
+            protocol: Arc::clone(protocol),
         }
     } else {
         WholeFunctionFrameDisposition::FramelessV1
     };
     require_artifact(
-        contract.post_allocation_manifest == machine.post_allocation_manifest
-            && contract.post_allocation_machine == machine.plan
+        contract.post_allocation_machine == machine.plan
             && contract.register_environment == machine.register_environment
             && contract.physical_register_model == machine.physical_register_model
-            && contract.pre_layout == encoding.identity
+            && contract.pre_layout == encoding.pre_layout
             && contract.resolved_layout == **layout
             && contract.layout_custody == custody
             && contract.target == machine.target
@@ -1854,7 +1842,7 @@ fn assert_non_return_refused(message: &str, case: NonReturnCase<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use machine_code::{SelectedFormEncodingIdentity, X86BranchRelaxationIdentity};
+    use machine_code::X86BranchRelaxationIdentity;
     use post_allocation_machine::PhysicalAddressOperation;
     use selected_instructions::{
         AtomicForm, AtomicWidth, FloatResultPolicyForm, IeeeFloatArithmeticForm,
@@ -1867,10 +1855,7 @@ mod tests {
     fn contract_with_custody(
         layout_custody: WholeFunctionExitLayoutCustody,
     ) -> WholeFunctionExitContract {
-        let mut contract = WholeFunctionExitContract {
-            identity: WholeFunctionExitContractIdentity::from_bytes([0; 32]),
-            post_allocation_manifest:
-                optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([2; 32]),
+        WholeFunctionExitContract {
             post_allocation_machine: post_allocation_machine::test_support::placeholder_plan(),
             register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes(
                 [4; 32],
@@ -1878,7 +1863,7 @@ mod tests {
             physical_register_model: register_model::PhysicalRegisterModelIdentity::from_bytes(
                 [5; 32],
             ),
-            pre_layout: SelectedFormEncodingIdentity::from_bytes([6; 32]),
+            pre_layout: machine_code::test_support::placeholder_encoding(),
             resolved_layout: crate::test_plans::resolved_layout(),
             layout_custody,
             target: NativeTarget::linux_x64(),
@@ -1892,9 +1877,7 @@ mod tests {
             result_view: RegisterViewId(1),
             callee_saved_units: Vec::new(),
             functions: Box::new(Vec::new()),
-        };
-        contract.identity = contract_identity(&contract);
-        contract
+        }
     }
 
     #[test]
@@ -1925,7 +1908,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_custody_and_frame_disposition_are_identity_bound() {
+    fn layout_custody_and_frame_disposition_distinguish_contracts() {
         let baseline = contract_with_custody(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
         let relaxed = contract_with_custody(
             WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
@@ -1937,20 +1920,38 @@ mod tests {
                 relaxation: X86BranchRelaxationIdentity::from_bytes([9; 32]),
             },
         );
+        let layout = crate::test_plans::frame_plan();
+        let protocol = |bytes: Vec<u8>| {
+            Arc::new(TargetFrameProtocolEncodingPlan {
+                frame_layout: Arc::clone(&layout),
+                register_environment: layout.register_environment,
+                physical_register_model: layout.physical_register_model,
+                target: layout.target,
+                policy: machine_code::TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1,
+                functions: Vec::new(),
+                bytes,
+                steps: Vec::new(),
+            })
+        };
         let mut framed = baseline.clone();
         framed.frame = WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-            layout: crate::test_plans::frame_plan(),
-            protocol: machine_code::TargetFrameProtocolEncodingIdentity::from_bytes([11; 32]),
+            layout: Arc::clone(&layout),
+            protocol: protocol(vec![0x55]),
         };
         framed.policy = WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1;
-        framed.identity = contract_identity(&framed);
+        let mut reprotocoled = framed.clone();
+        reprotocoled.frame = WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+            layout: Arc::clone(&layout),
+            protocol: protocol(vec![0x90]),
+        };
 
-        assert_ne!(baseline.identity, relaxed.identity);
-        assert_ne!(relaxed.identity, another_relaxation.identity);
-        assert_ne!(baseline.identity, framed.identity);
+        assert_ne!(baseline, relaxed);
+        assert_ne!(relaxed, another_relaxation);
+        assert_ne!(baseline, framed);
+        assert_ne!(framed, reprotocoled);
         let mut windows = framed.clone();
         windows.policy = WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1;
-        assert_ne!(contract_identity(&windows), framed.identity);
+        assert_ne!(windows, framed);
     }
 
     #[test]

@@ -28,9 +28,9 @@ use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
 
 use crate::{
-    SelectedFormEncoding, SelectedFormEncodingIdentity, SelectedFormImageAddressFixup,
+    SelectedFormEncoding, SelectedFormEncodingHandle, SelectedFormImageAddressFixup,
     SelectedFormInternalMachineFixup, SelectedFormNormalizedForeignCallFixup,
-    TargetFrameLayoutPlan, TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingPlan,
+    TargetFrameLayoutPlan, TargetFrameProtocolEncodingPlan,
 };
 
 /// The unresolved bridge call in its encoded instruction stream. x86 identifies
@@ -58,7 +58,7 @@ pub use text_section::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedLayoutRoots {
     pub machine: Arc<PostAllocationMachinePlan>,
-    pub pre_layout: SelectedFormEncodingIdentity,
+    pub pre_layout: SelectedFormEncodingHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,7 +170,7 @@ pub struct ResolvedSelectedFunctionLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedMachineLayout {
     pub machine: Arc<PostAllocationMachinePlan>,
-    pub pre_layout: SelectedFormEncodingIdentity,
+    pub pre_layout: SelectedFormEncodingHandle,
     pub target: NativeTarget,
     pub policy: SelectedFunctionLayoutPolicy,
     pub functions: Vec<ResolvedSelectedFunctionLayout>,
@@ -180,7 +180,7 @@ impl ResolvedMachineLayout {
     pub fn roots(&self) -> ResolvedLayoutRoots {
         ResolvedLayoutRoots {
             machine: Arc::clone(&self.machine),
-            pre_layout: self.pre_layout,
+            pre_layout: self.pre_layout.clone(),
         }
     }
 
@@ -188,8 +188,8 @@ impl ResolvedMachineLayout {
         &self.machine
     }
 
-    pub fn pre_layout(&self) -> SelectedFormEncodingIdentity {
-        self.pre_layout
+    pub fn pre_layout(&self) -> &SelectedFormEncodingHandle {
+        &self.pre_layout
     }
 
     pub fn target(&self) -> NativeTarget {
@@ -226,7 +226,6 @@ pub struct FramedMachineProgram {
     pub bindings: crate::import_code::EncodedBodyBindings,
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
-    pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub instructions: post_allocation_machine::PostAllocationMachineProgram,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
@@ -240,7 +239,6 @@ pub struct EncodedMachineProgram {
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
     pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
-    pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub context: Arc<crate::program_context::EncodedProgramContext>,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
@@ -257,7 +255,6 @@ pub struct ResolvedMachineProgram {
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
     pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
-    pub protocol_identity: TargetFrameProtocolEncodingIdentity,
     pub context: Arc<crate::program_context::EncodedProgramContext>,
     pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
@@ -348,9 +345,11 @@ pub mod evidence {
         const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v12";
         const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v6";
 
+        /// What a revision digest binds besides the function rows. The
+        /// relaxation record shares the pre-layout encoding and checks
+        /// compare it, so the encoding is not hashed here.
         #[derive(Clone, Copy)]
         pub struct RevisionRoots {
-            pub pre_layout: crate::SelectedFormEncodingIdentity,
             pub target: NativeTarget,
         }
 
@@ -418,7 +417,6 @@ pub mod evidence {
             hasher: &mut crate::digest_encoder::DomainDigestEncoder,
             roots: RevisionRoots,
         ) {
-            hasher.raw(&roots.pre_layout.bytes());
             hasher.raw(&roots.target.identity_bytes());
         }
 

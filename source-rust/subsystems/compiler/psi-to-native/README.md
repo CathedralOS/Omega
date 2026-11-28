@@ -111,11 +111,14 @@ refused by name.
 
 ## Plan identities
 
-Stages 04–14 hash their in-memory plans with SHA-256 and hand the hashes on.
-Because both sides run in the same compile, most of these hashes only let the
-compiler check its own output, which default compilation does not do. They are
-being removed. A hash stays only where an explicit validator, a published
-artifact or a foreign-package boundary reads it.
+Stages 04–14 used to hash their in-memory plans with SHA-256 and hand the
+hashes on. Because both sides run in the same compile, these hashes only let
+the compiler check its own output, which default compilation does not do. Most
+have been removed: records share the plans they were built from through an
+`Arc`, and checks compare those plans (pointer first, then structure). A hash
+stays only where an explicit validator, a published artifact, a catalog or a
+foreign-package boundary reads it; the rows marked "kept for now" are the
+in-process digests still left.
 
 | Identity | Readers that matter | Decision |
 | --- | --- | --- |
@@ -127,9 +130,16 @@ artifact or a foreign-package boundary reads it.
 | `SelectedInstructionPlanIdentity`, `RetainedPlanPrefix`, effects identities (05–06) | receipts; validators compare retained program | deleted; rewrite receipts, liveness, live-range, effects and recovery plans, the post-allocation manifest and machine plan share `Arc<SelectedInstructionPlan>` and checks compare it; records that already share the machine plan drop their own copy; runtime spill, split, rematerialization and fixed-occurrence ledger rows record only their kind |
 | `LivenessIdentity`, `LiveRangeIdentity`, `AllocationLegalityIdentity` and the receipt and manifest digests built on them (06–08) | receipts; the post-allocation manifest digest | deleted, with their per-function digests and the carried-digest cache; legality, spill-choice, fixed-precolored and register-home plans name their program through the shared `selected` plan, and checks compare that plan; custody, completion and recovery receipts and the post-allocation manifest no longer record them, and the post-allocation machine plan drops its copies |
 | `OptimizationIdentityBundleIdentity`, `OptimizedAbstractPlanProjectionIdentity`, `PrePhysicalOptimizationManifestIdentity` (04–15) | stage 05–07 custody, the post-allocation manifest, execution facts and the stage 15 physical scope, which only rehashed the unit, selections and budget | deleted; those records carry and compare the unit identity, selection identity and budget directly |
+| Rewrite receipt identities (`CopyRemovalIdentity`, `LiteralFoldIdentity`, `FixedViewCopyIdentity`, `PressureRematerializationIdentity` and nine siblings), `SpillChoiceIdentity`, `RecoveryClassificationIdentity`, `SelectedLoweringOptimizationCompletionIdentity`, `PreAllocationOptimizationCompletionIdentity` (06–07) | sibling receipts, the transformation ledger and the post-allocation manifest; replay compares whole steps | deleted; ledger rows record each rewrite by kind; the optimization record and manifest name the program each Omega 04 phase ended with (`selected_lowering_output`, `pre_allocation_output`), and the replay validator compares that program with the run's output |
+| `RegisterHomeIdentity`, `PostAllocationOptimizationManifestIdentity`, `AllocatedCalleeSavedRequirementIdentity`, the allocation publication digest (07–13) | custody receipts; machine plan, preservation, frame demands, exit contract and `published-objects` root checks | deleted; the manifest, machine plan, preservation requirements and callee-save storage share `Arc<RegisterHomePlan>` and `Arc<PostAllocationOptimizationManifest>`, and checks compare them; records that already share the machine plan drop their own copies |
+| `NonAuthoritativeCalleeSaveStorageIdentity`, `TargetFrameProtocolEncodingIdentity` (09–13) | frame layout and frame-application roots; exit contract frame disposition | deleted; the frame layout shares the requirements and storage plans, the exit contract shares the protocol plan, and frame application is checked against the protocol its source carries |
+| `SelectedFormEncodingIdentity`, `WholeFunctionExitContractIdentity` (11–13) | layout, relaxation record, exit requirements and encoded-program context; the contract's own recheck | deleted; those records hold a weak `SelectedFormEncodingHandle` and checks compare it so ordinary placement still releases the encoding before object construction; the footprint interning bucket key stays as a storage key |
+| Physical-program digest (`PostAllocationMachineProgram::identity`, 08–13) | stage 09 call origins, installed handlers and body CPU facts; bound encoding subject | kept for now; it no longer hashes the preservation requirements or the allocation publication, which records share and compare |
+| `X86BranchRelaxationIdentity`, `X86BranchRelaxationRevisionIdentity` (12–13) | relaxation replay; exit-contract layout custody | kept for now as replay checkpoints over the function rows; they no longer hash the pre-layout encoding |
 | `OptimizationUnitIdentity` (04) | the unoptimized program record, custody, the post-allocation manifest, execution facts, fact keys | keep as the one unit hash. It digests the Terminal program fingerprint and work schedule, then only what native lowering chose or produced: the target-laid structural types, kept boundary ids and provider candidates, accepted facts, and each function's lowered blocks. Rows the unit copies verbatim from the module (domains, services, runtime evidence, callable and dispatch catalogs, contracts) are not re-encoded, because the fingerprint already commits them |
 | `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
-| `NativeArtifactIdentity` | physical publication tests | keep; binds emitted bytes, no longer plan hashes |
+| `MachineEffectCatalogIdentity`, `RegisterConstraintCatalogIdentity`, `TargetRegisterEnvironmentIdentity`, `PhysicalRegisterModelIdentity`, `AllocatorAvailabilityIdentity`, `OptimizationSelectionIdentity` | catalog and target configuration roots compared across stages | keep; they name configuration, not a stage's output |
+| `NativeArtifactIdentity` | `native.identity.txt` (`omega run --keep`) | keep; binds emitted bytes, no longer plan hashes |
 
 `NativeArtifactIdentity` already hashes the object, image and text bytes. The
 plan hashes it also chained in changed nothing those bytes did not, and
