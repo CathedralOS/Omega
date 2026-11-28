@@ -889,6 +889,15 @@ pub(crate) mod scalar_expressions {
             .find_map(|node| match &node.operation {
                 O::EstablishPrimitiveLocal { result, .. }
                 | O::EstablishStructuralLocal { result, .. }
+                | O::EstablishZeroedStructural { result, .. }
+                | O::EstablishRecord { result, .. }
+                | O::EstablishCase { result, .. }
+                | O::EstablishScalarArray { result, .. }
+                | O::EstablishStructuralArray { result, .. }
+                | O::CallStructural {
+                    result: abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
                     if result.place == place =>
                 {
                     Some(StorageHome::Local(result.structural_type))

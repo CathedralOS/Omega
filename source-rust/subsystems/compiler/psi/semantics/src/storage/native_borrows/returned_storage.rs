@@ -7,7 +7,12 @@ use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment a
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReturnedStorage {
-    Borrowed { ordinal: usize, path: Vec<Segment> },
+    Borrowed {
+        ordinal: usize,
+        path: Vec<Segment>,
+        /// False when the caller can identify only an enclosing inline array.
+        exact: bool,
+    },
     Local,
     Opaque,
 }
@@ -52,24 +57,37 @@ impl ReturnedStorage {
                 StorageHome::Formal(ordinal, _, ty) => (ty, Some(ordinal)),
                 _ => return Self::Opaque,
             };
-            // Only inline coordinates have the home's lifetime. Fixed fields
-            // and indices are portable between bodies; runtime IDs are local.
+            // A runtime index stays inside its fixed array, but its scalar
+            // and bounds proof belong to this invocation. Export only the
+            // enclosing path that a caller can name in its own machine.
             if !path.is_empty()
-                && (!path.iter().all(|s| {
-                    matches!(
-                        s,
-                        Segment::Field(_) | Segment::Case(_) | Segment::FixedIndex(_)
-                    )
-                }) || !crate::descriptor_results::descriptor_contents_query(
+                && !crate::descriptor_results::descriptor_contents_query(
                     types, root, ty, &path, None,
                 )
                 .and_then(|query| query.inline_steps(types, ty))
-                .is_some_and(|steps| steps.iter().all(|s| *s)))
+                .is_some_and(|steps| steps.iter().all(|inline| *inline))
             {
                 return Self::Opaque;
             }
             return match returned {
-                Some(ordinal) => Self::Borrowed { ordinal, path },
+                Some(ordinal) => {
+                    let portable = path
+                        .iter()
+                        .take_while(|segment| {
+                            matches!(
+                                segment,
+                                Segment::Field(_) | Segment::Case(_) | Segment::FixedIndex(_)
+                            )
+                        })
+                        .count();
+                    let exact = portable == path.len();
+                    path.truncate(portable);
+                    Self::Borrowed {
+                        ordinal,
+                        path,
+                        exact,
+                    }
+                }
                 None => Self::Local,
             };
         }
@@ -77,9 +95,14 @@ impl ReturnedStorage {
 
     pub(super) fn project(&self, suffix: &[Segment]) -> Self {
         match self {
-            Self::Borrowed { ordinal, path } => Self::Borrowed {
+            Self::Borrowed {
+                ordinal,
+                path,
+                exact: true,
+            } => Self::Borrowed {
                 ordinal: *ordinal,
                 path: path.iter().cloned().chain(suffix.iter().cloned()).collect(),
+                exact: true,
             },
             other => other.clone(),
         }

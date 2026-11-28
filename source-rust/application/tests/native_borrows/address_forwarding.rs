@@ -166,3 +166,37 @@ machine main() crashes Trap {
     )
     .assert_native_returns();
 }
+
+#[test]
+fn an_address_into_an_inline_array_keeps_its_owners_lifetime() {
+    let source = r#"
+machine make_bytes() -> [u8; 2] { [4u8, 7u8] }
+machine find(input: @[u8; 2], i: u64) -> address requires i < 2u64 {
+    address_of(@input[i])
+}
+machine locate(input: @[u8; 2], i: u64) -> address requires i < 2u64 {
+    let owned: [u8; 2] = [4u8, 7u8];
+    let produced: [u8; 2] = make_bytes();
+    LOCATION
+}
+machine main() crashes Trap {
+    let caller: [u8; 2] = [19u8, 37u8];
+    let cell: @u8 = |native|::borrow_at::<u8>(locate(@caller, 1u64));
+    transition $cell == 37u8 { true -> {}, false -> bad() }
+    machine bad() { crash Trap; }
+}"#;
+    for location in [
+        "address_of(@owned[1u64])",
+        "address_of(@produced[1u64])",
+        "address_of(@owned[i])",
+        "find(@owned, i)",
+    ] {
+        let refused = Program::new(&source.replace("LOCATION", location), &[READ]).check();
+        let diagnostic = report(&refused);
+        assert!(
+            !refused.status.success() && diagnostic.contains("already returned"),
+            "{location}: {diagnostic}"
+        );
+    }
+    Program::new(&source.replace("LOCATION", "find(input, i)"), &[READ]).assert_native_returns();
+}
