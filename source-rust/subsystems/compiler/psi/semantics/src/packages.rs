@@ -1,7 +1,7 @@
 //! Replay the per-construction type substitution and the scope of each
 //! subsequent opening. The operational record and the descriptor in it keep
 //! the same representation throughout.
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use semantic_vocabulary::{
     CallableContractId, MachineId, OperationId, ScalarType, StructuralFieldId, StructuralTypeId,
@@ -201,14 +201,13 @@ pub fn opened_callable_admits(
         .iter()
         .zip(&supplied.structural_parameters)
     {
-        if opened_witnesses.contains(&from.structural_type) {
-            if terminal_psi::find_structural_type(types, to.structural_type).is_none()
+        if opened_witnesses.contains(&from.structural_type)
+            && (terminal_psi::find_structural_type(types, to.structural_type).is_none()
                 || bindings
                     .insert(from.structural_type, to.structural_type)
-                    .is_some_and(|previous| previous != to.structural_type)
-            {
-                return false;
-            }
+                    .is_some_and(|previous| previous != to.structural_type))
+        {
+            return false;
         }
     }
     let (public, actual_types): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
@@ -301,7 +300,7 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
     {
         return Err("package tables have duplicated or unordered rows");
     }
-    let mut abstract_types = BTreeSet::new();
+    let mut abstract_types = Vec::new();
     let opaque = |id: &StructuralTypeId| {
         module.structural_type(*id).is_some_and(|ty| {
             matches!(ty.shape, StructuralTypeShape::Opaque)
@@ -310,16 +309,11 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
         })
     };
     for row in &catalog.schemas {
-        if row.witnesses.is_empty()
-            || !row.witnesses.iter().all(opaque)
-            || row.witnesses.iter().collect::<BTreeSet<_>>().len() != row.witnesses.len()
-        {
+        if row.witnesses.is_empty() || !row.witnesses.iter().all(opaque) {
             return Err("package schema requires distinct abstract referents");
         }
         fields(module, row.record)?;
-        if !row.witnesses.iter().all(|id| abstract_types.insert(*id)) {
-            return Err("package schemas reuse an abstract type identity");
-        }
+        abstract_types.extend_from_slice(&row.witnesses);
     }
     for row in &catalog.openings {
         let machine = module
@@ -328,13 +322,17 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
         let declaration = schema(module, row.record)?;
         if argument_type(module, machine, &row.subject) != Some(row.record)
             || row.witnesses.len() != declaration.witnesses.len()
-            || !row
-                .witnesses
-                .iter()
-                .all(|id| opaque(id) && abstract_types.insert(*id))
+            || !row.witnesses.iter().all(opaque)
         {
             return Err("package opening lacks a typed subject and fresh witness identities");
         }
+        abstract_types.extend_from_slice(&row.witnesses);
+    }
+    // Wire identifiers need not be dense at this point in admission.
+    // Size this inventory by the number of actual binders.
+    abstract_types.sort_unstable();
+    if abstract_types.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err("package declarations and openings must have distinct witness identities");
     }
     let mut projected = BTreeMap::new();
     let mut events = BTreeMap::new();
@@ -423,10 +421,11 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                             _ => None,
                         })
                         .is_some_and(|contract| {
-                            contract
-                                .structural_parameters
-                                .iter()
-                                .any(|formal| abstract_types.contains(&formal.structural_type))
+                            contract.structural_parameters.iter().any(|formal| {
+                                abstract_types
+                                    .binary_search(&formal.structural_type)
+                                    .is_ok()
+                            })
                         }))
                 && !matches!(event, Some(TerminalPackageEvent::Invoke { .. }))
             {

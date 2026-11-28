@@ -304,7 +304,8 @@ impl CheckedPackageDeclarations {
         // A provider already realized during normalization needs no additional
         // body judgment during settlement. Both belong to this accepted roster.
         for choice in &roster.normalization.providers {
-            if choice.target == target {
+            if matches!(&choice.use_as, prepared_typed_trees_to_lowered_program::provider_selections::ProviderUse::Selection { target: selected, .. } if selected == target)
+            {
                 let schema = choice.schema.scope(source).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "checked provider selection lost its source schema",

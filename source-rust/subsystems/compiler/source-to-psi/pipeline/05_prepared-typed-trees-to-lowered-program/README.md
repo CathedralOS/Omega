@@ -13,6 +13,8 @@ Build, see
 
 Each emitted Psi machine carries the instruction catalog target required by its source body. When recursive transitions share a machine, their bodies must admit a common target.
 
+For a supplier export, this stage records which checked implementation supplies each member of the exported requirement. A target's private provider selection is separate, even when the two records satisfy the same requirement.
+
 Data that contains itself by value has no storage, so a machine over it never
 runs. Such declarations take a second route: [mathematics.rs](src/mathematics.rs)
 reads them with the same reader, in a reader of its own so none of them is

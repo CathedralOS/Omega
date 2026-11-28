@@ -10,7 +10,7 @@ path = "accounting.rs"
 [dependencies]
 build-time-evaluation = { path = "../../../build/build-time" }
 build-model = { path = "../../../build/model" }
-checked-program-to-psi = { path = "../../pipeline/07_checked-program-to-psi" }
+published-source-invocation = { path = "../published-source-invocation" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
