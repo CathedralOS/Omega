@@ -463,3 +463,312 @@ machine metres_sum(a: u8 in Metres, b: u8 in Metres) -> u8 in Metres {{ b + a }}
     // Twin: the two declarations exchange domains, so the callees exchange.
     assert_eq!(lowered_callees("Metres", "Km"), ["join", "combine"]);
 }
+
+#[test]
+fn scope_exit_restores_each_hidden_mutable_reference_in_an_array() {
+    let source = "
+data File { value: u8; }
+data Socket { other: u8; value: u8; }
+data Handle<'a, some State> { state: @'a mutable State; }
+machine main() {
+    let mutable file: File = File { value: 17u8 };
+    let mutable socket: Socket = Socket { other: 0u8, value: 42u8 };
+    let handles: [Handle; 2] = [
+        Handle { state: @mutable file }, Handle { state: @mutable socket }
+    ];
+}";
+    let program = Program::of(source);
+    let lowered = program.elaboration();
+    let sites = &lowered.module.execution.packages.sites;
+    let witnesses: Vec<_> = sites
+        .iter()
+        .filter_map(|site| match &site.event {
+            terminal_psi::TerminalPackageEvent::Construct { witnesses } => Some(witnesses),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(witnesses.len(), 2);
+    assert_ne!(witnesses[0], witnesses[1]);
+    let mut released = Vec::new();
+    for operation in program.machine("main").operations() {
+        if let OperationKind::ReleaseReference { path, .. } = &operation.kind
+            && let [
+                terminal_psi::StructuralPathSegment::FixedIndex(index),
+                terminal_psi::StructuralPathSegment::Field(_),
+            ] = path.as_slice()
+        {
+            released.push(*index);
+        }
+    }
+    released.sort_unstable();
+    assert_eq!(released, [0, 1]);
+}
+
+#[test]
+fn calls_invalidate_the_actual_lenders_of_two_hidden_mutable_fields() {
+    let source = "
+data File { byte: u8; }
+data Socket { unused: u8; byte: u8; }
+data Read<S> = machine(state: @mutable S) -> u8 reaches none crashes none;
+data Reader<'a, some S> { state: @'a mutable S; read: Read<S>; }
+machine read_file(state: @mutable File) -> u8 reaches none crashes none { state.byte }
+machine read_socket(state: @mutable Socket) -> u8 reaches none crashes none { state.byte }
+machine read(reader: @mutable Reader) -> u8 { (reader.read)(reader.state) }
+machine main() -> bool {
+    let mutable file: File = File { byte: 17u8 };
+    let mutable socket: Socket = Socket { unused: 0u8, byte: 42u8 };
+    let mutable readers: [Reader; 2] = [
+        Reader { state: @mutable file, read: read_file },
+        Reader { state: @mutable socket, read: read_socket }
+    ];
+    let first: u8 = read(@mutable readers[0]);
+    let second: u8 = read(@mutable readers[1]);
+    first == 17u8 && second == 42u8
+}";
+    let program = Program::of(source);
+    // A write through readers[0] gives no information about readers[1],
+    // even though both array elements have the same public type.
+    use terminal_psi::{StructuralPathSegment::FixedIndex, call_structural_arguments};
+    use terminal_semantics::descriptor_lifetimes::descriptor_location;
+    use terminal_semantics::descriptor_results::{
+        DescriptorAnalysis, terminal_borrowed_storage_graph_from,
+    };
+    let module = &program.elaboration().module;
+    let state = program
+        .machine("read")
+        .operations()
+        .find_map(|op| op.kind.callable_invocation()?.structural_arguments.first())
+        .unwrap();
+    let main = program.machine("main");
+    let types = &module.types.structural_types;
+    let graph = terminal_borrowed_storage_graph_from(module, [main.id], &[]).unwrap();
+    let mut references = DescriptorAnalysis::with_borrowed_storage_slots(types, &graph);
+    let mut lenders = Vec::new();
+    for block in &main.blocks {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            let Some(argument) = call_structural_arguments(&operation.kind).first() else {
+                continue;
+            };
+            let [FixedIndex(selected)] = argument.path.as_slice() else {
+                panic!("a fixed array element")
+            };
+            let root = main.structural_place_type(argument.place).unwrap();
+            for index in 0..2 {
+                let mut path = vec![FixedIndex(index)];
+                path.extend_from_slice(&state.path);
+                let location =
+                    descriptor_location(types, argument.place, root, &path, None).unwrap();
+                let origins = terminal_semantics::packages::local_call_write_origins(
+                    module,
+                    main,
+                    (block.id, ordinal.try_into().unwrap()),
+                    &mut references,
+                    &location,
+                );
+                if index == *selected {
+                    lenders.push(origins.expect("the actual argument has an exact lender"));
+                } else {
+                    assert!(origins.is_none(), "the other array element was never lent");
+                }
+            }
+        }
+    }
+    assert_eq!(lenders.len(), 2);
+    assert_ne!(lenders[0], lenders[1]);
+    program.judged(|_| ()).accepted();
+
+    let mixed = source
+        .replace(
+            "read_file(state: @mutable File)",
+            "read_file(state: @mutable u8)",
+        )
+        .replacen("{ state.byte }", "{ $state }", 1)
+        .replace(
+            "let mutable file: File = File { byte: 17u8 };",
+            "let mutable file: u8 = 17u8;",
+        );
+    Program::of(&mixed).judged(|_| ()).accepted();
+
+    // Borrow the original File again while its Reader will still invoke it.
+    let overlapping = source
+        .replace(
+            "machine main()",
+            "machine overwrite(value: @mutable File) { value.byte = 99u8; }\nmachine main()",
+        )
+        .replace(
+            "let first: u8",
+            "overwrite(@mutable file);\n    let first: u8",
+        );
+    let disjoint = overlapping.replace(
+        "overwrite(@mutable file);",
+        "let mutable unrelated: File = File { byte: 9u8 }; overwrite(@mutable unrelated);",
+    );
+    Program::of(&disjoint).judged(|_| ()).accepted();
+    match Program::of(&overlapping).judged(|_| ()) {
+        program::Verdict::Refused(refusal) => assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Conflict
+        ),
+        program::Verdict::Rejected(rejection) => assert!(!rejection.conflicts.is_empty()),
+        other => panic!("expected conflicting use of the retained File, got {other:?}"),
+    }
+}
+
+/// Rebuilding the public package borrows both hidden fields from the same
+/// opening. Its plain tag has no dependence on a hidden type.
+#[test]
+fn repacking_shared_fields_uses_the_opening_of_their_source() {
+    const SOURCE: &str = "data Pair<'a, some S> { first: @'a S; second: @'a S; tag: u8; }
+        machine repack<'a>(p: @Pair<'a>) -> Pair<'a> {
+            Pair { first: p.first, second: p.second, tag: p.tag }
+        }";
+    let program = Program::of(SOURCE);
+    let lowered = program.lower();
+    let operations = lowered.operations("repack");
+    let sites = &program.elaboration().module.execution.packages.sites;
+    let mut projected = Vec::new();
+    for site in sites {
+        if let terminal_psi::TerminalPackageEvent::Project { opening, field } = &site.event {
+            let (_, op) = operations
+                .iter()
+                .find(|(_, op)| op.id == site.operation)
+                .expect("a projected field must have its actual read");
+            assert!(matches!(op.kind, OperationKind::StructuralLeafCopy { .. }));
+            projected.push((*opening, *field));
+        }
+    }
+    let [(first, first_field), (second, second_field)] = projected.as_slice() else {
+        panic!("expected two hidden reference projections, found {projected:?}");
+    };
+    assert_eq!(first, second);
+    assert_ne!(first_field, second_field);
+    assert_eq!(sites.len(), 3);
+    assert!(sites.iter().any(|site| matches!(
+        site.event,
+        terminal_psi::TerminalPackageEvent::Construct { .. }
+    )));
+    program.judged(|_| {}).accepted();
+
+    let crossed = SOURCE
+        .replace("p: @Pair<'a>", "p: @Pair<'a>, q: @Pair<'a>")
+        .replace("second: p.second", "second: q.second");
+    let refusal = Program::try_of(&[("product/main.omg", &crossed)])
+        .err()
+        .unwrap();
+    assert_eq!(refusal.stage, "typing");
+    assert_eq!(refusal.at, "second");
+    assert!(refusal.message.contains("conflicting generic arguments"));
+}
+
+#[test]
+fn a_dependent_field_update_survives_publication_and_independent_replay() {
+    use source_compiler::test_support::checking::{RouteVerdict, judge};
+    use terminal_psi::TerminalPackageEvent;
+    const SAVED_INPUT: &str = "OMEGA_TEST_SAVED_DEPENDENT_FIELD_UPDATE";
+    if let Some(path) = std::env::var_os(SAVED_INPUT) {
+        let bytes = std::fs::read(path).unwrap();
+        let decoded = terminal_codec::decode_module(&bytes).unwrap();
+        terminal_codec::sealing::prepare_received_execution(&decoded).unwrap();
+        assert!(
+            decoded
+                .execution
+                .packages
+                .sites
+                .iter()
+                .any(|s| matches!(s.event, TerminalPackageEvent::Store { .. }))
+        );
+        return;
+    }
+    let source = "
+data File { value: u8; }
+data Pair<'a, some S> { first: @'a S; second: @'a S; }
+machine update(p: @mutable Pair) { p.first = p.second; }
+machine main() {
+    let a: File = File { value: 11u8 };
+    let b: File = File { value: 42u8 };
+    let mutable pair: Pair = Pair { first: @a, second: @b };
+    update(@mutable pair);
+}";
+    let program = Program::of(source);
+    let lowered = &program.elaboration().module;
+    let (index, site) = lowered
+        .execution
+        .packages
+        .sites
+        .iter()
+        .enumerate()
+        .find(|(_, s)| matches!(s.event, TerminalPackageEvent::Store { .. }))
+        .expect("the dependent assignment emits an opening at its ordinary store");
+    assert!(matches!(
+        lowered
+            .machine(site.machine)
+            .unwrap()
+            .operation(site.operation)
+            .unwrap()
+            .kind,
+        OperationKind::StoreStructuralField { .. }
+    ));
+    let RouteVerdict::Accepted(accepted) = judge(Ok(program.elaboration().clone())).unwrap() else {
+        panic!(
+            "same-opening source update must reach publication: {:?}",
+            program.judged(|_| ())
+        );
+    };
+    let module = accepted.prepare_publication().unwrap().module().clone();
+    let bytes = terminal_codec::encode_module(&module).unwrap();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "omega-package-update-{}-{nonce}.psi",
+        std::process::id()
+    ));
+    {
+        use std::io::Write;
+        std::fs::File::create_new(&path)
+            .unwrap()
+            .write_all(&bytes)
+            .unwrap();
+    }
+    let receiver = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "a_dependent_field_update_survives_publication_and_independent_replay",
+        ])
+        .env(SAVED_INPUT, &path)
+        .output();
+    std::fs::remove_file(&path).unwrap();
+    let receiver = receiver.unwrap();
+    assert!(
+        receiver.status.success(),
+        "{}",
+        String::from_utf8_lossy(&receiver.stdout)
+    );
+    let source_field = lowered
+        .execution
+        .packages
+        .sites
+        .iter()
+        .find_map(|site| match site.event {
+            TerminalPackageEvent::Project { field, .. } => Some(field),
+            _ => None,
+        })
+        .unwrap();
+    let mut crossed = module.clone();
+    let TerminalPackageEvent::Store { field, .. } =
+        &mut crossed.execution.packages.sites[index].event
+    else {
+        unreachable!()
+    };
+    assert_ne!(*field, source_field);
+    *field = source_field;
+    assert!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&crossed).unwrap()).is_err()
+    );
+    let mut missing = module;
+    missing.execution.packages.sites.remove(index);
+    assert!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&missing).unwrap()).is_err()
+    );
+}

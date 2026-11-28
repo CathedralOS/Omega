@@ -49,6 +49,7 @@ mod contracts;
 pub(crate) mod domain_predicate_forms;
 mod expressions;
 mod families;
+pub(crate) mod field_openings;
 mod fixed_bytes;
 mod float_meaning;
 pub(crate) mod logical;
@@ -201,6 +202,7 @@ pub(crate) struct PredicateDefinition {
 }
 
 pub(crate) struct Program<'t> {
+    pub(crate) field_openings: field_openings::FieldOpenings,
     type_purpose: storage_metadata::TypePurpose,
     /// Sorted exact record IDs whose complete nested source type was read for a value use.
     value_records: Vec<StructuralTypeId>,
@@ -448,6 +450,8 @@ pub(crate) struct Program<'t> {
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// The symbols each record type was resolved from, by the same identity.
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
+    package_witnesses: Vec<(SymbolHandle, StructuralTypeId)>,
+    pub(crate) package_schemas: Vec<terminal_psi::TerminalPackageSchema>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
     resolving: Vec<(
@@ -627,6 +631,7 @@ impl<'t> Program<'t> {
                 .collect(),
             typed,
             type_purpose: storage_metadata::TypePurpose::Value,
+            field_openings: Default::default(),
             value_records: Vec::new(),
             admitted_declarations:
                 crate::source_state::references::DeclarationSelection::from_symbols([]),
@@ -707,6 +712,8 @@ impl<'t> Program<'t> {
             declared_domains: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
+            package_witnesses: Default::default(),
+            package_schemas: Vec::new(),
             resolving: Vec::new(),
             mathematical: false,
             self_containing: Vec::new(),

@@ -17,10 +17,16 @@ use terminal_psi::{
 mod construction;
 mod fields;
 mod opening;
+mod owned;
+mod requirements;
 mod restoration;
+mod returned;
+pub(crate) use returned::{ReturnedReferences, returned_referents};
 mod store;
+mod subjects;
 mod substitution;
 mod versions;
+mod witnesses;
 
 use construction::construction;
 use fields::{check_field_accesses, enters_package};
@@ -29,12 +35,23 @@ pub use restoration::local_call_write_origins;
 pub(crate) use restoration::local_mutable_field_homes;
 use substitution::Substitution;
 
+/// The hidden referent of the inline reference actually stored at this path.
+/// Following the reference into its pointee no longer selects the stored loan.
+pub fn hidden_reference_referent(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    fields::hidden_reference_field(module, root, path).map(|member| member.referent)
+}
+
 type Site = (MachineId, OperationId);
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Projected {
     Descriptor(ValueId),
     Reference(semantic_vocabulary::PlaceId),
+    Owner(semantic_vocabulary::PlaceId),
 }
 type ProjectedOrigins = BTreeMap<(MachineId, Projected), (u32, OperationId)>;
 
@@ -57,6 +74,58 @@ impl CheckedPackageSites {
         field: StructuralFieldId,
     ) -> Option<&StructuralFieldType> {
         self.fields.get(&(machine, operation, field))
+    }
+
+    /// A pack or a projection can rename the indices on its own field.
+    /// Both sides retain the same field path and every domain's exact theory.
+    pub(crate) fn field_memberships(
+        &self,
+        module: &TerminalModule,
+        machine: MachineId,
+        operation: &Operation,
+        field: StructuralFieldId,
+        public: &crate::structural_qualifications::Memberships,
+        actual: &crate::structural_qualifications::Memberships,
+    ) -> bool {
+        if self
+            .field_type(machine, operation.id, field)
+            .and_then(StructuralFieldType::as_structural)
+            .is_none()
+        {
+            return false;
+        }
+        let sites = &module.execution.packages.sites;
+        let Ok(index) = sites.binary_search_by_key(&(machine, operation.id), |site| {
+            (site.machine, site.operation)
+        }) else {
+            return false;
+        };
+        let (record, witnesses) = match &sites[index].event {
+            TerminalPackageEvent::Construct { witnesses } => {
+                let Some(result) = operation.result.structural() else {
+                    return false;
+                };
+                (result.structural_type, witnesses.as_slice())
+            }
+            TerminalPackageEvent::Project {
+                opening: index,
+                field: selected,
+            } if *selected == field => {
+                let Ok(row) = opening(module, machine, *index) else {
+                    return false;
+                };
+                (row.record, row.witnesses.as_slice())
+            }
+            _ => return false,
+        };
+        let Ok(schema) = schema(module, record) else {
+            return false;
+        };
+        Substitution {
+            public: &schema.witnesses,
+            actual: witnesses,
+        }
+        .memberships(module, public, actual)
     }
 
     /// The destination field after substituting this package's live witness.
@@ -97,6 +166,73 @@ impl CheckedPackageSites {
         self.projected_fields.get(&(machine, operation)).copied()
     }
 
+    /// Structural type produced by an independently checked projection of
+    /// this operation's exact package field.
+    pub fn projected_structural_type(
+        &self,
+        machine: MachineId,
+        operation: OperationId,
+    ) -> Option<StructuralTypeId> {
+        let field = self.projected_field(machine, operation)?;
+        self.field_type(machine, operation, field)?.as_structural()
+    }
+
+    /// Check the complete membership set before a declared owner field is
+    /// moved into its opening. Only this operation's checked field can rename
+    /// a carrier, and every live domain must follow that same substitution.
+    pub fn moved_owner_carries(
+        &self,
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+        public_type: StructuralTypeId,
+        public: &crate::structural_qualifications::Memberships,
+    ) -> bool {
+        let OperationKind::MoveStructuralValue { source } = &operation.kind else {
+            return false;
+        };
+        let Some(result) = operation.result.structural() else {
+            return false;
+        };
+        let Some(field) = self.projected_field(machine.id, operation.id) else {
+            return false;
+        };
+        let declared = machine
+            .structural_place_type(source.place)
+            .and_then(|root| {
+                crate::canonical_static_projection(
+                    module.types.structural_types.iter(),
+                    root,
+                    &source.path,
+                )
+                .map(|(_, selected)| selected.id)
+            });
+        declared == Some(public_type)
+            && self.projected_structural_type(machine.id, operation.id)
+                == Some(result.structural_type)
+            && self.field_memberships(
+                module,
+                machine.id,
+                operation,
+                field,
+                public,
+                &crate::structural_qualifications::Memberships {
+                    whole: result.qualifications.clone(),
+                    projected: result.projected_qualifications.clone(),
+                },
+            )
+    }
+
+    pub(crate) fn invocation_witnesses<'m>(
+        &self,
+        module: &'m TerminalModule,
+        machine: MachineId,
+        operation: OperationId,
+    ) -> Option<&'m [StructuralTypeId]> {
+        let &(index, _) = self.descriptors.get(&(machine, operation))?;
+        Some(&opening(module, machine, index).ok()?.witnesses)
+    }
+
     /// Check the concrete contract on the descriptor actually read. Repeated
     /// occurrences of one witness must denote one type. The call also checks
     /// the separately stored argument against the concrete machine parameter.
@@ -113,13 +249,7 @@ impl CheckedPackageSites {
         let Ok(opened) = opening(module, machine, index) else {
             return false;
         };
-        opened_callable_admits(
-            &module.execution.callables,
-            &module.types.structural_types,
-            &opened.witnesses,
-            abstract_contract,
-            actual,
-        )
+        opened_callable_admits(module, &opened.witnesses, abstract_contract, actual)
     }
 
     /// At a checked call, the declared type of the field borrowed from the
@@ -192,12 +322,12 @@ pub fn projects_stored_callable(
 /// Determine whether the descriptor at an already checked opening preserves
 /// its entire callable contract under the inferred witness substitution.
 pub fn opened_callable_admits(
-    catalog: &terminal_psi::TerminalCallableCatalog,
-    types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &TerminalModule,
     opened_witnesses: &[StructuralTypeId],
     abstract_contract: CallableContractId,
     actual: CallableContractId,
 ) -> bool {
+    let catalog = &module.execution.callables;
     let (Some(required), Some(supplied)) = (
         catalog.contract(abstract_contract),
         catalog.contract(actual),
@@ -205,18 +335,67 @@ pub fn opened_callable_admits(
         return false;
     };
     let mut bindings = BTreeMap::new();
-    for (from, to) in required
+    let arguments = required
         .structural_parameters
         .iter()
         .zip(&supplied.structural_parameters)
-    {
-        if opened_witnesses.contains(&from.structural_type)
-            && (terminal_psi::find_structural_type(types, to.structural_type).is_none()
-                || bindings
-                    .insert(from.structural_type, to.structural_type)
-                    .is_some_and(|previous| previous != to.structural_type))
+        .map(|(from, to)| (from.structural_type, to.structural_type));
+    let result = required
+        .result
+        .structural()
+        .zip(supplied.result.structural());
+    for (from, to) in arguments.chain(result) {
+        let mut bind = |formal, actual| {
+            bindings
+                .insert(formal, actual)
+                .is_none_or(|previous| previous == actual)
+        };
+        if opened_witnesses.contains(&from) {
+            if module.structural_type(to).is_none() || !bind(from, to) {
+                return false;
+            }
+        } else if opened_witnesses
+            .iter()
+            .any(|&witness| fields::nominal_uses(module, from, witness))
         {
-            return false;
+            let name = |id| {
+                module
+                    .structural_type(id)
+                    .and_then(|ty| module.identities.text(ty.identity))
+            };
+            let Some(formals) = opened_witnesses
+                .iter()
+                .map(|&id| name(id))
+                .collect::<Option<Vec<_>>>()
+            else {
+                return false;
+            };
+            let Some(arguments) = name(from).zip(name(to)).and_then(|(public, actual)| {
+                application_identity::type_identity::package_applications::supplied(
+                    public, actual, &formals,
+                )
+            }) else {
+                return false;
+            };
+            for (formal, actual) in arguments {
+                let Some(index) = formals.iter().position(|&name| name == formal) else {
+                    return false;
+                };
+                let Some(identity) = module.identities.index_of(actual) else {
+                    return false;
+                };
+                let mut candidates = module
+                    .types
+                    .structural_types
+                    .iter()
+                    .filter(|ty| ty.identity == identity);
+                let Some(actual) = candidates.next() else {
+                    return false;
+                };
+                if candidates.next().is_some() || !bind(opened_witnesses[index], actual.id) {
+                    return false;
+                }
+            }
         }
     }
     let (public, actual_types): (Vec<_>, Vec<_>) = bindings.into_iter().unzip();
@@ -224,7 +403,7 @@ pub fn opened_callable_admits(
         public: &public,
         actual: &actual_types,
     }
-    .callable(catalog, abstract_contract, actual)
+    .callable(module, abstract_contract, actual)
 }
 
 fn scalar_type(machine: &TerminalMachine, id: ValueId) -> Option<ScalarType> {
@@ -309,7 +488,6 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
     {
         return Err("package tables have duplicated or unordered rows");
     }
-    let mut abstract_types = Vec::new();
     let opaque = |id: &StructuralTypeId| {
         module.structural_type(*id).is_some_and(|ty| {
             matches!(ty.shape, StructuralTypeShape::Opaque)
@@ -322,7 +500,6 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
             return Err("package schema requires distinct abstract referents");
         }
         fields(module, row.record)?;
-        abstract_types.extend_from_slice(&row.witnesses);
     }
     for row in &catalog.openings {
         let machine = module
@@ -335,14 +512,8 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
         {
             return Err("package opening lacks a typed subject and fresh witness identities");
         }
-        abstract_types.extend_from_slice(&row.witnesses);
     }
-    // Wire identifiers need not be dense at this point in admission.
-    // Size this inventory by the number of actual binders.
-    abstract_types.sort_unstable();
-    if abstract_types.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err("package declarations and openings must have distinct witness identities");
-    }
+    let mut binders = witnesses::WitnessBinders::from_catalog(catalog)?;
     let mut projected = BTreeMap::new();
     let mut events = BTreeMap::new();
     for site in &catalog.sites {
@@ -352,21 +523,34 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
         let operation = machine
             .operation(site.operation)
             .ok_or("package site names an absent operation")?;
+        if let TerminalPackageEvent::Project { opening, .. }
+        | TerminalPackageEvent::Invoke { opening }
+        | TerminalPackageEvent::Store { opening, .. } = site.event
+        {
+            binders.check_use(module, machine, operation, opening)?;
+        }
         events.insert((machine.id, operation.id), &site.event);
-        match &site.event {
-            TerminalPackageEvent::Construct { .. } => (),
-            TerminalPackageEvent::Project { opening, field } => {
-                let value = projection(module, machine, operation, *opening, *field, &mut checked)?;
-                if projected
-                    .insert((machine.id, value), (*opening, operation.id))
-                    .is_some()
-                {
-                    return Err("two package fields claim one descriptor result");
-                }
+        let origin = match &site.event {
+            TerminalPackageEvent::Project { opening, field } => Some((
+                projection(module, machine, operation, *opening, *field, &mut checked)?,
+                *opening,
+            )),
+            TerminalPackageEvent::Invoke { opening } => {
+                opening::returned_owner(module, machine, operation, *opening)
+                    .map(|owner| (owner, *opening))
             }
-            TerminalPackageEvent::Invoke { .. } | TerminalPackageEvent::Store { .. } => (),
+            TerminalPackageEvent::Construct { .. } | TerminalPackageEvent::Store { .. } => None,
+        };
+        if let Some((value, opening)) = origin
+            && projected
+                .insert((machine.id, value), (opening, operation.id))
+                .is_some()
+        {
+            return Err("two package operations claim one opened result");
         }
     }
+    binders.require_copy_evidence()?;
+    let abstract_types = &binders.types;
     for machine in &module.machines {
         for block in &machine.blocks {
             if block
@@ -386,7 +570,7 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                     machine,
                     operation,
                     witnesses,
-                    &abstract_types,
+                    abstract_types,
                     &projected,
                     &mut checked,
                 )?;
@@ -438,6 +622,13 @@ pub fn check_package_sites(module: &TerminalModule) -> Result<CheckedPackageSite
                                 abstract_types
                                     .binary_search(&formal.structural_type)
                                     .is_ok()
+                                    || abstract_types.iter().any(|&witness| {
+                                        fields::nominal_uses(
+                                            module,
+                                            formal.structural_type,
+                                            witness,
+                                        )
+                                    })
                             })
                         }))
                 && !matches!(event, Some(TerminalPackageEvent::Invoke { .. }))

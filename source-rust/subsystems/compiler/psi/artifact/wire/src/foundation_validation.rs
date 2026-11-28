@@ -326,9 +326,21 @@ pub(crate) mod call_foundations {
                 return malformed("machine call claim transfer changes the retained owned path");
             }
         }
-        if let Some(result) = operation.result.structural() {
+        let bindings = if let Some(result) = operation.result.structural() {
             validate_structural_call_result_declaration(module, machine, operation, result)?;
             validate_result_claim_shape(module, result, std::iter::empty())?;
+            result.claims.as_slice()
+        } else {
+            &[]
+        };
+        let expected = &contract.result_claim_paths;
+        if !strictly_increasing(expected.iter())
+            || bindings.len() != expected.len()
+            || bindings
+                .iter()
+                .any(|binding| expected.binary_search(&binding.path).is_err())
+        {
+            return malformed("machine call result changes the retained owned paths");
         }
         let mut parameters = std::borrow::Cow::Borrowed(contract.structural_parameters.as_slice());
         if packages
@@ -3614,7 +3626,7 @@ pub(crate) mod machine_foundations {
         validate_structural_parameters(module, &machine.structural_parameters)?;
         super::call_foundations::validate_outcome_subjects(module, machine)?;
         super::scalar_observations::machine(module, machine)?;
-        structural_result_wire::validate_reference_sources(module, machine)?;
+        structural_result_wire::validate_reference_sources(analyses, machine)?;
         for block in &machine.blocks {
             validate_block_parameters(module, machine, block)?;
         }
@@ -7448,6 +7460,7 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            packages: &terminal_semantics::packages::CheckedPackageSites,
         ) -> Result<(), CodecError> {
             let OperationKind::MoveStructuralField {
                 source,
@@ -7470,7 +7483,10 @@ pub(crate) mod storage_foundations {
             ) else {
                 return malformed("structural field move requires a mutable-borrowed parameter");
             };
-            if result.structural_type != window_field_type(module, root_type, path, *field)? {
+            if result.structural_type != window_field_type(module, root_type, path, *field)?
+                && packages.projected_structural_type(machine.id, operation.id)
+                    != Some(result.structural_type)
+            {
                 return malformed("structural field move result type does not match field");
             }
             Ok(())
@@ -7979,16 +7995,38 @@ pub(crate) mod storage_foundations {
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "owned transfer requires a finite owned path",
             ))?;
-            if selected.id != result.structural_type {
+            if selected.id != result.structural_type
+                && analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?
+                    .projected_structural_type(machine.id, operation.id)
+                    != Some(result.structural_type)
+            {
                 return malformed("owned value transfer changes its carrier");
             }
             if !super::super::is_op_result_place(machine, operation, result) {
                 return malformed("owned value transfer result is not a fresh occurrence");
             }
-            if !terminal_payload_contract(machine, source.place).is_some_and(|declared| {
-                declared.move_preserves_qualifications(&source.path, result)
-            }) {
-                return malformed("owned value transfer loses source memberships");
+            let declared = terminal_payload_contract(machine, source.place).ok_or(
+                CodecError::MalformedStructuralFoundation(
+                    "owned value transfer has no source declaration",
+                ),
+            )?;
+            if !declared.move_preserves_qualifications(&source.path, result) {
+                let (whole, projected) = terminal_psi::StructuralPathQualification::select(
+                    &declared.qualifications,
+                    &declared.projected_qualifications,
+                    &source.path,
+                );
+                let memberships =
+                    terminal_semantics::structural_qualifications::Memberships { whole, projected };
+                if !analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?
+                    .moved_owner_carries(module, machine, operation, selected.id, &memberships)
+                {
+                    return malformed("owned value transfer loses source memberships");
+                }
             }
             validate_current_source_memberships(analyses, machine, operation)?;
             validate_byte_transfer_qualifications(module, machine, operation)
@@ -12945,7 +12983,14 @@ fn validate_operation_foundation(
             )?
         }
         OperationKind::MoveStructuralField { .. } => {
-            storage_foundations::validate_move_structural_field(module, machine, operation)?
+            storage_foundations::validate_move_structural_field(
+                module,
+                machine,
+                operation,
+                analyses
+                    .package_sites()
+                    .map_err(CodecError::MalformedStructuralFoundation)?,
+            )?
         }
         OperationKind::StoreStructuralField { .. } => {
             storage_foundations::validate_store_structural_field(

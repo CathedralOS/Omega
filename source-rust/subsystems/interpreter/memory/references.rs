@@ -4202,28 +4202,6 @@ impl TerminalExecution<'_> {
         )
     }
 
-    fn is_package_reference_field(
-        &self,
-        root: StructuralTypeId,
-        path: &[StructuralPathSegment],
-        witness: StructuralTypeId,
-    ) -> Result<bool, TerminalInterpretError> {
-        let Some((StructuralPathSegment::Field(_), parent)) = path.split_last() else {
-            return Ok(false);
-        };
-        let schemas = &self.program.catalogs.execution.packages.schemas;
-        if !schemas
-            .iter()
-            .any(|schema| schema.witnesses.contains(&witness))
-        {
-            return Ok(false);
-        }
-        let parent = resolve_structural_path_type(&self.structural_types(), root, parent)?;
-        Ok(schemas
-            .iter()
-            .any(|schema| schema.record == parent && schema.witnesses.contains(&witness)))
-    }
-
     pub(crate) fn bind_reference_return_backings(
         &self,
         parameters: &[StructuralParameterDeclaration],
@@ -4276,27 +4254,29 @@ impl TerminalExecution<'_> {
                         source,
                     )
                     .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
-                    if binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
-                        && binding.endpoint != referent_type
-                    {
+                    // The source checker and saved-Psi receiver verify this header against
+                    // the body. Capture the physical input it names before entering the call.
+                    let exact =
+                        binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected;
+                    let is_hidden = |root, path: &[StructuralPathSegment]| {
+                        terminal_semantics::packages::hidden_reference_referent(
+                            &self.program.catalogs,
+                            root,
+                            path,
+                        ) == Some(referent_type)
+                    };
+                    let hidden_result = exact && is_hidden(signature.structural_type, &origin.path);
+                    let concrete_input = exact && binding.endpoint != referent_type;
+                    if concrete_input && !hidden_result {
                         return Err(malformed());
                     }
                     let path = binding.source.path.as_slice();
-                    let package_endpoint = if binding.extent
-                        == semantic_vocabulary::ReferenceOriginExtent::Projected
+                    let package_endpoint = if hidden_result
                         && binding.suffix.is_empty()
                         && let Some((StructuralPathSegment::Referent, field_path)) =
                             path.split_last()
-                        && self.is_package_reference_field(
-                            owner.structural_type,
-                            field_path,
-                            referent_type,
-                        )?
-                        && self.is_package_reference_field(
-                            signature.structural_type,
-                            &origin.path,
-                            referent_type,
-                        )? {
+                        && is_hidden(owner.structural_type, field_path)
+                    {
                         Some(referent_type)
                     } else {
                         None
@@ -4341,7 +4321,14 @@ impl TerminalExecution<'_> {
                     let logical = projected.value;
                     let presentation =
                         view.map_or(logical.structural_type, |view| view.structural_type);
-                    let package_referent = package_endpoint.map(|_| presentation);
+                    // The admitted source mapping names a particular input and
+                    // path. Retain that concrete type alongside the captured
+                    // address so return validation compares the actual lender.
+                    let package_referent = if concrete_input {
+                        Some(binding.endpoint)
+                    } else {
+                        package_endpoint.map(|_| presentation)
+                    };
                     let referent_type = package_referent.unwrap_or(referent_type);
                     let endpoint = terminal_semantics::reference_origin_type(
                         self.structural_types().values(),
@@ -4857,8 +4844,7 @@ mod package_opening_tests {
                 ReferenceReferent::from_view(original.clone()),
             )
             .unwrap();
-        execution.structural_values.insert(input, argument).unwrap();
-        let signature = StructuralResultDeclaration {
+        let mut signature = StructuralResultDeclaration {
             place: PlaceId::new(2).unwrap(),
             structural_type: package,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -4866,20 +4852,10 @@ mod package_opening_tests {
             projected_qualifications: vec![],
             reference_sources: vec![StructuralReferenceResultSource {
                 path: field_path.clone(),
-                sources: vec![StructuralReferenceOrigin::Parameter(
-                    StructuralArgument {
-                        place: input,
-                        access,
-                        path: vec![
-                            StructuralPathSegment::Field(field),
-                            StructuralPathSegment::Referent,
-                        ],
-                    }
-                    .into(),
-                )],
+                sources: vec![],
             }],
         };
-        let parameter = StructuralParameterDeclaration {
+        let mut parameter = StructuralParameterDeclaration {
             place: input,
             position: 0,
             structural_type: package,
@@ -4889,33 +4865,56 @@ mod package_opening_tests {
             projected_qualifications: vec![],
             additional_input_qualifications: vec![],
         };
-        let rows = execution
-            .bind_reference_return_backings(
-                &[parameter],
-                &signature,
-                &execution.structural_values,
-                &execution.aggregate_argument_backings,
-                &execution.primitive_loan_values,
-                &execution.element_view_values,
-                &execution.byte_sequence_values,
-                &execution.access_view_occurrences,
-            )
-            .unwrap();
-        execution
-            .entry_reference_backings
-            .get_or_insert_with(Default::default)
-            .rows = rows;
-        for (referent, valid) in [(original, true), (other, false)] {
-            execution
-                .reference_referents
-                .insert(field_home(&result), ReferenceReferent::from_view(referent))
+        // Repacking reads the loan in the incoming package. First-time
+        // construction borrows the concrete input directly. Both keep its address.
+        for (value, path) in [
+            (
+                argument,
+                vec![
+                    StructuralPathSegment::Field(field),
+                    StructuralPathSegment::Referent,
+                ],
+            ),
+            (original.clone(), vec![]),
+        ] {
+            parameter.structural_type = value.structural_type;
+            execution.structural_values.insert(input, value).unwrap();
+            signature.reference_sources[0].sources = vec![StructuralReferenceOrigin::Parameter(
+                StructuralArgument {
+                    place: input,
+                    access,
+                    path,
+                }
+                .into(),
+            )];
+            let rows = execution
+                .bind_reference_return_backings(
+                    std::slice::from_ref(&parameter),
+                    &signature,
+                    &execution.structural_values,
+                    &execution.aggregate_argument_backings,
+                    &execution.primitive_loan_values,
+                    &execution.element_view_values,
+                    &execution.byte_sequence_values,
+                    &execution.access_view_occurrences,
+                )
                 .unwrap();
-            assert_eq!(
+            execution
+                .entry_reference_backings
+                .get_or_insert_with(Default::default)
+                .rows = rows;
+            for (referent, valid) in [(original.clone(), true), (other.clone(), false)] {
                 execution
-                    .validate_reference_return(&signature, &result)
-                    .is_ok(),
-                valid
-            );
+                    .reference_referents
+                    .insert(field_home(&result), ReferenceReferent::from_view(referent))
+                    .unwrap();
+                assert_eq!(
+                    execution
+                        .validate_reference_return(&signature, &result)
+                        .is_ok(),
+                    valid
+                );
+            }
         }
     }
 }

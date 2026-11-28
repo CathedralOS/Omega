@@ -456,6 +456,44 @@ impl Program<'_> {
         application: Option<crate::source_state::SourceTypeApplication>,
     ) -> Checked<ValueType> {
         let typed = self.typed;
+        let unserved = |what| refuse_at(id, Unserved::Type(what));
+        if data.package_parameters.is_empty() {
+            return self.read_record_definition(id, data, application);
+        }
+        let hidden = typed
+            .data_type_parameters
+            .span(data.package_parameters)
+            .ok_or_else(|| unserved("package declaration lost its hidden type roster"))?;
+        if hidden.iter().any(|parameter| {
+            parameter.kind != crate::source_state::data::TypeParameterKind::Type
+                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).kind != SymbolKind::TypeParameter
+                || typed.symbols.get(parameter.symbol).parent != data.symbol
+        }) {
+            return Err(unserved(
+                "package field scope contains a foreign or non-type parameter",
+            ));
+        }
+        // The declaration binds S for both its field types and the custody
+        // predicates emitted for those fields, including a nested Owner<S>.
+        let scope = std::sync::Arc::new(crate::source_state::SourceTypeScope {
+            parent: Some(self.source_scope.clone()),
+            substitutions: Vec::new(),
+            rigid_parameters: hidden.iter().map(|parameter| parameter.symbol).collect(),
+        });
+        let outer = std::mem::replace(&mut self.source_scope, scope);
+        let read = self.read_record_definition(id, data, application);
+        self.source_scope = outer;
+        read
+    }
+
+    fn read_record_definition(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        application: Option<crate::source_state::SourceTypeApplication>,
+    ) -> Checked<ValueType> {
+        let typed = self.typed;
         let symbol = data.symbol;
         self.served(id, symbol)?;
         let same =
@@ -814,6 +852,7 @@ impl Program<'_> {
             erased: erased_symbols,
         };
         let record = self.push_record_row(record_type, source);
+        self.retain_package_schema(id, record, data)?;
         if application.is_none() && data.predicate_subject_type.is_valid() {
             self.record_application(id, record, data.predicate_subject_type)?;
         }
@@ -1637,10 +1676,20 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        expression: crate::source_state::expression::ExpressionHandle,
         member: &TableMemberExpression,
         source: SourceOrigin,
         access: Access,
     ) -> Checked<Expression> {
+        let source = if self.typed.package_projection(expression).is_some() {
+            self.authored_node(
+                id,
+                crate::source_state::SourceNode::Expression(expression),
+                self.typed.expression_table.source_span(expression),
+            )?
+        } else {
+            source
+        };
         if let crate::source_state::expression::MemberSelection::CollectionMeasure(measure) =
             member.selection
         {
@@ -1697,7 +1746,18 @@ impl Program<'_> {
             match self.member_of(id, record, member.selection.field_symbol())? {
                 Member::Field(field) => Expression {
                     call_context: None,
-                    result: Some(self.field_type(id, record, regions, field)?),
+                    result: Some(
+                        match self.opened_field_type(
+                            id,
+                            member.selection.field_symbol(),
+                            record.record(),
+                            regions,
+                            source,
+                        )? {
+                            Some(opened) => opened,
+                            None => self.field_type(id, record, regions, field)?,
+                        },
+                    ),
                     kind: ExpressionKind::Field { base, field },
                     source,
                 },
@@ -1742,6 +1802,13 @@ impl Program<'_> {
             .data_declaration(literal.type_symbol)
             .ok_or_else(|| unserved("literal of a type that is not a data declaration"))?;
         let package = super::packages::check_construction(self.typed, id, declaration, literal)?;
+        let mut package_witnesses = Vec::new();
+        if let Some(evidence) = literal.package.as_deref() {
+            for &ty in &evidence.witnesses {
+                let value = self.value_type(id, ty)?;
+                package_witnesses.push(self.storage_type(id, ty, value)?);
+            }
+        }
         let applications = [
             literal.application_type,
             self.typed
@@ -1915,12 +1982,30 @@ impl Program<'_> {
                     "record literal field type",
                 ));
             }
-            // Keep concrete reference and callable types until the storage
-            // conversion can prove they share this package's witness.
             if field_type != storage_type && !self.agrees(operand.result, Some(storage_type)) {
-                return Err(unserved(
-                    "package field requires a checked witness-preserving storage conversion",
-                ));
+                // check_construction matched this exact field against the declaration
+                // with the package's entire witness tuple substituted. Keep the
+                // same outer permissions as we emit its concrete initializer. The
+                // lowered-form checker checks its physical storage recursively.
+                let admitted = package.is_some()
+                    && match (storage_type, field_type) {
+                        (
+                            ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_), public),
+                            ValueType::Scalar(
+                                semantic_vocabulary::ScalarType::Callable(_),
+                                concrete,
+                            ),
+                        ) => public == concrete,
+                        (ValueType::Record(_, pq, pr), ValueType::Record(_, cq, cr)) => {
+                            pq == cq && pr == cr
+                        }
+                        _ => false,
+                    };
+                if !admitted {
+                    return Err(unserved(
+                        "package field has no checked uniform representation",
+                    ));
+                }
             }
             fields.push((position, operand));
         }
@@ -1951,6 +2036,7 @@ impl Program<'_> {
             call_context: None,
             kind: match case {
                 None => ExpressionKind::Record {
+                    package_witnesses,
                     fields,
                     erased: erased_terms,
                 },
@@ -2036,6 +2122,7 @@ impl Program<'_> {
                         }
                         match case {
                             None => ExpressionKind::Record {
+                                package_witnesses: Vec::new(),
                                 fields,
                                 erased: Vec::new(),
                             },

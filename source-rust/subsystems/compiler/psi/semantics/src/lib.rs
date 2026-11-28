@@ -116,7 +116,7 @@ pub use references::reference_completion::{
     BorrowedLoanSource, BorrowedLoanSources, CallLifetimeIndex, ReferenceCompletionError,
     ReferenceCompletionOccurrence, RetainedCallLoan, borrowed_loan_source, borrowed_loan_sources,
     disposed_reference_on_return, incoming_view_occurrence, reference_call_lifetimes,
-    reference_call_lifetimes_indexed, reference_loan_parent, validate_reference_result_completion,
+    reference_call_lifetimes_indexed, validate_reference_result_completion,
 };
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,

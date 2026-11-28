@@ -1,0 +1,39 @@
+use {omega}/language/core/extent.omg as extent;
+
+data Placement {}
+data Owner<T> [linear] {
+    storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<Placement, T>;
+    provider: u64;
+}
+
+data Receipt<some S> [linear] { returned: Owner<S>; }
+data Finish<T> = machine(owner: Owner<T>) -> Receipt reaches none crashes none;
+data Job<some S> [linear] { owner: Owner<S>; finish: Finish<S>; }
+
+machine finish_byte(owner: Owner<u8>) -> Receipt reaches none crashes none {
+    Receipt { returned: move owner }
+}
+
+machine settle(job: Job) -> Receipt reaches none crashes none {
+    let { owner, finish } = move job;
+    (finish)(move owner)
+}
+
+machine complete(
+    storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<Placement, u8>,
+    provider: u64
+) -> Receipt reaches none crashes none {
+    let owner: Owner<u8> = Owner { storage: move storage, provider: provider };
+    let job: Job = Job { owner: move owner, finish: finish_byte };
+    settle(move job)
+}
+
+data Copies<T> { first: T; second: T; }
+
+machine duplicate<T [copy]>(value: T) -> Copies<T> {
+    Copies { first: value, second: value }
+}
+
+machine collect(value: u8) -> Copies<u8> { duplicate::<u8>(value) }
+
+machine main() {}

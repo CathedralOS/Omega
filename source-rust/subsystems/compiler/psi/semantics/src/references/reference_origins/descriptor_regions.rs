@@ -266,20 +266,14 @@ pub fn reference_result_contents(
             }
         }
     }
-    reference_sources_for_leaves(
-        types,
-        parameters,
-        result,
-        &contents.slots,
-        inventory.references,
-    )
+    reference_sources_for_leaves(types, parameters, result, contents, inventory.references)
 }
 
 fn reference_sources_for_leaves(
     types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     result: &StructuralResultDeclaration,
-    slots: &[DescriptorResultSlot],
+    contents: &crate::descriptor_results::DescriptorResultContents,
     leaves: Vec<super::ReferenceLeaf>,
 ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
     let mut mappings = Vec::with_capacity(leaves.len());
@@ -292,7 +286,7 @@ fn reference_sources_for_leaves(
         else {
             return Err("reference result leaf changed constructor");
         };
-        let mut matching = slots.iter().filter(|slot| {
+        let mut matching = contents.slots.iter().filter(|slot| {
             descriptor_path(types, result.structural_type, &slot.path).as_ref() == Some(&leaf.path)
         });
         let slot = matching
@@ -466,7 +460,14 @@ fn reference_sources_for_leaves(
                 parameter.structural_type,
                 &path,
             )?;
-            if endpoint != referent {
+            // A complete returned package hides the concrete referent. Its
+            // checked initializer identifies the type, while the ordinary
+            // replay below still verifies the exact input path and access.
+            let concrete = contents
+                .package_referents
+                .referent(&leaf.path, position, &path);
+            let admits = |ty| ty == referent || Some(ty) == concrete;
+            if !admits(endpoint) {
                 let Some(StructuralTypeShape::Reference {
                     referent: stored,
                     access: ceiling,
@@ -477,7 +478,7 @@ fn reference_sources_for_leaves(
                 else {
                     return Err("reference result changes its original referent");
                 };
-                if *stored != referent || !input_access.admits_referent(*ceiling) {
+                if !admits(*stored) || !input_access.admits_referent(*ceiling) {
                     return Err("reference result changes its input type or access");
                 }
                 path.push(ReferenceOriginProjection::Exact(

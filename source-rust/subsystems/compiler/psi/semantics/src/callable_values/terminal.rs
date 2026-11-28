@@ -94,7 +94,8 @@ pub fn boundary_call_reach_in<'p>(
             ReachedCallableTarget::Callable(values) => {
                 for ceiling in &values.unresolved_ceilings {
                     let contract = module
-                        .execution.callables
+                        .execution
+                        .callables
                         .contract(*ceiling)
                         .ok_or("reached callable has no exact unresolved contract")?;
                     if !contract.envelope.invocations.is_empty() {
@@ -331,6 +332,9 @@ fn project_callable_values<'m>(
                         &module.execution.callables,
                         operation.id,
                         contract,
+                        packages
+                            .invocation_witnesses(module, machine.id, operation.id)
+                            .ok_or("package call lacks its checked witness tuple")?,
                         referents,
                     )?;
                 }
@@ -508,6 +512,7 @@ fn project_callable_values<'m>(
         }
     }
     Ok(CallableValueProgram {
+        module: Some(module),
         catalog: &module.execution.callables,
         structural_types: &module.types.structural_types,
         graph,

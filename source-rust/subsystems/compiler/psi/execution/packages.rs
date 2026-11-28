@@ -27,8 +27,8 @@ pub struct TerminalPackageOpening {
     pub record: StructuralTypeId,
     /// The projected package itself, before selecting one of its fields.
     pub subject: crate::StructuralArgument,
-    /// Fresh abstract identities for this exact subject and storage version.
-    /// Replay must establish that the subject stayed live between uses.
+    /// Abstract types in binder order. Separate openings may share these
+    /// identities when replay proves their observed values have a common copy origin.
     pub witnesses: Vec<StructuralTypeId>,
 }
 

@@ -411,6 +411,26 @@ impl BorrowedLoanSources {
             }
         }
     }
+
+    /// Returning a descriptor passes on the whole choice made by its
+    /// producing call. Each possible loan must pass normal return cleanup.
+    pub fn returned_loans(self) -> Result<Vec<semantic_vocabulary::ObligationId>, &'static str> {
+        if let Self::Selected(mut choice) = self {
+            return match choice.nodes.remove(&choice.root) {
+                Some(crate::descriptor_lifetimes::LoanChoice::CallResult { loans, .. }) => {
+                    Ok(loans)
+                }
+                _ => Err("returned reference needs the exact loans selected by its producing call"),
+            };
+        }
+        match self.single()? {
+            BorrowedLoanSource::Loan(parent) => Ok(vec![parent]),
+            BorrowedLoanSource::Incoming | BorrowedLoanSource::Provider => Ok(Vec::new()),
+            BorrowedLoanSource::Owner => {
+                Err("owned view backing is not an incoming reference occurrence")
+            }
+        }
+    }
 }
 
 /// Check the permission of a borrowed descriptor from the original provider
@@ -849,30 +869,6 @@ pub fn borrowed_loan_sources<'a>(
     // None denotes this verified caller-owned resource, not a failed
     // lookup. No local Loan identity is invented for an incoming leaf.
     Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming))
-}
-
-pub fn reference_loan_parent<'a>(
-    module: &terminal_psi::TerminalModule,
-    machine: &terminal_psi::TerminalMachine,
-    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    at: crate::descriptor_lifetimes::DescriptorPosition,
-    descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
-    candidates: impl Iterator<
-        Item = (
-            semantic_vocabulary::ObligationId,
-            &'a crate::descriptor_lifetimes::DescriptorLifetime,
-        ),
-    >,
-) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
-    match borrowed_loan_source(module, machine, analysis, at, descriptor, candidates)? {
-        BorrowedLoanSource::Loan(parent) => Ok(Some(parent)),
-        // Both resources were authenticated above and neither was formed by a
-        // local loan obligation. Provider keepalive dependencies have their own ends.
-        BorrowedLoanSource::Incoming | BorrowedLoanSource::Provider => Ok(None),
-        BorrowedLoanSource::Owner => {
-            Err("owned view backing is not an incoming reference occurrence")
-        }
-    }
 }
 
 /// The storage one call input keeps borrowed after the call returns, and
@@ -1368,7 +1364,7 @@ fn reference_call_lifetimes_with_index(
                         Some(requirement),
                     )
                 } else {
-                    let contents = analysis.result_contents(callee.id).ok_or_else(|| {
+                    let contents = analysis.result_contents(module, callee.id).ok_or_else(|| {
                     // A dependency can fail before its return sources are
                     // exported. Keep that flow's actual machine and site.
                     analysis.flow(callee.id).err().unwrap_or_else(|| {

@@ -934,6 +934,9 @@ impl Lowering<'_> {
         )?;
         let erased_arguments = std::mem::take(&mut arguments.erased);
         let scalars = std::mem::take(&mut arguments.scalars);
+        if let EvaluatedCallTarget::Selected { callable, .. } = target {
+            self.package_invocation_site(callable, operation);
+        }
         let kind = match target {
             EvaluatedCallTarget::Selected { callable, contract } => OperationKind::CallMachine {
                 callee: callable,

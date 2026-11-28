@@ -114,6 +114,7 @@ pub(crate) struct WriteRow {
 /// beside it, the interned identity Terminal Psi's declarations and
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
+    pub(crate) field_openings: crate::read::field_openings::FieldOpenings,
     types: &'a IdTable<StructuralTypeId, RecordType>,
     zero_eligibility: IdTable<StructuralTypeId, Result<(), ZeroEligibilityError>>,
     pub(crate) inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -905,6 +906,7 @@ pub(crate) fn declare<'a, 'b>(
     }
     Ok(Declared {
         records: Records {
+            field_openings: Default::default(),
             types,
             zero_eligibility: zero_eligibility(types),
             inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
@@ -3036,9 +3038,18 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::Record { fields, erased } => {
-                let (root, place) =
-                    continuing!(self.establish(record, fields, erased, expression.source));
+            ExpressionKind::Record {
+                fields,
+                erased,
+                package_witnesses,
+            } => {
+                let (root, place) = continuing!(self.establish(
+                    record,
+                    fields,
+                    erased,
+                    package_witnesses,
+                    expression.source
+                ));
                 Ok(Reached::Value(Located {
                     root,
                     place,
@@ -3505,7 +3516,23 @@ impl<'a> Lowering<'a> {
                 Unserved::Expression("owned extraction from borrowed storage"),
             ));
         }
-        self.name_contents(at.place, value_type)?;
+        // A hidden field has one declared storage type. Each extraction
+        // produces the type belonging to the opening of this package value.
+        let projection = match (self.records.field_openings.get(source), at.path.last()) {
+            (Some(projection), Some(Step::Field { owner, field })) => {
+                let stored = self
+                    .record_type(*owner)?
+                    .fields()
+                    .get(*field)
+                    .ok_or_else(|| self.internal("a projected field has no structural identity"))?;
+                Some((projection.clone(), *owner, stored.id, stored.value_type))
+            }
+            _ => None,
+        };
+        self.name_contents(
+            at.place,
+            projection.as_ref().map_or(value_type, |row| row.3),
+        )?;
         // Whole records still select an element. Retain this descriptor's
         // current length immediately before the indexed copy or move.
         if let Some((descriptor, _, _)) = &view {
@@ -3513,6 +3540,19 @@ impl<'a> Lowering<'a> {
         }
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
+        if let Some((projection, owner, field, _)) = projection {
+            let Some((StructuralPathSegment::Field(_), subject_path)) = path.split_last() else {
+                return Err(
+                    self.internal("a hidden field extraction has no final field projection")
+                );
+            };
+            let subject = StructuralArgument {
+                place: at.root,
+                path: subject_path.to_vec(),
+                access: StructuralAccess::SharedBorrow,
+            };
+            self.package_projection_site(projection, subject, owner, field, operation, None)?;
+        }
         let (root, exact) = self.produce(
             operation,
             value_type,
@@ -3874,6 +3914,14 @@ impl<'a> Lowering<'a> {
         &mut self,
         expression: &Expression,
     ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
+        self.capture_place_as(expression, None)
+    }
+
+    fn capture_place_as(
+        &mut self,
+        expression: &Expression,
+        opened_field: Option<ValueType>,
+    ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
         let captured = match &expression.kind {
             ExpressionKind::OwnedTemporary {
                 value, scalar_home, ..
@@ -3943,7 +3991,7 @@ impl<'a> Lowering<'a> {
                     owner,
                     field: *field,
                 };
-                let value_type = self.declared(step)?.value_type;
+                let value_type = opened_field.unwrap_or(self.declared(step)?.value_type);
                 let exact = self.step(parent, step)?;
                 steps.push(step);
                 (root, steps, exact, value_type)
@@ -4056,6 +4104,7 @@ impl<'a> Lowering<'a> {
         record: StructuralTypeId,
         fields: &[(usize, Expression)],
         erased: &[(semantic_vocabulary::StructuralFieldId, Expression)],
+        package_witnesses: &[StructuralTypeId],
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let declared = self.record_type(record)?.fields();
@@ -4095,9 +4144,23 @@ impl<'a> Lowering<'a> {
             });
         }
         if self.record_type(record)?.authored_layout {
+            if !package_witnesses.is_empty() {
+                return Err(
+                    self.internal("package construction requires an ordinary record layout")
+                );
+            }
             return self.establish_laid_out(record, roster, source);
         }
         let operation = self.operation_identity(source);
+        if !package_witnesses.is_empty() {
+            self.packages.sites.push(terminal_psi::TerminalPackageSite {
+                machine: self.id,
+                operation,
+                event: terminal_psi::TerminalPackageEvent::Construct {
+                    witnesses: package_witnesses.to_vec(),
+                },
+            });
+        }
         for (field, expression) in erased {
             let witness = self.witness(expression)?;
             let term = witness.term(&self.erased_applications);
@@ -4844,6 +4907,59 @@ impl<'a> Lowering<'a> {
         let leaf = self.step(at.place, step)?;
         let mut steps = at.path;
         steps.push(step);
+        if let Some(projection) = self.records.field_openings.get(expression.source).cloned() {
+            if self.element_view_projection(at.root, &steps)?.is_some() {
+                return Err(self.internal(
+                    "a projected package in a dynamic element view has no checked value path",
+                ));
+            }
+            let Some(ValueType::Scalar(carrier, _)) = expression.result else {
+                return Err(
+                    self.internal("a materialized package field is missing its scalar type")
+                );
+            };
+            // The place keeps its declared schema even when later reads of
+            // that same storage produce a different scoped callable type.
+            let stored = self
+                .record_type(at.record)?
+                .fields()
+                .get(field)
+                .ok_or_else(|| self.internal("a projected field has no structural identity"))?;
+            let field_id = stored.id;
+            let stored_type = stored.value_type;
+            self.name_passed_clauses(at.root, &steps)?;
+            self.name_contents(leaf, stored_type)?;
+            let operation = self.operation_identity(expression.source);
+            let path = self.storage_path(
+                &steps,
+                ExecutionSite::Operation(operation),
+                expression.source,
+            )?;
+            let Some((StructuralPathSegment::Field(_), subject_path)) = path.split_last() else {
+                return Err(self.internal("a package field read has no final field projection"));
+            };
+            let subject = StructuralArgument {
+                place: at.root,
+                path: subject_path.to_vec(),
+                access: StructuralAccess::SharedBorrow,
+            };
+            let result = self.emit(
+                operation,
+                Some(carrier),
+                OperationKind::PrimitiveScalarRead {
+                    source: at.root,
+                    path,
+                },
+            )?;
+            let descriptor = match (carrier, &result) {
+                (ScalarType::Callable(_), Value::Scalar(value)) => Some(*value),
+                _ => None,
+            };
+            self.package_projection_site(
+                projection, subject, at.record, field_id, operation, descriptor,
+            )?;
+            return Ok(Reached::Value(result));
+        }
         self.read_projected_scalar(at.root, leaf, &steps, expression)
             .map(Reached::Value)
     }
@@ -5431,7 +5547,10 @@ impl<'a> Lowering<'a> {
         }
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
-        let (root, steps, place, expected) = continuing!(self.capture_place(destination));
+        let projected = self.records.field_openings.get(destination.source).cloned();
+        let opened_type = projected.as_ref().and(destination.result);
+        let (root, steps, place, expected) =
+            continuing!(self.capture_place_as(destination, opened_type));
         let (root, steps, place) =
             self.capture_view_element(root, steps, place, StructuralAccess::MutableBorrow, source)?;
         self.name_passed_clauses(root, &steps)?;
@@ -5496,6 +5615,29 @@ impl<'a> Lowering<'a> {
                     }
                     _ => None,
                 };
+                if let Some(projection) = projected {
+                    let (
+                        Some(Step::Field { owner, field }),
+                        Some((StructuralPathSegment::Field(_), parent)),
+                    ) = (steps.last(), storage.split_last())
+                    else {
+                        return Err(
+                            self.internal("a dependent field store has no destination field")
+                        );
+                    };
+                    let field = self
+                        .record_type(*owner)?
+                        .fields()
+                        .get(*field)
+                        .ok_or_else(|| self.internal("a dependent field store has no declaration"))?
+                        .id;
+                    let subject = StructuralArgument {
+                        place: root,
+                        path: parent.to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    };
+                    self.package_store_site(projection, subject, *owner, field, operation)?;
+                }
                 let kind = match view_field {
                     Some(field) => {
                         // The carrier is the path without the field itself.

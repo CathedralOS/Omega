@@ -56,6 +56,8 @@ pub struct DescriptorResultContents {
     /// The flow retains all possible input loans for these descriptors.
     /// This lifetime account supplies no unique spatial origin.
     pub unresolved_slots: Vec<Vec<DescriptorPathSegment>>,
+    /// Concrete referents at return slots reached from checked package initializers.
+    pub(crate) package_referents: crate::packages::ReturnedReferences,
     pub(crate) case_facts: case_flow::ResultCases,
 }
 

@@ -1531,7 +1531,9 @@ Older markers are rejected before their payload is read.
 A schema holds its public record storage ID and a counted list of abstract
 storage type IDs in hidden-parameter order. Schemas are sorted by record ID.
 An opening holds a machine ID, public record ID, structural argument for the
-subject, and counted fresh witness type IDs in the same parameter order.
+subject, and counted witness type IDs in the same parameter order. Independent
+openings have fresh IDs. A separate opening of a copied value can retain the
+complete tuple when replay establishes the live copy at its uses.
 Opening indices are zero-based. A site holds a machine ID, operation ID and
 event. Sites are sorted by the machine and operation pair. The catalog forms
 part of the program fingerprint.

@@ -27,6 +27,36 @@ fn inspect(declaration: &str) -> (std::process::Output, String) {
     program::invoke(&source, &["psi", "inspect", "--machine", "carry"])
 }
 
+#[test]
+fn an_owned_package_retains_the_resident_theory_of_its_own_hidden_type() {
+    let direct = "data Receipt<some S> [linear] {
+        storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<Placement, S>;
+    }";
+    let nested = "data Owner<T> [linear] {
+        storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<Placement, T>;
+    }
+    data Receipt<some S> [linear] { returned: Owner<S>; }";
+    for declaration in [direct, nested] {
+        let (output, report) = inspect(&format!(
+            "data Placement {{}}\n{declaration}\nmachine carry(value: Receipt) -> Receipt {{ move value }}"
+        ));
+        assert!(output.status.success(), "{declaration}\n{report}");
+        assert!(report.contains("psi selected_machine=carry"), "{report}");
+    }
+    let (output, report) = inspect(&format!(
+        "data Placement {{}}\n{direct}\n
+        machine carry(value: Receipt) -> |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<Placement, u8> {{
+            let {{ storage }} = move value;
+            move storage
+        }}"
+    ));
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("the returned value exposes a witness outside its package opening"),
+        "{report}"
+    );
+}
+
 fn change_result(source: &str) -> String {
     source.replace(
         "Resident<Word in Word::Placed, Word> { input }",

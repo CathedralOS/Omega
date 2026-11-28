@@ -2892,12 +2892,14 @@ impl<'a> Storage<'a> {
             return Ok(());
         };
         let concerns = Construct::Machine;
-        let contents = references.result_contents(self.machine).ok_or_else(|| {
-            self.unsupported(
-                concerns,
-                "reference result has no complete actual return-source correspondence",
-            )
-        })?;
+        let contents = references
+            .result_contents(module, self.machine)
+            .ok_or_else(|| {
+                self.unsupported(
+                    concerns,
+                    "reference result has no complete actual return-source correspondence",
+                )
+            })?;
         let actual = terminal_semantics::reference_result_contents(
             self.types,
             &self.lowered.structural_parameters,
@@ -3043,7 +3045,7 @@ impl<'a> Storage<'a> {
                             "returned reference has no actual result descriptor",
                         )
                     })?;
-                    if let Some(identity) = terminal_semantics::reference_loan_parent(
+                    let sources = terminal_semantics::borrowed_loan_sources(
                         module,
                         self.lowered,
                         references,
@@ -3053,10 +3055,9 @@ impl<'a> Storage<'a> {
                             loan.lifetime.as_ref().map(|life| (loan.obligation, life))
                         }),
                     )
-                    .map_err(|reason| self.unsupported(concerns, reason))?
-                    {
-                        returned.push(identity);
-                    }
+                    .and_then(terminal_semantics::BorrowedLoanSources::returned_loans)
+                    .map_err(|reason| self.unsupported(concerns, reason))?;
+                    returned.extend(sources);
                 }
             }
             if returned.is_empty() {
@@ -3839,6 +3840,13 @@ fn resolve_effect<'a>(
     let (place, backing) = match effect {
         super::StorageEffect::NativeWrite(place, backing) => {
             return Ok((place, LoanRegion::Storage(backing), Touch::NativeWrite));
+        }
+        super::StorageEffect::CallWrite(place, backing) => {
+            let region = match storage.provider_referent(references, &place, at, concerns)? {
+                Some((_, access)) => LoanRegion::Provider(access),
+                None => LoanRegion::Storage(backing),
+            };
+            (place, region)
         }
         super::StorageEffect::Payload(place) => {
             let backing = storage.borrow_backing(

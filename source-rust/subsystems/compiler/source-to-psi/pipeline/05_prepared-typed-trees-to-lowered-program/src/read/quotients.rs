@@ -942,6 +942,7 @@ impl<'t> Program<'t> {
             Ok(Expression {
                 call_context: None,
                 kind: ExpressionKind::Record {
+                    package_witnesses: Vec::new(),
                     fields: vec![(0, call_expr)],
                     erased: Vec::new(),
                 },
