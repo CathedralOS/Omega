@@ -158,7 +158,9 @@ fn reviewed_darwin_clock_symbol(
     }
 }
 
-pub(super) fn darwin_clock_locator(symbol: &[u8]) -> Option<target::ForeignLocatorIdentityDigest> {
+pub(super) fn darwin_libsystem_locator(
+    symbol: &[u8],
+) -> Option<target::ForeignLocatorIdentityDigest> {
     let locator = target::normalize_foreign_locator(
         target::ForeignLocatorCandidate::MachODylibSymbol {
             install_name: LIBSYSTEM_INSTALL_NAME.to_vec(),
@@ -175,7 +177,7 @@ fn is_reviewed_darwin_clock_import(mechanism: TerminalMechanismIdentity, symbol:
     };
     foreign.target() == target::TargetProfile::MacosArm64
         && foreign.argument_contract() == NormalizedForeignArgumentContract::AdmittedPlan
-        && darwin_clock_locator(symbol) == Some(foreign.locator_identity())
+        && darwin_libsystem_locator(symbol) == Some(foreign.locator_identity())
 }
 
 pub(crate) fn darwin_clock_mechanism_row(

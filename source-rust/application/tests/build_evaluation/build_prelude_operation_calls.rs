@@ -99,10 +99,10 @@ machine build(builder: @mutable BuildPlan) {
     }
 }
 
-/// The caller-facing contract cannot prove either physical exclusion for an
-/// unclassified socket import.
+/// Opening an unconnected internet datagram socket uses the host stack. The
+/// receipt must account for the family, type and protocol of every call.
 #[test]
-fn an_unclassified_socket_cannot_certify_a_network_exclusion() {
+fn darwin_socket_exclusions_follow_the_checked_calls() {
     let build = r#"use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
 machine build(b: @mutable BuildPlan) {
@@ -121,17 +121,63 @@ boundary trait Transport {
 }
 machine main() reaches none invokes Transport {
     _ = Transport::open(2i32, 2i32, 0i32);
+    _ = Transport::open(FAMILY, KIND, PROTOCOL);
 }"#;
-    for class in ["HostNetworkStack", "OffMachineNetworkTransmit"] {
-        let (passed, report) = execute(
-            "unclassified-socket",
+    let check = |class: &str, family: &str, kind: &str, protocol: &str| {
+        execute(
+            "darwin-udp-socket",
             &build.replace("EXCLUSION", class),
-            program,
+            &program
+                .replace("FAMILY", family)
+                .replace("KIND", kind)
+                .replace("PROTOCOL", protocol),
+            &["--target", "macos_arm64", "build.omg"],
+        )
+    };
+    let (passed, report) = check("OffMachineNetworkTransmit", "30i32", "2i32", "17i32");
+    assert!(passed, "{report}");
+    let (passed, report) = check("HostNetworkStack", "30i32", "2i32", "17i32");
+    assert!(
+        !passed && report.contains("exercises excluded physical authority class HostNetworkStack"),
+        "{report}"
+    );
+    for (family, kind, protocol) in [
+        ("1i32", "2i32", "17i32"),
+        ("2i32", "1i32", "0i32"),
+        ("30i32", "2i32", "6i32"),
+    ] {
+        let (passed, report) = check("OffMachineNetworkTransmit", family, kind, protocol);
+        assert!(
+            !passed && report.contains("no physical authority classification"),
+            "{report}"
+        );
+    }
+    let exclude_remote = build.replace("EXCLUSION", "OffMachineNetworkTransmit");
+    let two_sockets = program
+        .replace("FAMILY", "30i32")
+        .replace("KIND", "2i32")
+        .replace("PROTOCOL", "17i32");
+    for (description, build, source) in [
+        (
+            "different-library",
+            exclude_remote.replace("libSystem.B.dylib", "other.dylib"),
+            two_sockets.clone(),
+        ),
+        (
+            "different-abi",
+            exclude_remote,
+            two_sockets.replace("i32", "u32"),
+        ),
+    ] {
+        let (passed, report) = execute(
+            description,
+            &build,
+            &source,
             &["--target", "macos_arm64", "build.omg"],
         );
         assert!(
             !passed && report.contains("no physical authority classification"),
-            "{class}: {report}"
+            "{description}: {report}"
         );
     }
 }
