@@ -64,7 +64,11 @@ machine build(plan: @mutable BuildPlan) {{
 
     fn assert_native_returns(&self) {
         let result = project::build_and_run_command(&mut self.command(&["build", "build.omg"]));
-        assert!(result.compiler.status.success(), "{}", result.report);
+        assert!(
+            result.compiler.status.success(),
+            "{}",
+            report(&result.compiler)
+        );
         let native = result.execution.expect("built the executable");
         assert_eq!(native.status.code(), Some(0), "{native:?}");
         assert!(
@@ -134,14 +138,9 @@ fn an_upgrade_reborrows_the_same_owned_byte_natively_and_in_psi() {
     assert_eq!(observed.trim_end(), "psi\treturn");
 }
 
-#[test]
-fn each_address_operation_is_refused_before_interpreted_entry() {
-    for (binding, op, grants) in [
-        ("@u8", "borrow_at", &[READ][..]),
-        ("@mutable u8", "borrow_mutable_at", &[READ, WRITE][..]),
-    ] {
-        let source = format!(
-            r#"
+fn reading_address(binding: &str, op: &str) -> String {
+    format!(
+        r#"
 machine inspect(location: address) -> u8 {{
     let byte: {binding} = |native|::{op}::<u8>(location);
     $byte
@@ -152,7 +151,16 @@ machine main() crashes Trap {{
     machine done() {{}}
     machine wrong() crashes Trap {{ crash Trap; }}
 }}"#
-        );
+    )
+}
+
+#[test]
+fn each_address_operation_is_refused_before_interpreted_entry() {
+    for (binding, op, grants) in [
+        ("@u8", "borrow_at", &[READ][..]),
+        ("@mutable u8", "borrow_mutable_at", &[READ, WRITE][..]),
+    ] {
+        let source = reading_address(binding, op);
         let program = Program::new(&source, grants);
         let checked = program.check();
         assert!(checked.status.success(), "{}", report(&checked));
@@ -169,9 +177,10 @@ machine main() crashes Trap {{
 
 #[test]
 fn the_product_enables_every_atom_reached_by_its_native_operations() {
+    let mutable_address = reading_address("@mutable u8", "borrow_mutable_at");
     for (source, grants, missing) in [
-        (ADDRESSED_BYTES, &[READ][..], WRITE),
-        (ADDRESSED_BYTES, &[WRITE][..], READ),
+        (mutable_address.as_str(), &[READ][..], WRITE),
+        (mutable_address.as_str(), &[WRITE][..], READ),
         (UPGRADED_BYTE, &[][..], UPGRADE),
     ] {
         let refused = Program::new(source, grants).check();
@@ -186,6 +195,18 @@ fn the_product_enables_every_atom_reached_by_its_native_operations() {
 
 #[test]
 fn an_address_traced_to_a_local_cannot_promise_the_callers_lifetime() {
+    let address = r#"
+machine choose<'out>(location: address) -> @'out u8 {
+    |native|::borrow_at::<u8>(location)
+}
+machine main() {
+    let local: u8 = 29u8;
+    let byte: @u8 = choose(address_of(@local));
+    let read: u8 = $byte;
+}
+"#;
+    let accepted = Program::new(address, &[READ]).check();
+    assert!(accepted.status.success(), "{}", report(&accepted));
     let source = r#"
 machine stale<'out>() -> @'out u8 {
     let local: u8 = 29u8;
